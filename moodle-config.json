@@ -114,13 +114,13 @@
               },
               {
                      "name": "moodle_theme_elby",
-                     "repository": "https://github.com/elbyapps/moodle_theme_elby.git",
+                     "repository": "git@github.com:elbyapps/moodle_theme_elby.git",
                      "version": "main",
                      "destination": "theme/elby"
               },
               {
                      "name": "moodle_sync_queue",
-                     "repository": "https://github.com/elbyapps/moodle_sync_queue.git",
+                     "repository": "git@github.com:elbyapps/moodle_sync_queue.git",
                      "version": "main",
                      "destination": "local/syncqueue"
               }
