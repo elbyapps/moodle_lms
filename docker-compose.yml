@@ -26,7 +26,7 @@ services:
       - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-false}
     networks:
       - moodle
-
+#
   nginx:
     image: nginx:alpine
     ports:
