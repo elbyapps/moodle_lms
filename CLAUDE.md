@@ -13,10 +13,10 @@ Dockerized Moodle 5.0.1 e-learning platform with git-based plugin management.
 ./build.sh
 
 # Build and run (development with local MariaDB)
-docker compose -f docker-compose.yaml -f docker-compose.dev.yaml up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
-# Build and run (production with external database)
-docker compose up --build
+# Build and run (production with external database via dokploy-network)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
 
 ## Configuration
@@ -33,10 +33,10 @@ Copy `.env.example` to `.env`. Key variables:
 - `version`: Branch/tag
 - `destination`: Path within Moodle (e.g., `auth/oidc`, `mod/hvp`)
 
-`build.sh` reads this config and clones Moodle + all plugins to `moodle_app/`.
+`build.sh` reads this config and clones Moodle core to `moodle_app/` and plugins to `moodle_app/public/<destination>`.
 
 ### Docker Build Flow
-1. `Dockerfile` installs PHP 8.2-FPM with Moodle extensions (mysqli, pdo_pgsql, gd, intl, zip, etc.)
+1. `docker/php/Dockerfile` installs PHP 8.2-FPM with Moodle extensions (mysqli, pdo_pgsql, gd, intl, zip, etc.)
 2. Runs `build.sh` during image build to clone Moodle and plugins
 3. Stages Moodle to `/opt/moodle_app` for volume initialization
 
@@ -49,9 +49,10 @@ Copy `.env.example` to `.env`. Key variables:
 ### Container Paths
 - Moodle install: `/var/www/html/moodle_app`
 - Moodle data: `/var/www/moodledata`
+- Web root: `/var/www/html/moodle_app/public`
 
 ## Docker Services
 
 - **php**: PHP 8.2-FPM with Moodle and plugins
 - **nginx**: Web server proxying to PHP-FPM (port 8080)
-- **mariadb**: Development only (via `docker-compose.dev.yaml`)
+- **mariadb**: Development only (via `docker-compose.dev.yml`)
