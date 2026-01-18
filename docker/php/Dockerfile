@@ -67,6 +67,12 @@ RUN chmod +x build.sh
 # Build arg to skip cloning (for development with bind mounts)
 ARG SKIP_CLONE=false
 
+# Configure Git for non-interactive cloning (public repos)
+# Disable credential prompt to avoid "No such device or address" errors
+ENV GIT_TERMINAL_PROMPT=0
+RUN git config --global credential.helper '' && \
+    git config --global init.defaultBranch main
+
 # Configure SSH for GitHub (for private repositories)
 RUN mkdir -p -m 0700 ~/.ssh && \
     ssh-keyscan github.com >> ~/.ssh/known_hosts
