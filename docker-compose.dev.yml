@@ -1,12 +1,10 @@
 # Development compose file - includes MariaDB
-# Usage: docker compose -f docker-compose.yaml -f docker-compose.dev.yaml up
+# Usage: docker compose -f docker-compose.dev.yaml up
+
+include:
+  - docker-compose.yaml
 
 services:
-  php:
-    depends_on:
-      mariadb:
-        condition: service_healthy
-
   mariadb:
     image: mariadb:11
     volumes:
