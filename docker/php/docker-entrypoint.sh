@@ -42,9 +42,12 @@ else
     echo "moodle_app volume already initialized."
 fi
 
-# Create and fix permissions for moodledata directory
-echo "Creating moodledata directory if it doesn't exist..."
-mkdir -p /var/www/moodledata
+# Create and fix permissions for moodledata directory and subdirectories
+echo "Creating moodledata directories..."
+mkdir -p /var/www/moodledata/sessions
+mkdir -p /var/www/moodledata/temp
+mkdir -p /var/www/moodledata/cache
+mkdir -p /var/www/moodledata/localcache
 
 echo "Setting permissions for moodledata..."
 chown -R www-data:www-data /var/www/moodledata

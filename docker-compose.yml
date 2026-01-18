@@ -5,7 +5,7 @@ services:
       dockerfile: docker/php/Dockerfile
     volumes:
       - moodle_app:/var/www/html/moodle_app
-      - moodle_data:/var/www/moodledata
+      - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
     environment:
       - DB_TYPE=${DB_TYPE:-mariadb}
@@ -41,7 +41,6 @@ services:
 
 volumes:
   moodle_app:
-  moodle_data:
 
 networks:
   moodle:

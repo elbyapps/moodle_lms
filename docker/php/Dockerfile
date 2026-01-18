@@ -45,13 +45,17 @@ RUN echo "memory_limit = 256M" > /usr/local/etc/php/conf.d/moodle.ini \
     && echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/moodle.ini \
     && echo "post_max_size = 100M" >> /usr/local/etc/php/conf.d/moodle.ini \
     && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/moodle.ini \
-    && echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle.ini
+    && echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle.ini \
+    && echo "zend.exception_ignore_args = On" >> /usr/local/etc/php/conf.d/moodle.ini
 
 # Configure OPcache for better performance
 RUN echo "opcache.enable = 1" >> /usr/local/etc/php/conf.d/opcache.ini \
     && echo "opcache.memory_consumption = 128" >> /usr/local/etc/php/conf.d/opcache.ini \
     && echo "opcache.max_accelerated_files = 10000" >> /usr/local/etc/php/conf.d/opcache.ini \
     && echo "opcache.revalidate_freq = 60" >> /usr/local/etc/php/conf.d/opcache.ini
+
+# Configure PHP-FPM to pass environment variables
+RUN echo "clear_env = no" >> /usr/local/etc/php-fpm.d/www.conf
 
 # Set working directory
 WORKDIR /var/www/html
@@ -67,6 +71,9 @@ RUN mkdir -p -m 0700 ~/.ssh && \
 # Run build script to clone Moodle and plugins
 # Mount SSH socket to enable cloning private repositories
 RUN --mount=type=ssh ./build.sh
+
+# Install Composer dependencies for Moodle
+RUN cd moodle_app && composer install --no-dev --classmap-authoritative
 
 # Move moodle_app to staging location for volume initialization
 # This allows the entrypoint to copy files to a named volume on first run
