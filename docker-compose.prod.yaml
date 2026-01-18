@@ -1,0 +1,9 @@
+services:
+  php:
+    networks:
+      - moodle
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true

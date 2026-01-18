@@ -26,7 +26,6 @@ services:
       - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-false}
     networks:
       - moodle
-      - dokploy-network
 
   nginx:
     image: nginx:alpine
@@ -45,5 +44,3 @@ volumes:
 
 networks:
   moodle:
-  dokploy-network:
-    external: true
