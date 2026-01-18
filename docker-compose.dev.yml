@@ -1,10 +1,18 @@
-# Development compose file - includes MariaDB
-# Usage: docker compose -f docker-compose.dev.yaml up
-
-include:
-  - docker-compose.yml
+# Development compose file - adds MariaDB and bind mounts for plugin development
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 services:
+  php:
+    volumes:
+      - ./moodle_app:/var/www/html/moodle_app
+      - ./moodledata:/var/www/moodledata
+      - ./config.php.docker:/var/www/html/config.php.docker:ro
+
+  nginx:
+    volumes:
+      - ./moodle_app:/var/www/html/moodle_app:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
   mariadb:
     image: mariadb:11
     volumes:
