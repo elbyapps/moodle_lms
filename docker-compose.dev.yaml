@@ -1,0 +1,29 @@
+# Development compose file - includes MariaDB
+# Usage: docker compose -f docker-compose.yaml -f docker-compose.dev.yaml up
+
+services:
+  php:
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  mariadb:
+    image: mariadb:11
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    environment:
+      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpass}
+      - MARIADB_DATABASE=${DB_NAME:-moodle}
+      - MARIADB_USER=${DB_USER:-moodleuser}
+      - MARIADB_PASSWORD=${DB_PASSWORD:-moodlepass}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - moodle
+
+volumes:
+  mariadb_data:

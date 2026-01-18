@@ -1,0 +1,71 @@
+<?php  // Moodle configuration file
+
+unset($CFG);
+global $CFG;
+$CFG = new stdClass();
+
+$CFG->dbtype    = getenv('DB_TYPE') ?: 'pgsql';
+$CFG->dblibrary = 'native';
+$CFG->dbhost    = getenv('DB_HOST') ?: 'postgres';
+$CFG->dbname    = getenv('DB_NAME') ?: 'moodle';
+$CFG->dbuser    = getenv('DB_USER') ?: 'moodleuser';
+$CFG->dbpass    = getenv('DB_PASSWORD') ?: 'moodlepass';
+$CFG->prefix    = getenv('DB_PREFIX') ?: 'mdl_';
+$CFG->dboptions = array (
+  'dbpersist' => 0,
+  'dbport' => getenv('DB_PORT') ?: '5432',
+  'dbsocket' => '',
+  'dbcollation' => 'utf8mb4_unicode_ci',
+);
+
+// wwwroot is constructed in entrypoint.sh from MOODLE_PROTOCOL, MOODLE_HOST, and MOODLE_PORT
+// or can be set explicitly via MOODLE_WWWROOT environment variable
+$CFG->wwwroot   = getenv('MOODLE_WWWROOT') ?: 'http://localhost:8080';
+$CFG->dataroot  = getenv('MOODLE_DATAROOT') ?: '/var/www/moodledata';
+$CFG->admin     = 'admin';
+
+$CFG->directorypermissions = 0777;
+
+// Performance settings
+$CFG->cachedir = $CFG->dataroot . '/cache';
+$CFG->localcachedir = $CFG->dataroot . '/localcache';
+$CFG->tempdir = $CFG->dataroot . '/temp';
+
+// Session settings
+$CFG->session_handler_class = '\core\session\file';
+$CFG->session_file_save_path = $CFG->dataroot . '/sessions';
+
+// Debugging - set via environment variable
+$debug = getenv('MOODLE_DEBUG');
+if ($debug === 'true' || $debug === '1') {
+    @error_reporting(E_ALL | E_STRICT);
+    @ini_set('display_errors', '1');
+    $CFG->debug = (E_ALL | E_STRICT);
+    $CFG->debugdisplay = 1;
+} else {
+    @error_reporting(E_ALL | E_STRICT);
+    @ini_set('display_errors', '0');
+    $CFG->debug = 0;
+    $CFG->debugdisplay = 0;
+}
+
+// Email settings (optional)
+if (getenv('MOODLE_MAIL_NOREPLY')) {
+    $CFG->noreplyaddress = getenv('MOODLE_MAIL_NOREPLY');
+}
+if (getenv('MOODLE_MAIL_PREFIX')) {
+    $CFG->mailprefix = getenv('MOODLE_MAIL_PREFIX');
+}
+
+// Reverse proxy settings (if behind a proxy)
+if (getenv('MOODLE_REVERSEPROXY') === 'true') {
+    $CFG->reverseproxy = true;
+    if (getenv('MOODLE_SSLPROXY') === 'true') {
+        $CFG->sslproxy = true;
+    }
+}
+
+require_once(__DIR__ . '/lib/setup.php');
+
+// There is no php closing tag in this file,
+// it is intentional because it prevents trailing whitespace problems!
