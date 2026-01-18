@@ -23,11 +23,15 @@ fi
 
 # Initialize moodle_app volume with files from image on first run
 # This allows the Docker image to contain Moodle, but share it via named volume
-if [ ! -f "/var/www/html/moodle_app/.initialized" ]; then
+# Skip entirely for bind mounts (detected by .git directory)
+if [ -d "/var/www/html/moodle_app/.git" ]; then
+    echo "Host bind mount detected, skipping volume initialization..."
+elif [ ! -f "/var/www/html/moodle_app/.initialized" ]; then
     echo "Initializing moodle_app volume from Docker image..."
 
     # Check if moodle_app exists in the image but not in the volume
-    if [ -d "/opt/moodle_app" ] && [ ! -f "/var/www/html/moodle_app/version.php" ]; then
+    # Note: version.php is at public/version.php in this project structure
+    if [ -d "/opt/moodle_app" ] && [ ! -f "/var/www/html/moodle_app/public/version.php" ]; then
         echo "Copying Moodle files from image to volume..."
         cp -a /opt/moodle_app/. /var/www/html/moodle_app/
 
@@ -69,6 +73,66 @@ if [ ! -f "/var/www/html/moodle_app/config.php" ] && [ -f "/var/www/html/config.
     cp /var/www/html/config.php.docker /var/www/html/moodle_app/config.php
     chown www-data:www-data /var/www/html/moodle_app/config.php
     echo "Config file created successfully."
+fi
+
+# Database auto-initialization functions
+wait_for_db() {
+    echo "Waiting for database to be ready..."
+    local db_type="${DB_TYPE:-mariadb}"
+
+    for i in $(seq 1 30); do
+        if [ "$db_type" = "pgsql" ]; then
+            if php -r "new PDO('pgsql:host=${DB_HOST};port=${DB_PORT:-5432}', '${DB_USER}', '${DB_PASSWORD}');" 2>/dev/null; then
+                echo "Database is ready."
+                return 0
+            fi
+        else
+            if php -r "new PDO('mysql:host=${DB_HOST};port=${DB_PORT:-3306}', '${DB_USER}', '${DB_PASSWORD}');" 2>/dev/null; then
+                echo "Database is ready."
+                return 0
+            fi
+        fi
+        echo "Waiting for database... ($i/30)"
+        sleep 2
+    done
+    echo "Database not ready after 60 seconds."
+    return 1
+}
+
+check_moodle_installed() {
+    local db_type="${DB_TYPE:-mariadb}"
+    local db_prefix="${DB_PREFIX:-mdl_}"
+
+    if [ "$db_type" = "pgsql" ]; then
+        php -r "
+            \$pdo = new PDO('pgsql:host=${DB_HOST};port=${DB_PORT:-5432};dbname=${DB_NAME}', '${DB_USER}', '${DB_PASSWORD}');
+            \$result = \$pdo->query(\"SELECT tablename FROM pg_tables WHERE tablename = '${db_prefix}config'\");
+            exit(\$result->rowCount() > 0 ? 0 : 1);
+        " 2>/dev/null
+    else
+        php -r "
+            \$pdo = new PDO('mysql:host=${DB_HOST};port=${DB_PORT:-3306};dbname=${DB_NAME}', '${DB_USER}', '${DB_PASSWORD}');
+            \$result = \$pdo->query(\"SHOW TABLES LIKE '${db_prefix}config'\");
+            exit(\$result->rowCount() > 0 ? 0 : 1);
+        " 2>/dev/null
+    fi
+}
+
+# Auto-install Moodle database if needed
+if wait_for_db; then
+    if ! check_moodle_installed; then
+        echo "Moodle database not initialized. Running installer..."
+        php /var/www/html/moodle_app/admin/cli/install_database.php \
+            --adminuser="${MOODLE_ADMIN_USER:-admin}" \
+            --adminpass="${MOODLE_ADMIN_PASS:-Admin123!}" \
+            --adminemail="${MOODLE_ADMIN_EMAIL:-admin@example.com}" \
+            --fullname="${MOODLE_SITE_FULLNAME:-Moodle Dev}" \
+            --shortname="${MOODLE_SITE_SHORTNAME:-moodle}" \
+            --agree-license
+        echo "Moodle database installation complete."
+    else
+        echo "Moodle database already initialized."
+    fi
 fi
 
 echo "Starting PHP-FPM..."

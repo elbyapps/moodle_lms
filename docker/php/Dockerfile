@@ -64,26 +64,29 @@ WORKDIR /var/www/html
 COPY build.sh moodle-config.json ./
 RUN chmod +x build.sh
 
+# Build arg to skip cloning (for development with bind mounts)
+ARG SKIP_CLONE=false
+
 # Configure SSH for GitHub (for private repositories)
 RUN mkdir -p -m 0700 ~/.ssh && \
     ssh-keyscan github.com >> ~/.ssh/known_hosts
 
-# Run build script to clone Moodle and plugins
+# Run build script to clone Moodle and plugins (skip in dev mode)
 # Mount SSH socket to enable cloning private repositories
-RUN --mount=type=ssh ./build.sh
+RUN --mount=type=ssh if [ "$SKIP_CLONE" = "false" ]; then ./build.sh; else echo "SKIP_CLONE=true, skipping build.sh"; fi
 
-# Install Composer dependencies for Moodle
-RUN cd moodle_app && composer install --no-dev --classmap-authoritative
+# Install Composer dependencies for Moodle (skip in dev mode)
+RUN if [ "$SKIP_CLONE" = "false" ]; then cd moodle_app && composer install --no-dev --classmap-authoritative; fi
 
-# Move moodle_app to staging location for volume initialization
+# Move moodle_app to staging location for volume initialization (skip in dev mode)
 # This allows the entrypoint to copy files to a named volume on first run
-RUN if [ -d "/var/www/html/moodle_app" ]; then \
+RUN if [ "$SKIP_CLONE" = "false" ] && [ -d "/var/www/html/moodle_app" ]; then \
         mv /var/www/html/moodle_app /opt/moodle_app && \
         mkdir -p /var/www/html/moodle_app; \
     fi
 
-# Set proper permissions for staging location
-RUN if [ -d "/opt/moodle_app" ]; then \
+# Set proper permissions for staging location (skip in dev mode)
+RUN if [ "$SKIP_CLONE" = "false" ] && [ -d "/opt/moodle_app" ]; then \
         chown -R www-data:www-data /opt/moodle_app; \
     fi
 RUN chown -R www-data:www-data /var/www/html

@@ -3,10 +3,21 @@
 
 services:
   php:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      args:
+        SKIP_CLONE: "true"
     volumes:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
+    environment:
+      - MOODLE_ADMIN_USER=${MOODLE_ADMIN_USER:-admin}
+      - MOODLE_ADMIN_PASS=${MOODLE_ADMIN_PASS:-Admin123!}
+      - MOODLE_ADMIN_EMAIL=${MOODLE_ADMIN_EMAIL:-admin@example.com}
+      - MOODLE_SITE_FULLNAME=${MOODLE_SITE_FULLNAME:-Moodle Dev}
+      - MOODLE_SITE_SHORTNAME=${MOODLE_SITE_SHORTNAME:-moodle}
 
   nginx:
     volumes:

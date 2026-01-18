@@ -35,12 +35,6 @@
                      "destination": "blocks/completion_progress"
               },
               {
-                     "name": "Moodle-block_progress",
-                     "repository": "https://github.com/deraadt/Moodle-block_progress.git",
-                     "version": "master",
-                     "destination": "blocks/progress"
-              },
-              {
                      "name": "moodle-format_grid",
                      "repository": "https://github.com/gjbarnard/moodle-format_grid.git",
                      "version": "main",
@@ -105,12 +99,6 @@
                      "repository": "https://github.com/mdjnelson/moodle-mod_customcert.git",
                      "version": "MOODLE_500_STABLE",
                      "destination": "mod/customcert"
-              },
-              {
-                     "name": "mod_moodle-mod_hvp",
-                     "repository": "https://github.com/h5p/moodle-mod_hvp.git",
-                     "version": "stable",
-                     "destination": "mod/hvp"
               },
               {
                      "name": "mod_moodle-mod_organizer",

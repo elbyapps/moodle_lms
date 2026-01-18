@@ -53,23 +53,23 @@ echo "Configuration loaded:"
 echo "  - Moodle Version: $MOODLE_VERSION"
 echo "  - Destination: $DEST_FOLDER"
 
-# 3. Check if destination folder already exists
-if [ -d "$DEST_FOLDER" ]; then
-  read -p "Warning: Destination folder '$DEST_FOLDER' already exists. Overwrite? (y/N) " -n 1 -r
-  echo
-  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-    echo "Setup aborted by user."
-    exit 1
+# 3. Check if destination folder already exists with content
+if [ -d "$DEST_FOLDER" ] && [ -f "$DEST_FOLDER/index.php" ]; then
+  echo "Moodle already exists in '$DEST_FOLDER', skipping clone."
+  echo "To force a fresh clone, remove the directory first: rm -rf $DEST_FOLDER"
+else
+  # Remove incomplete directory if it exists
+  if [ -d "$DEST_FOLDER" ]; then
+    echo "Removing incomplete '$DEST_FOLDER' directory..."
+    rm -rf "$DEST_FOLDER"
   fi
-  echo "Removing existing folder..."
-  rm -rf "$DEST_FOLDER"
-fi
 
-# 4. Clone Moodle core
-echo "----------------------------------------"
-echo "Cloning Moodle core from $MOODLE_REPO (version: $MOODLE_VERSION)..."
-git clone --depth 1 --branch "$MOODLE_VERSION" "$MOODLE_REPO" "$DEST_FOLDER"
-echo "Moodle core downloaded successfully."
+  # 4. Clone Moodle core
+  echo "----------------------------------------"
+  echo "Cloning Moodle core from $MOODLE_REPO (version: $MOODLE_VERSION)..."
+  git clone --depth 1 --branch "$MOODLE_VERSION" "$MOODLE_REPO" "$DEST_FOLDER"
+  echo "Moodle core downloaded successfully."
+fi
 
 # 5. Clone all plugins
 echo "----------------------------------------"
@@ -83,6 +83,12 @@ jq -c '.plugins[]' "../$CONFIG_FILE" | while read -r plugin; do
   PLUGIN_REPO=$(echo "$plugin" | jq -r '.repository')
   PLUGIN_VERSION=$(echo "$plugin" | jq -r '.version')
   PLUGIN_DEST=$(echo "$plugin" | jq -r '.destination')
+
+  # Skip if plugin already exists
+  if [ -d "public/$PLUGIN_DEST" ]; then
+    echo "  -> Skipping plugin: $PLUGIN_NAME (already exists at public/$PLUGIN_DEST)"
+    continue
+  fi
 
   echo "  -> Installing plugin: $PLUGIN_NAME"
   echo "     - Repository: $PLUGIN_REPO"
