@@ -121,7 +121,7 @@
               {
                      "name": "moodle_sync_queue",
                      "repository": "https://github.com/elbyapps/moodle_sync_queue.git",
-                     "version": "main",
+                     "version": "0.0.2",
                      "destination": "local/syncqueue"
               }
        ],
