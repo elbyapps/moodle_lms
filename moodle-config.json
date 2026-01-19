@@ -65,12 +65,6 @@
                      "destination": "local/bulkenrol"
               },
               {
-                     "name": "moodle-local_mr",
-                     "repository": "https://github.com/open-lms-open-source/moodle-local_mr.git",
-                     "version": "master",
-                     "destination": "local/mr"
-              },
-              {
                      "name": "moodle-local_o365",
                      "repository": "https://github.com/microsoft/moodle-local_o365.git",
                      "version": "master",
