@@ -19,6 +19,17 @@ services:
       - MOODLE_SITE_FULLNAME=${MOODLE_SITE_FULLNAME:-Moodle Dev}
       - MOODLE_SITE_SHORTNAME=${MOODLE_SITE_SHORTNAME:-moodle}
 
+  cron:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      args:
+        SKIP_CLONE: "true"
+    volumes:
+      - ./moodle_app:/var/www/html/moodle_app
+      - ./moodledata:/var/www/moodledata
+      - ./config.php.docker:/var/www/html/config.php.docker:ro
+
   nginx:
     volumes:
       - ./moodle_app:/var/www/html/moodle_app:ro
