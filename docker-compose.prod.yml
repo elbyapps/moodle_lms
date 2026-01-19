@@ -7,6 +7,11 @@ services:
       - moodle
       - dokploy-network
 
+  cron:
+    networks:
+      - moodle
+      - dokploy-network
+
 networks:
   dokploy-network:
     external: true
