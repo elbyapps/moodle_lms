@@ -1,17 +1,18 @@
 include:
   - docker-compose.yml
-
 services:
   php:
     networks:
       - moodle
       - dokploy-network
-
   cron:
     networks:
       - moodle
       - dokploy-network
-
+  nginx:
+    networks:
+      - moodle
+      - dokploy-network
 networks:
   dokploy-network:
     external: true
