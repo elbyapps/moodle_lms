@@ -139,7 +139,7 @@ fi
 if [ "$1" = "cron" ]; then
     echo "Starting Moodle cron service..."
     while true; do
-        php /var/www/html/moodle_app/public/admin/cli/cron.php
+        php /var/www/html/moodle_app/admin/cli/cron.php
         sleep 60
     done
 else
