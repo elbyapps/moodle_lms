@@ -60,9 +60,11 @@ if (getenv('MOODLE_MAIL_PREFIX')) {
 // Reverse proxy settings (if behind a proxy)
 if (getenv('MOODLE_REVERSEPROXY') === 'true') {
     $CFG->reverseproxy = true;
-    if (getenv('MOODLE_SSLPROXY') === 'true') {
-        $CFG->sslproxy = true;
-    }
+}
+
+// SSL proxy setting (when SSL is terminated by upstream proxy like Traefik/nginx)
+if (getenv('MOODLE_SSLPROXY') === 'true') {
+    $CFG->sslproxy = true;
 }
 
 require_once(__DIR__ . '/lib/setup.php');
