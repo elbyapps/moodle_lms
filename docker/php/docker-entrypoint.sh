@@ -135,7 +135,15 @@ if wait_for_db; then
     fi
 fi
 
-echo "Starting PHP-FPM..."
-
-# Execute PHP-FPM (it will run worker processes as www-data based on php-fpm.conf)
-exec "$@"
+# Check if we're running cron or PHP-FPM
+if [ "$1" = "cron" ]; then
+    echo "Starting Moodle cron service..."
+    while true; do
+        php /var/www/html/moodle_app/public/admin/cli/cron.php
+        sleep 60
+    done
+else
+    echo "Starting PHP-FPM..."
+    # Execute PHP-FPM (it will run worker processes as www-data based on php-fpm.conf)
+    exec "$@"
+fi
