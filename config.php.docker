@@ -65,6 +65,7 @@ if (getenv('MOODLE_REVERSEPROXY') === 'true') {
 // SSL proxy setting (when SSL is terminated by upstream proxy like Traefik/nginx)
 if (getenv('MOODLE_SSLPROXY') === 'true') {
     $CFG->sslproxy = true;
+    $_SERVER['HTTPS'] = 'on';
 }
 
 require_once(__DIR__ . '/lib/setup.php');
