@@ -118,12 +118,6 @@
                      "version": "main",
                      "destination": "theme/elby"
               },
-              {
-                     "name": "moodle_sync_queue",
-                     "repository": "https://github.com/elbyapps/moodle_sync_queue.git",
-                     "version": "main",
-                     "destination": "local/syncqueue"
-              }
        ],
        "destination_folder": "moodle_app"
 }
