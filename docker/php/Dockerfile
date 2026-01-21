@@ -54,8 +54,10 @@ RUN echo "opcache.enable = 1" >> /usr/local/etc/php/conf.d/opcache.ini \
     && echo "opcache.max_accelerated_files = 10000" >> /usr/local/etc/php/conf.d/opcache.ini \
     && echo "opcache.revalidate_freq = 60" >> /usr/local/etc/php/conf.d/opcache.ini
 
-# Configure PHP-FPM to pass environment variables
-RUN echo "clear_env = no" >> /usr/local/etc/php-fpm.d/www.conf
+# Configure PHP-FPM to pass environment variables and set port
+RUN echo "clear_env = no" >> /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/listen = 127.0.0.1:9000/listen = 9000/' /usr/local/etc/php-fpm.d/www.conf \
+    && sed -i 's/listen = 9000/listen = 5174/' /usr/local/etc/php-fpm.d/www.conf
 
 # Set working directory
 WORKDIR /var/www/html

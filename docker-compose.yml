@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
     ports:
-      - "${PHP_PORT:-5174}:9000"
+      - "${PHP_PORT:-5174}:5174"
     volumes:
       - moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
