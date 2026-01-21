@@ -4,6 +4,7 @@ services:
   php:
     networks:
       - moodle
+      - dokploy-network
   nginx:
     networks:
       - moodle
