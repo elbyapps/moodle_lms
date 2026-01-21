@@ -5,6 +5,12 @@
        },
        "plugins": [
               {
+                     "name": "theme_moove",
+                     "repository": "https://github.com/willianmano/moodle-theme_moove.git",
+                     "version": "main",
+                     "destination": "theme/moove"
+              },
+              {
                      "name": "coursefields",
                      "repository": "https://github.com/moodle-an-hochschulen/moodle-tool_coursefields.git",
                      "version": "main",
