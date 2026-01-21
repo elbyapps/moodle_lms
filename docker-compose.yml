@@ -27,37 +27,6 @@ services:
     networks:
       - moodle
 
-  cron:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-    volumes:
-      - moodle_app:/var/www/html/moodle_app
-      - ./moodledata:/var/www/moodledata
-      - ./config.php.docker:/var/www/html/config.php.docker:ro
-    environment:
-      - DB_TYPE=${DB_TYPE:-mariadb}
-      - DB_HOST=${DB_HOST:-mariadb}
-      - DB_PORT=${DB_PORT:-3306}
-      - DB_NAME=${DB_NAME:-moodle}
-      - DB_USER=${DB_USER:-moodleuser}
-      - DB_PASSWORD=${DB_PASSWORD:-moodlepass}
-      - DB_PREFIX=${DB_PREFIX:-mdl_}
-      - MOODLE_PROTOCOL=${MOODLE_PROTOCOL:-http}
-      - MOODLE_HOST=${MOODLE_HOST:-localhost}
-      - MOODLE_PORT=${MOODLE_PORT:-8080}
-      - MOODLE_WWWROOT=${MOODLE_WWWROOT:-}
-      - MOODLE_DEBUG=${MOODLE_DEBUG:-false}
-      - MOODLE_MAIL_NOREPLY=${MOODLE_MAIL_NOREPLY:-}
-      - MOODLE_MAIL_PREFIX=${MOODLE_MAIL_PREFIX:-}
-      - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-false}
-      - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-false}
-    command: ["cron"]
-    depends_on:
-      - php
-    networks:
-      - moodle
-
   nginx:
     image: nginx:alpine
     ports:
