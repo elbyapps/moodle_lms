@@ -117,6 +117,12 @@
                      "repository": "https://github.com/elbyapps/moodle_theme_elby.git",
                      "version": "main",
                      "destination": "theme/elby"
+              },
+              {
+                     "name": "local_elby_dashboard",
+                     "repository": "https://github.com/rtb-elearning/dashboard.git",
+                     "version": "main",
+                     "destination": "local/elby_dashboard"
               }
        ],
        "destination_folder": "moodle_app"

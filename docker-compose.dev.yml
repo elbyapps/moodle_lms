@@ -2,38 +2,6 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 services:
-  php:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-      args:
-        SKIP_CLONE: "true"
-    volumes:
-      - ./moodle_app:/var/www/html/moodle_app
-      - ./moodledata:/var/www/moodledata
-      - ./config.php.docker:/var/www/html/config.php.docker:ro
-    environment:
-      - MOODLE_ADMIN_USER=${MOODLE_ADMIN_USER:-admin}
-      - MOODLE_ADMIN_PASS=${MOODLE_ADMIN_PASS:-Admin123!}
-      - MOODLE_ADMIN_EMAIL=${MOODLE_ADMIN_EMAIL:-admin@example.com}
-      - MOODLE_SITE_FULLNAME=${MOODLE_SITE_FULLNAME:-Moodle Dev}
-      - MOODLE_SITE_SHORTNAME=${MOODLE_SITE_SHORTNAME:-moodle}
-
-  cron:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
-      args:
-        SKIP_CLONE: "true"
-    volumes:
-      - ./moodle_app:/var/www/html/moodle_app
-      - ./moodledata:/var/www/moodledata
-      - ./config.php.docker:/var/www/html/config.php.docker:ro
-
-  nginx:
-    volumes:
-      - ./moodle_app:/var/www/html/moodle_app:ro
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
 
   mariadb:
     image: mariadb:11
@@ -53,5 +21,80 @@ services:
     networks:
       - moodle
 
+  php:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      args:
+        SKIP_CLONE: "true"
+    volumes:
+      - ./moodle_app:/var/www/html/moodle_app
+      - ./moodledata:/var/www/moodledata
+      - ./config.php.docker:/var/www/html/config.php.docker:ro
+    environment:
+      - DB_TYPE=${DB_TYPE:-mariadb}
+      - DB_HOST=${DB_HOST:-mariadb}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-moodle}
+      - DB_USER=${DB_USER:-moodleuser}
+      - DB_PASSWORD=${DB_PASSWORD:-moodlepass}
+      - DB_PREFIX=${DB_PREFIX:-mdl_}
+      - MOODLE_PROTOCOL=${MOODLE_PROTOCOL:-http}
+      - MOODLE_HOST=${MOODLE_HOST:-localhost}
+      - MOODLE_PORT=${MOODLE_PORT:-8080}
+      - MOODLE_WWWROOT=${MOODLE_WWWROOT:-}
+      - MOODLE_DEBUG=${MOODLE_DEBUG:-false}
+      - MOODLE_MAIL_NOREPLY=${MOODLE_MAIL_NOREPLY:-}
+      - MOODLE_MAIL_PREFIX=${MOODLE_MAIL_PREFIX:-}
+      - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-false}
+      - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-false}
+    networks:
+      - moodle
+
+  cron:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+      args:
+        SKIP_CLONE: "true"
+    volumes:
+      - ./moodle_app:/var/www/html/moodle_app
+      - ./moodledata:/var/www/moodledata
+      - ./config.php.docker:/var/www/html/config.php.docker:ro
+    environment:
+      - DB_TYPE=${DB_TYPE:-mariadb}
+      - DB_HOST=${DB_HOST:-mariadb}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-moodle}
+      - DB_USER=${DB_USER:-moodleuser}
+      - DB_PASSWORD=${DB_PASSWORD:-moodlepass}
+      - DB_PREFIX=${DB_PREFIX:-mdl_}
+      - MOODLE_PROTOCOL=${MOODLE_PROTOCOL:-http}
+      - MOODLE_HOST=${MOODLE_HOST:-localhost}
+      - MOODLE_PORT=${MOODLE_PORT:-8080}
+      - MOODLE_WWWROOT=${MOODLE_WWWROOT:-}
+      - MOODLE_DEBUG=${MOODLE_DEBUG:-false}
+      - MOODLE_MAIL_NOREPLY=${MOODLE_MAIL_NOREPLY:-}
+      - MOODLE_MAIL_PREFIX=${MOODLE_MAIL_PREFIX:-}
+      - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-false}
+      - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-false}
+    networks:
+      - moodle
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "${MOODLE_PORT:-8080}:80"
+    volumes:
+      - ./moodle_app:/var/www/html/moodle_app:ro
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - moodle
+
+
 volumes:
   mariadb_data:
+
+
+networks:
+  moodle:
