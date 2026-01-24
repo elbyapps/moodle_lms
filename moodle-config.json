@@ -89,6 +89,12 @@
                      "destination": "mod/attendance"
               },
               {
+                     "name": "moodle-mod_attendanceregister",
+                     "repository": "https://github.com/CinecaElearning/moodle-mod_attendanceregister.git",
+                     "version": "MOODLE_45_STABLE",
+                     "destination": "mod/attendanceregister"
+              },
+              {
                      "name": "moodle-booktool_importepub",
                      "repository": "https://github.com/HaakonME/moodle-booktool_importepub.git",
                      "version": "master",
