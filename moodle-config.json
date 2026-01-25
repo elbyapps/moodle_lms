@@ -95,6 +95,12 @@
                      "destination": "mod/attendanceregister"
               },
               {
+                     "name": "moodle-block_attendance",
+                     "repository": "https://github.com/danmarsden/moodle-block_attendance.git",
+                     "version": "MOODLE_500_STABLE",
+                     "destination": "blocks/attendance"
+              },
+              {
                      "name": "moodle-booktool_importepub",
                      "repository": "https://github.com/HaakonME/moodle-booktool_importepub.git",
                      "version": "master",
