@@ -53,6 +53,7 @@ services:
       - MOODLE_ADMIN_EMAIL=${MOODLE_ADMIN_EMAIL:-admin@example.com}
       - MOODLE_SITE_FULLNAME=${MOODLE_SITE_FULLNAME:-Moodle Dev}
       - MOODLE_SITE_SHORTNAME=${MOODLE_SITE_SHORTNAME:-moodle}
+      - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
     networks:
       - moodle
 
@@ -88,6 +89,7 @@ services:
       - MOODLE_ADMIN_EMAIL=${MOODLE_ADMIN_EMAIL:-admin@example.com}
       - MOODLE_SITE_FULLNAME=${MOODLE_SITE_FULLNAME:-Moodle Dev}
       - MOODLE_SITE_SHORTNAME=${MOODLE_SITE_SHORTNAME:-moodle}
+      - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
     networks:
       - moodle
 
@@ -97,7 +99,7 @@ services:
       - "${MOODLE_PORT:-8080}:80"
     volumes:
       - ./moodle_app:/var/www/html/moodle_app:ro
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
     networks:
       - moodle
 

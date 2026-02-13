@@ -135,6 +135,12 @@
                      "repository": "https://github.com/rtb-elearning/dashboard.git",
                      "version": "main",
                      "destination": "local/elby_dashboard"
+              },
+              {
+                     "name": "moodle_sync_queue",
+                     "repository": "https://github.com/elbyapps/moodle_sync_queue.git",
+                     "version": "main",
+                     "destination": "local/sync_queue"
               }
        ],
        "destination_folder": "moodle_app"
