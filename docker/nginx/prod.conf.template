@@ -56,13 +56,6 @@ server {
         try_files $uri $uri/ =404;
     }
 
-    # Static asset caching
-    location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-        expires 7d;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-
     location ~ [^/]\.php(/|$) {
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
         fastcgi_pass php:9000;
@@ -75,6 +68,14 @@ server {
         fastcgi_read_timeout 300;
         fastcgi_buffers 16 16k;
         fastcgi_buffer_size 32k;
+    }
+
+    # Static asset caching (after PHP block so pluginfile.php URLs are handled by PHP first)
+    location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        try_files $uri =404;
+        expires 7d;
+        add_header Cache-Control "public, immutable";
+        access_log off;
     }
 
     location /api/sdms/ {
