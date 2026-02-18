@@ -63,6 +63,7 @@ services:
       dockerfile: docker/php/Dockerfile
       args:
         SKIP_CLONE: "true"
+    command: ["cron"]
     volumes:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
@@ -99,7 +100,7 @@ services:
       - "${MOODLE_PORT:-8080}:80"
     volumes:
       - ./moodle_app:/var/www/html/moodle_app:ro
-      - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./docker/nginx/dev.conf.template:/etc/nginx/templates/default.conf.template:ro
     environment:
       - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
     networks:

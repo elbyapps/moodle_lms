@@ -10,9 +10,28 @@ services:
       - moodle
       - dokploy-network
   nginx:
+    ports:
+      - "443:443"
+    environment:
+      - MOODLE_HOST=${MOODLE_HOST:-localhost}
+    volumes:
+      - ./docker/nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot:ro
     networks:
       - moodle
       - dokploy-network
+  certbot:
+    image: certbot/certbot
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - moodle
+volumes:
+  certbot_conf:
+  certbot_webroot:
 networks:
   dokploy-network:
     external: true

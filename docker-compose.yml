@@ -76,7 +76,6 @@ services:
       - "${MOODLE_PORT:-8080}:80"
     volumes:
       - moodle_app:/var/www/html/moodle_app:ro
-      - ./docker/nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
     environment:
       - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
     depends_on:

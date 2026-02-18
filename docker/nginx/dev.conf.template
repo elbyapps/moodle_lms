@@ -7,6 +7,14 @@ server {
 
     client_max_body_size 100M;
 
+    error_log /var/log/nginx/error.log debug;
+
+    # Disable caching for development
+    add_header Cache-Control "no-store" always;
+    add_header Pragma "no-cache" always;
+    expires off;
+    etag off;
+
     location / {
         try_files $uri $uri/ =404;
     }
@@ -20,7 +28,7 @@ server {
         fastcgi_param PATH_INFO $fastcgi_path_info;
         fastcgi_param HTTP_HOST $http_host;
         fastcgi_param SERVER_PORT $server_port;
-        fastcgi_read_timeout 300;
+        fastcgi_read_timeout 600;
     }
 
     location /api/sdms/ {
