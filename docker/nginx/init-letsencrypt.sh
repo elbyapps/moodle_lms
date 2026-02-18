@@ -89,7 +89,7 @@ $COMPOSE run --rm --entrypoint "" certbot sh -c "
 # 5. Request real certificate from Let's Encrypt
 # ---------------------------------------------------------------------------
 echo "### Requesting Let's Encrypt certificate for $MOODLE_HOST ..."
-$COMPOSE run --rm certbot certonly \
+$COMPOSE run --rm --entrypoint "certbot" certbot certonly \
   --webroot \
   -w /var/www/certbot \
   -d "$MOODLE_HOST" \
