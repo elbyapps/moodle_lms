@@ -137,10 +137,10 @@
                      "destination": "local/elby_dashboard"
               },
               {
-                     "name": "moodle_sync_queue",
-                     "repository": "https://github.com/elbyapps/moodle_sync_queue.git",
+                     "name": "rtb-elearning",
+                     "repository": "https://github.com/REB-ICTE/local_reblibrary.git",
                      "version": "main",
-                     "destination": "local/syncqueue"
+                     "destination": "local/reblibrary"
               }
        ],
        "destination_folder": "moodle_app"

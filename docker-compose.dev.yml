@@ -103,6 +103,7 @@ services:
       - ./docker/nginx/dev.conf.template:/etc/nginx/templates/default.conf.template:ro
     environment:
       - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
+      - MOODLE_PORT=${MOODLE_PORT:-8080}
     networks:
       - moodle
 

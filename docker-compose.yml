@@ -78,6 +78,7 @@ services:
       - moodle_app:/var/www/html/moodle_app:ro
     environment:
       - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
+      - MOODLE_PORT=${MOODLE_PORT:-8080}
     depends_on:
       - php
     networks:
