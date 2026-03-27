@@ -139,7 +139,7 @@
               {
                      "name": "rtb-elearning",
                      "repository": "https://github.com/REB-ICTE/local_reblibrary.git",
-                     "version": "main",
+                     "version": "dev",
                      "destination": "local/reblibrary"
               }
        ],
