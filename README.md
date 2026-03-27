@@ -8,16 +8,15 @@ Dockerized Moodle 5.0.1 e-learning platform with git-based plugin management.
 # 1. Copy and configure environment
 cp .env.example .env
 
-# 2. Build Moodle (clones core + plugins)
-./build.sh
-
-# 3. Start development environment
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# 2. Start development environment
+make dev
 ```
 
 Moodle will be available at `http://localhost:8080`.
 
 Default admin credentials: `admin` / `Admin123!`
+
+Run `make help` to see all available commands.
 
 ## Architecture
 
@@ -36,7 +35,7 @@ To add a plugin, append an entry to the `plugins` array in `moodle-config.json`:
 }
 ```
 
-Then re-run `./build.sh` (existing plugins are skipped automatically).
+Then rebuild: `make build-fresh` (removes moodle_app volume and rebuilds with no cache).
 
 ### Included Plugins
 
@@ -123,19 +122,53 @@ Copy `.env.example` to `.env` and customize. Key variable groups:
 | `MOODLE_SITE_FULLNAME` | `Moodle Dev` |
 | `MOODLE_SITE_SHORTNAME` | `moodle` |
 
-## Production Deployment
+## Environments
+
+### Development
 
 ```bash
-# Build and run with external database + SSL
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+make dev        # start (MariaDB + Garage included)
+make dev-down   # stop
+```
+
+### Staging
+
+Staging simulates production with a separate database container and no SSL (behind an external reverse proxy).
+
+```bash
+make db-up      # start standalone MariaDB
+make staging    # start Moodle stack
+make staging-down
+```
+
+`.env` for staging:
+```
+DB_HOST=elearning_mariadb
+MOODLE_SSLPROXY=true
+MOODLE_WWWROOT=https://your-staging-domain
+```
+
+### Production
+
+```bash
+make prod       # start (HTTPS on port 443 with certbot)
+make prod-down  # stop
 ```
 
 The production compose file:
-- Connects php/cron/nginx to the `dokploy-network` for external database access
 - Enables HTTPS on port 443 with Let's Encrypt via Certbot
 - Does **not** include MariaDB or Garage (use external services)
 
 Set `CERTBOT_EMAIL` in your `.env` for Let's Encrypt registration.
+
+### Rebuilding
+
+To force a fresh build with updated plugins:
+
+```bash
+make build-fresh   # rebuild image (no cache) + remove moodle_app volume
+make staging       # or make dev / make prod
+```
 
 ## S3 Object Storage
 
