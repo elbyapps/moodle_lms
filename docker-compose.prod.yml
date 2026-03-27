@@ -1,26 +1,34 @@
-include:
-  - docker-compose.yml
 services:
   php:
+    volumes:
+      - moodle_app:/var/www/html/moodle_app
+      - moodledata:/var/www/moodledata
+      - ./config.php.docker:/var/www/html/config.php.docker:ro
     networks:
       - moodle
-      - dokploy-network
+
   cron:
+    volumes:
+      - moodle_app:/var/www/html/moodle_app
+      - moodledata:/var/www/moodledata
+      - ./config.php.docker:/var/www/html/config.php.docker:ro
     networks:
       - moodle
-      - dokploy-network
+
   nginx:
     ports:
       - "443:443"
     environment:
       - MOODLE_HOST=${MOODLE_HOST:-localhost}
     volumes:
+      - moodle_app:/var/www/html/moodle_app:ro
+      - moodledata:/var/www/moodledata:ro
       - ./docker/nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro
       - certbot_conf:/etc/letsencrypt:ro
       - certbot_webroot:/var/www/certbot:ro
     networks:
       - moodle
-      - dokploy-network
+
   certbot:
     image: certbot/certbot
     volumes:
@@ -29,9 +37,8 @@ services:
     entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
     networks:
       - moodle
+
 volumes:
+  moodledata:
   certbot_conf:
   certbot_webroot:
-networks:
-  dokploy-network:
-    external: true

@@ -24,6 +24,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 Copy `.env.example` to `.env`. Key variables:
 - `DB_TYPE`: `mariadb` or `pgsql`
 - `MOODLE_WWWROOT`: Full URL, or construct from `MOODLE_PROTOCOL`, `MOODLE_HOST`, `MOODLE_PORT`
+- `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_REGION`: S3-compatible storage for reblibrary plugin
 
 ## Architecture
 
@@ -56,3 +57,4 @@ Copy `.env.example` to `.env`. Key variables:
 - **php**: PHP 8.2-FPM with Moodle and plugins
 - **nginx**: Web server proxying to PHP-FPM (port 8080)
 - **mariadb**: Development only (via `docker-compose.dev.yml`)
+- **garage**: S3-compatible object storage, development only (via `docker-compose.dev.yml`, port 3900)
