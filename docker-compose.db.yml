@@ -1,0 +1,32 @@
+services:
+  mariadb:
+    image: mariadb:11
+    container_name: elearning_mariadb
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MARIADB_DATABASE: ${DB_NAME:-moodle}
+      MARIADB_USER: ${DB_USER:-moodleuser}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-moodlepass}
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - moodle
+    restart: unless-stopped
+
+volumes:
+  mariadb_data:
+    name: elearning_mariadb_data
+    external: true
+
+networks:
+  moodle:
+    name: moodle
+    external: true
