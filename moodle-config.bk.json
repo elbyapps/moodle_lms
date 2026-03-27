@@ -1,0 +1,167 @@
+{
+  "moodle": {
+    "repository": "https://github.com/moodle/moodle.git",
+    "version": "MOODLE_501_STABLE"
+  },
+  "plugins": [
+    {
+      "name": "theme_moove",
+      "repository": "https://github.com/willianmano/moodle-theme_moove.git",
+      "version": "main",
+      "destination": "theme/moove"
+    },
+    {
+      "name": "coursefields",
+      "repository": "https://github.com/moodle-an-hochschulen/moodle-tool_coursefields.git",
+      "version": "main",
+      "destination": "admin/tool/coursefields"
+    },
+    {
+      "name": "moodle-auth_antihammer",
+      "repository": "https://github.com/sebsoftnl/moodle-auth_antihammer.git",
+      "version": "master",
+      "destination": "auth/antihammer"
+    },
+    
+    {
+      "name": "moodle-auth_oidc",
+      "repository": "https://github.com/microsoft/moodle-auth_oidc.git",
+      "version": "master",
+      "destination": "auth/oidc"
+    },
+    {
+      "name": "moodle-block_accessibility",
+      "repository": "https://github.com/brickfield/moodle-block_accessibility.git",
+      "version": "main",
+      "destination": "blocks/accessibility"
+    },
+    {
+      "name": "moodle-block_completion_progress",
+      "repository": "https://github.com/jonof/moodle-block_completion_progress.git",
+      "version": "master",
+      "destination": "blocks/completion_progress"
+    },
+    {
+      "name": "Moodle-block_progress",
+      "repository": "https://github.com/deraadt/Moodle-block_progress.git",
+      "version": "master",
+      "destination": "blocks/progress"
+    },
+    {
+      "name": "moodle-format_grid",
+      "repository": "https://github.com/gjbarnard/moodle-format_grid.git",
+      "version": "main",
+      "destination": "course/format/grid"
+    },
+    {
+      "name": "moodle-customfield_dynamic",
+      "repository": "https://github.com/soorajsingh/moodle-customfield_dynamic.git",
+      "version": "master",
+      "destination": "customfield/field/dynamic"
+    },
+    {
+      "name": "moodle-enrol_attributes",
+      "repository": "https://github.com/ndunand/moodle-enrol_attributes.git",
+      "version": "master",
+      "destination": "enrol/attributes"
+    },
+    {
+      "name": "moodle-filter_wiris",
+      "repository": "https://github.com/wiris/moodle-filter_wiris.git",
+      "version": "main",
+      "destination": "filter/wiris"
+    },
+    {
+      "name": "moodle-local_bulkenrol",
+      "repository": "https://github.com/moodle-an-hochschulen/moodle-local_bulkenrol.git",
+      "version": "main",
+      "destination": "local/bulkenrol"
+    },
+    {
+      "name": "moodle-local-kopere_dashboard",
+      "repository": "https://github.com/EduardoKrausME/moodle-local-kopere_dashboard.git",
+      "version": "master",
+      "destination": "local/kopere_dashboard"
+    },
+    {
+      "name": "moodle-local_mr",
+      "repository": "https://github.com/open-lms-open-source/moodle-local_mr.git",
+      "version": "master",
+      "destination": "local/mr"
+    },
+    {
+      "name": "moodle-local_o365",
+      "repository": "https://github.com/microsoft/moodle-local_o365.git",
+      "version": "master",
+      "destination": "local/o365"
+    },
+    {
+      "name": "moodle-mod_activitymap",
+      "repository": "https://github.com/bytebang/moodle-mod_activitymap.git",
+      "version": "master",
+      "destination": "mod/activitymap"
+    },
+    {
+      "name": "moodle-mod_attendance",
+      "repository": "https://github.com/danmarsden/moodle-mod_attendance.git",
+      "version": "MOODLE_500_STABLE",
+      "destination": "mod/attendance"
+    },
+    {
+      "name": "moodle-booktool_importepub",
+      "repository": "https://github.com/HaakonME/moodle-booktool_importepub.git",
+      "version": "master",
+      "destination": "mod/book/tool/importepub"
+    },
+    {
+      "name": "moodle-mod_customcert",
+      "repository": "https://github.com/mdjnelson/moodle-mod_customcert.git",
+      "version": "MOODLE_500_STABLE",
+      "destination": "mod/customcert"
+    },
+    {
+      "name": "mod_moodle-mod_hvp",
+      "repository": "https://github.com/h5p/moodle-mod_hvp.git",
+      "version": "stable",
+      "destination": "mod/hvp"
+    },
+    {
+      "name": "mod_moodle-mod_organizer",
+      "repository": "https://github.com/academic-moodle-cooperation/moodle-mod_organizer.git",
+      "version": "main",
+      "destination": "mod/organizer"
+    },
+    {
+      "name": "report_moodle-report_benchmark",
+      "repository": "https://github.com/mikasmart/moodle-report_benchmark.git",
+      "version": "master",
+      "destination": "report/benchmark"
+    },
+    {
+      "name": "local_reblibrary",
+      "repository": "https://github.com/REB-ICTE/local_reblibrary.git",
+      "version": "dev",
+      "destination": "local/reblibrary"
+    },
+    {
+      "name": "local_ultimate",
+      "repository": "https://github.com/willianmano/moodle-local_ultimate.git",
+      "version": "main",
+      "destination": "local/ultimate"
+    },
+    {
+      "name": "local_ultimate_market",
+      "repository": "https://github.com/willianmano/moodle-local_ultimate_market.git",
+      "version": "main",
+      "destination": "local/ultimate_market"
+    },
+    {
+      "name": "block_ultimate",
+      "repository": "https://github.com/willianmano/moodle-block_ultimate.git",
+      "version": "main",
+      "destination": "block/ultimate"
+    }
+
+  ],
+  "destination_folder": "moodle_app"
+}
