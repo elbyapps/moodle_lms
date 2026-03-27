@@ -43,7 +43,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Configure PHP for Moodle
 RUN echo "memory_limit = 256M" > /usr/local/etc/php/conf.d/moodle.ini \
     && echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/moodle.ini \
-    && echo "post_max_size = 100M" >> /usr/local/etc/php/conf.d/moodle.ini \
+    && echo "post_max_size = 250M" >> /usr/local/etc/php/conf.d/moodle.ini \
     && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/moodle.ini \
     && echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle.ini \
     && echo "zend.exception_ignore_args = On" >> /usr/local/etc/php/conf.d/moodle.ini
