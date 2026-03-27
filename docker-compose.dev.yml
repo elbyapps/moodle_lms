@@ -68,36 +68,6 @@ services:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
-    environment:
-      - DB_TYPE=${DB_TYPE:-mariadb}
-      - DB_HOST=${DB_HOST:-mariadb}
-      - DB_PORT=${DB_PORT:-3306}
-      - DB_NAME=${DB_NAME:-moodle}
-      - DB_USER=${DB_USER:-moodleuser}
-      - DB_PASSWORD=${DB_PASSWORD:-moodlepass}
-      - DB_PREFIX=${DB_PREFIX:-mdl_}
-      - MOODLE_PROTOCOL=${MOODLE_PROTOCOL:-http}
-      - MOODLE_HOST=${MOODLE_HOST:-localhost}
-      - MOODLE_PORT=${MOODLE_PORT:-8080}
-      - MOODLE_WWWROOT=${MOODLE_WWWROOT:-}
-      - MOODLE_DEBUG=${MOODLE_DEBUG:-false}
-      - MOODLE_MAIL_NOREPLY=${MOODLE_MAIL_NOREPLY:-}
-      - MOODLE_MAIL_PREFIX=${MOODLE_MAIL_PREFIX:-}
-      - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-false}
-      - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-false}
-      - MOODLE_ADMIN_USER=${MOODLE_ADMIN_USER:-admin}
-      - MOODLE_ADMIN_PASS=${MOODLE_ADMIN_PASS:-Admin123!}
-      - MOODLE_ADMIN_EMAIL=${MOODLE_ADMIN_EMAIL:-admin@example.com}
-      - MOODLE_SITE_FULLNAME=${MOODLE_SITE_FULLNAME:-Moodle Dev}
-      - MOODLE_SITE_SHORTNAME=${MOODLE_SITE_SHORTNAME:-moodle}
-      - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
-      - S3_ENDPOINT=${S3_ENDPOINT:-http://garage:3900}
-      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-GK000000000000000000000000}
-      - S3_SECRET_KEY=${S3_SECRET_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
-      - S3_BUCKET=${S3_BUCKET:-moodle}
-      - S3_REGION=${S3_REGION:-rw-central-1}
-    networks:
-      - moodle
 
   cron:
     build:
@@ -105,41 +75,10 @@ services:
       dockerfile: docker/php/Dockerfile
       args:
         SKIP_CLONE: "true"
-    command: ["cron"]
     volumes:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
-    environment:
-      - DB_TYPE=${DB_TYPE:-mariadb}
-      - DB_HOST=${DB_HOST:-mariadb}
-      - DB_PORT=${DB_PORT:-3306}
-      - DB_NAME=${DB_NAME:-moodle}
-      - DB_USER=${DB_USER:-moodleuser}
-      - DB_PASSWORD=${DB_PASSWORD:-moodlepass}
-      - DB_PREFIX=${DB_PREFIX:-mdl_}
-      - MOODLE_PROTOCOL=${MOODLE_PROTOCOL:-http}
-      - MOODLE_HOST=${MOODLE_HOST:-localhost}
-      - MOODLE_PORT=${MOODLE_PORT:-8080}
-      - MOODLE_WWWROOT=${MOODLE_WWWROOT:-}
-      - MOODLE_DEBUG=${MOODLE_DEBUG:-false}
-      - MOODLE_MAIL_NOREPLY=${MOODLE_MAIL_NOREPLY:-}
-      - MOODLE_MAIL_PREFIX=${MOODLE_MAIL_PREFIX:-}
-      - MOODLE_REVERSEPROXY=${MOODLE_REVERSEPROXY:-false}
-      - MOODLE_SSLPROXY=${MOODLE_SSLPROXY:-false}
-      - MOODLE_ADMIN_USER=${MOODLE_ADMIN_USER:-admin}
-      - MOODLE_ADMIN_PASS=${MOODLE_ADMIN_PASS:-Admin123!}
-      - MOODLE_ADMIN_EMAIL=${MOODLE_ADMIN_EMAIL:-admin@example.com}
-      - MOODLE_SITE_FULLNAME=${MOODLE_SITE_FULLNAME:-Moodle Dev}
-      - MOODLE_SITE_SHORTNAME=${MOODLE_SITE_SHORTNAME:-moodle}
-      - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
-      - S3_ENDPOINT=${S3_ENDPOINT:-http://garage:3900}
-      - S3_ACCESS_KEY=${S3_ACCESS_KEY:-GK000000000000000000000000}
-      - S3_SECRET_KEY=${S3_SECRET_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
-      - S3_BUCKET=${S3_BUCKET:-moodle}
-      - S3_REGION=${S3_REGION:-rw-central-1}
-    networks:
-      - moodle
 
   nginx:
     image: nginx:alpine
