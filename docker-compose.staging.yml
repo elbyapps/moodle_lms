@@ -1,0 +1,37 @@
+services:
+  php:
+    volumes:
+      - moodle_app:/var/www/html/moodle_app
+      - moodledata:/var/www/moodledata
+      - ./config.php.docker:/var/www/html/config.php.docker:ro
+    networks:
+      - moodle
+
+  cron:
+    volumes:
+      - moodle_app:/var/www/html/moodle_app
+      - moodledata:/var/www/moodledata
+      - ./config.php.docker:/var/www/html/config.php.docker:ro
+    networks:
+      - moodle
+
+  nginx:
+    ports:
+      - "${MOODLE_PORT:-8080}:80"
+    volumes:
+      - moodle_app:/var/www/html/moodle_app:ro
+      - moodledata:/var/www/moodledata:ro
+      - ./docker/nginx/staging.conf.template:/etc/nginx/templates/default.conf.template:ro
+    networks:
+      - moodle
+
+volumes:
+  moodledata:
+    name: prod_elearning_moodledata
+    external: true
+  moodle_app:
+
+networks:
+  moodle:
+    name: moodle
+    external: true
