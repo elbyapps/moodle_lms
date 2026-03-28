@@ -4,7 +4,7 @@ COMPOSE_STAGING = $(COMPOSE_BASE) -f docker-compose.staging.yml
 COMPOSE_PROD = $(COMPOSE_BASE) -f docker-compose.prod.yml
 COMPOSE_DB = docker compose -f docker-compose.db.yml
 
-.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down db-up db-down logs shell
+.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down db-up db-down logs shell clean-cache
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -22,6 +22,10 @@ build-fresh: ## Force full rebuild: no cache + remove moodle_app volume
 # --- Development ---
 
 dev: ## Start development environment
+	@if [ ! -d "./moodle_app" ]; then \
+		echo "moodle_app directory not found. Running build.sh..."; \
+		./build.sh; \
+	fi
 	$(COMPOSE_DEV) up --build -d
 
 dev-down: ## Stop development environment
@@ -56,3 +60,6 @@ logs: ## Show logs (usage: make logs s=php)
 
 shell: ## Open shell in PHP container
 	docker exec -it $$(docker ps -qf "name=php") bash
+
+clean-cache: ## Purge Moodle caches
+	docker exec $$(docker ps -qf "name=php") php /var/www/html/moodle_app/admin/cli/purge_caches.php
