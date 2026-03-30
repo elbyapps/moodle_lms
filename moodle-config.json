@@ -5,10 +5,10 @@
        },
        "plugins": [
               {
-                     "name": "theme_moove",
-                     "repository": "https://github.com/willianmano/moodle-theme_moove.git",
-                     "version": "main",
-                     "destination": "theme/moove"
+                     "name": "moodle-mod_hvp",
+                     "repository": "https://github.com/h5p/moodle-mod_hvp.git",
+                     "version": "stable",
+                     "destination": "mod/hvp"
               },
               {
                      "name": "coursefields",
