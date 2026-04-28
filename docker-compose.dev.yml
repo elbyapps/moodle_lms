@@ -81,7 +81,11 @@ services:
       - ./config.php.docker:/var/www/html/config.php.docker:ro
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
+      args:
+        SKIP_CLONE: "true"
     ports:
       - "${MOODLE_PORT:-8080}:80"
     volumes:

@@ -1,0 +1,39 @@
+#!/bin/bash
+# Calculate PHP-FPM pool settings from server resource env vars.
+# Sourced by docker-entrypoint.sh — all values are exported.
+
+SERVER_CPUS="${SERVER_CPUS:-4}"
+SERVER_MEMORY_GB="${SERVER_MEMORY_GB:-8}"
+CPUS_PER_REPLICA="${CPUS_PER_REPLICA:-4}"
+PHP_WORKER_MEMORY_MB="${PHP_WORKER_MEMORY_MB:-100}"
+PHP_MEMORY_FRACTION="${PHP_MEMORY_FRACTION:-0.8}"
+PHP_PM_MODE="${PHP_PM_MODE:-dynamic}"
+PHP_REPLICAS="${PHP_REPLICAS:-$(( SERVER_CPUS / CPUS_PER_REPLICA ))}"
+OPCACHE_MEMORY_MB="${OPCACHE_MEMORY_MB:-256}"
+OPCACHE_JIT_BUFFER_MB="${OPCACHE_JIT_BUFFER_MB:-128}"
+
+# Ensure at least 1 replica
+[ "$PHP_REPLICAS" -lt 1 ] 2>/dev/null && PHP_REPLICAS=1
+
+# Calculate max_children per replica:
+#   (total_memory * fraction / replicas) / worker_memory
+TOTAL_MEMORY_MB=$(awk "BEGIN {printf \"%d\", $SERVER_MEMORY_GB * 1024 * $PHP_MEMORY_FRACTION}")
+PM_MAX_CHILDREN=$(( TOTAL_MEMORY_MB / PHP_REPLICAS / PHP_WORKER_MEMORY_MB ))
+
+# Clamp to sensible bounds
+[ "$PM_MAX_CHILDREN" -lt 5 ] && PM_MAX_CHILDREN=5
+[ "$PM_MAX_CHILDREN" -gt 200 ] && PM_MAX_CHILDREN=200
+
+# Derive dynamic pool settings from max_children
+PM_START_SERVERS=$(( PM_MAX_CHILDREN / 4 ))
+PM_MIN_SPARE_SERVERS=$(( PM_MAX_CHILDREN / 4 ))
+PM_MAX_SPARE_SERVERS=$(( PM_MAX_CHILDREN / 2 ))
+
+# Ensure minimums for dynamic mode
+[ "$PM_START_SERVERS" -lt 2 ] && PM_START_SERVERS=2
+[ "$PM_MIN_SPARE_SERVERS" -lt 2 ] && PM_MIN_SPARE_SERVERS=2
+[ "$PM_MAX_SPARE_SERVERS" -lt 4 ] && PM_MAX_SPARE_SERVERS=4
+
+export SERVER_CPUS SERVER_MEMORY_GB PHP_REPLICAS
+export PHP_PM_MODE PM_MAX_CHILDREN PM_START_SERVERS PM_MIN_SPARE_SERVERS PM_MAX_SPARE_SERVERS
+export OPCACHE_MEMORY_MB OPCACHE_JIT_BUFFER_MB

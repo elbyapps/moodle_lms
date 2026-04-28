@@ -1,26 +1,24 @@
-# HTTP — ACME challenge + redirect to HTTPS
+# Docker DNS resolver for replica discovery
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+# NOTE: FastCGI caching removed — Moodle responses are user-specific (CSRF tokens,
+# language, permissions) and the MoodleSession cookie is set on the first request,
+# so bypass-on-cookie misses only a narrow window of robot traffic anyway.
+# Relying on OPcache + Moodle MUC (Redis) for performance instead.
+
+# Rate limiting for login endpoints (credential stuffing / brute force).
+# Only scoped to /login/ because many REB schools sit behind NAT — a per-IP cap
+# on general PHP traffic would throttle entire classrooms during quiz submissions.
+# Pairs with the moodle-auth_antihammer plugin (app-level lockout).
+limit_req_zone $binary_remote_addr zone=login:10m rate=5r/s;
+limit_req_status 429;
+limit_req_log_level warn;
+
+# SSL is terminated upstream by an external reverse proxy. This vhost speaks
+# plain HTTP; it must only be exposed through that proxy (or a local test).
 server {
     listen 80;
     server_name _;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    location / {
-        return 301 https://$host$request_uri;
-    }
-}
-
-# HTTPS
-server {
-    listen 443 ssl;
-    server_name _;
-
-    ssl_certificate /etc/letsencrypt/live/${MOODLE_HOST}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${MOODLE_HOST}/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
     root /var/www/html/moodle_app/public;
     index index.php index.html;
@@ -29,12 +27,12 @@ server {
 
     error_log /var/log/nginx/error.log warn;
 
-    # Security headers
+    # Security headers. HSTS is deliberately omitted — set it on the external
+    # proxy that terminates TLS, so it can't leak into an environment without SSL.
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     # Gzip compression
     gzip on;
@@ -56,9 +54,32 @@ server {
         try_files $uri $uri/ =404;
     }
 
+    # Rate-limited login endpoints. Matched BEFORE the catch-all PHP regex.
+    location ~ ^/login/(index|signup|forgot_password|confirm)\.php$ {
+        limit_req zone=login burst=20 nodelay;
+
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        set $php_upstream php;
+        fastcgi_pass $php_upstream:9000;
+        fastcgi_index index.php;
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_param HTTP_HOST $http_host;
+        fastcgi_param SERVER_PORT ${MOODLE_PORT};
+        fastcgi_read_timeout 300;
+        fastcgi_buffers 16 16k;
+        fastcgi_buffer_size 32k;
+    }
+
     location ~ [^/]\.php(/|$) {
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
-        fastcgi_pass php:9000;
+
+        # Variable-based upstream forces DNS re-resolution per request,
+        # round-robining across all PHP-FPM replicas automatically.
+        set $php_upstream php;
+        fastcgi_pass $php_upstream:9000;
+
         fastcgi_index index.php;
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;

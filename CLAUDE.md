@@ -15,7 +15,7 @@ Dockerized Moodle 5.0.1 e-learning platform with git-based plugin management.
 # Build and run (development with local MariaDB)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
-# Build and run (production with external database via dokploy-network)
+# Build and run (production: HTTP-only Moodle nginx behind an external SSL-terminating reverse proxy, external DB)
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
 
@@ -55,6 +55,15 @@ Copy `.env.example` to `.env`. Key variables:
 ## Docker Services
 
 - **php**: PHP 8.2-FPM with Moodle and plugins
-- **nginx**: Web server proxying to PHP-FPM (port 8080)
-- **mariadb**: Development only (via `docker-compose.dev.yml`)
-- **garage**: S3-compatible object storage, development only (via `docker-compose.dev.yml`, port 3900)
+- **nginx**: Web server proxying to PHP-FPM. Speaks HTTP only (port 8080); SSL is terminated by an external reverse proxy in prod.
+- **redis**: Session + MUC (cache) backend for scaling across PHP replicas (prod only, via `docker-compose.prod.yml`)
+- **cron**: Runs `admin/cli/cron.php` on a 60s loop (prod only, via `docker-compose.prod.yml`)
+- **mariadb**: Development only (via `docker-compose.dev.yml`) or standalone (via `docker-compose.db.yml`). In prod the DB is external.
+- **garage**: S3-compatible object storage, development only (via `docker-compose.dev.yml`, port 3900). In prod, point the `S3_*` env vars at a dedicated S3 server.
+
+## Prod deployment notes
+
+- Prod assumes an external nginx reverse proxy handles TLS termination and forwards HTTP to this stack on port 8080.
+- Set `MOODLE_SSLPROXY=true` and `MOODLE_REVERSEPROXY=false` in prod `.env`. `sslproxy=true` makes Moodle emit `https://` URLs while only seeing HTTP traffic; `reverseproxy=false` avoids `reverseproxyabused` when the upstream proxy forwards the same Host header as `$CFG->wwwroot`.
+- External DB is reached via hostname/IP from `.env` (e.g., `DB_HOST=host.docker.internal` in local tests; a real DNS name in prod).
+- `scripts/deploy.sh code` does a rolling replacement of PHP-FPM replicas without downtime (nginx is a single instance — expect a ~5s blip when it's recreated at the end).

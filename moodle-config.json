@@ -141,6 +141,12 @@
                      "repository": "https://github.com/REB-ICTE/local_reblibrary.git",
                      "version": "dev",
                      "destination": "local/reblibrary"
+              },
+              {
+                     "name": "moodle-block_xp",
+                     "repository": "https://github.com/FMCorz/moodle-block_xp.git",
+                     "version": "master",
+                     "destination": "blocks/xp"
               }
        ],
        "destination_folder": "moodle_app"
