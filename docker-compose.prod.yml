@@ -1,44 +1,63 @@
 services:
   php:
+    # Scaling: deploy.replicas is Swarm-only. Use:
+    #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale php=${PHP_REPLICAS:-3}
+    cpus: "${CPUS_PER_REPLICA:-4}"
+    mem_limit: "${PHP_REPLICA_MEMORY:-12G}"
     volumes:
-      - moodle_app:/var/www/html/moodle_app
       - moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/fpm-ping SCRIPT_FILENAME=/fpm-ping REQUEST_METHOD=GET cgi-fcgi -bind -connect localhost:9000 | grep -q pong"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     networks:
       - moodle
 
   cron:
+    cpus: "2"
+    mem_limit: "4G"
     volumes:
-      - moodle_app:/var/www/html/moodle_app
       - moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
+    depends_on:
+      - redis
     networks:
       - moodle
 
   nginx:
+    # SSL is terminated by an external reverse proxy that forwards HTTP here.
+    # Pair with MOODLE_SSLPROXY=true in prod so Moodle emits https:// URLs.
+    cpus: "2"
+    mem_limit: "1G"
     ports:
-      - "443:443"
+      - "${MOODLE_PORT:-8080}:80"
     environment:
-      - MOODLE_HOST=${MOODLE_HOST:-localhost}
+      - MOODLE_PORT=${MOODLE_PORT:-8080}
+      - SDMS_URL=${SDMS_URL}
     volumes:
-      - moodle_app:/var/www/html/moodle_app:ro
       - moodledata:/var/www/moodledata:ro
       - ./docker/nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - certbot_conf:/etc/letsencrypt:ro
-      - certbot_webroot:/var/www/certbot:ro
     networks:
       - moodle
 
-  certbot:
-    image: certbot/certbot
+  redis:
+    cpus: "2"
+    mem_limit: "3G"
     volumes:
-      - certbot_conf:/etc/letsencrypt
-      - certbot_webroot:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks:
       - moodle
 
 volumes:
   moodledata:
-  certbot_conf:
-  certbot_webroot:
+  redis_data:

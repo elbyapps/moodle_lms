@@ -17,6 +17,13 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     zip \
     unzip \
+    ghostscript \
+    poppler-utils \
+    aspell \
+    aspell-en \
+    python3 \
+    libfcgi-bin \
+    gettext-base \
     && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions required by Moodle
@@ -35,27 +42,23 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     zip \
     intl \
     soap \
-    opcache
+    opcache \
+    && pecl install redis \
+    && docker-php-ext-enable redis
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 # Configure PHP for Moodle
 RUN echo "memory_limit = 256M" > /usr/local/etc/php/conf.d/moodle.ini \
-    && echo "upload_max_filesize = 100M" >> /usr/local/etc/php/conf.d/moodle.ini \
-    && echo "post_max_size = 100M" >> /usr/local/etc/php/conf.d/moodle.ini \
+    && echo "upload_max_filesize = 512M" >> /usr/local/etc/php/conf.d/moodle.ini \
+    && echo "post_max_size = 600M" >> /usr/local/etc/php/conf.d/moodle.ini \
     && echo "max_execution_time = 300" >> /usr/local/etc/php/conf.d/moodle.ini \
     && echo "max_input_vars = 5000" >> /usr/local/etc/php/conf.d/moodle.ini \
     && echo "zend.exception_ignore_args = On" >> /usr/local/etc/php/conf.d/moodle.ini
 
-# Configure OPcache for better performance
-RUN echo "opcache.enable = 1" >> /usr/local/etc/php/conf.d/opcache.ini \
-    && echo "opcache.memory_consumption = 128" >> /usr/local/etc/php/conf.d/opcache.ini \
-    && echo "opcache.max_accelerated_files = 10000" >> /usr/local/etc/php/conf.d/opcache.ini \
-    && echo "opcache.revalidate_freq = 60" >> /usr/local/etc/php/conf.d/opcache.ini
-
-# Configure PHP-FPM to pass environment variables
-RUN echo "clear_env = no" >> /usr/local/etc/php-fpm.d/www.conf
+# OPcache and PHP-FPM pool are configured at runtime by docker-entrypoint.sh
+# via calculate-resources.sh and www.conf.template (env-var-driven)
 
 # Set working directory
 WORKDIR /var/www/html
@@ -84,22 +87,14 @@ RUN --mount=type=ssh if [ "$SKIP_CLONE" = "false" ]; then ./build.sh; else echo 
 # Install Composer dependencies for Moodle (skip in dev mode)
 RUN if [ "$SKIP_CLONE" = "false" ]; then cd moodle_app && composer install --no-dev --classmap-authoritative; fi
 
-# Move moodle_app to staging location for volume initialization (skip in dev mode)
-# This allows the entrypoint to copy files to a named volume on first run
-RUN if [ "$SKIP_CLONE" = "false" ] && [ -d "/var/www/html/moodle_app" ]; then \
-        mv /var/www/html/moodle_app /opt/moodle_app && \
-        mkdir -p /var/www/html/moodle_app; \
-    fi
-
-# Set proper permissions for staging location (skip in dev mode)
-RUN if [ "$SKIP_CLONE" = "false" ] && [ -d "/opt/moodle_app" ]; then \
-        chown -R www-data:www-data /opt/moodle_app; \
-    fi
+# Code lives at /var/www/html/moodle_app directly — no named volume, no copy-on-boot.
 RUN chown -R www-data:www-data /var/www/html
 
-# Copy entrypoint script
+# Copy entrypoint script and resource tuning files
 COPY docker/php/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+COPY docker/php/calculate-resources.sh /usr/local/bin/calculate-resources.sh
+COPY docker/php/www.conf.template /usr/local/etc/php-fpm.d/www.conf.template
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh /usr/local/bin/calculate-resources.sh
 
 # Set entrypoint
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

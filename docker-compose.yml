@@ -4,20 +4,20 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
     volumes:
-      - moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
     env_file:
       - .env
     networks:
       - moodle
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   cron:
     build:
       context: .
       dockerfile: docker/php/Dockerfile
     volumes:
-      - moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
     env_file:
@@ -29,11 +29,11 @@ services:
       - moodle
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: .
+      dockerfile: docker/nginx/Dockerfile
     ports:
       - "${MOODLE_PORT:-8080}:80"
-    volumes:
-      - moodle_app:/var/www/html/moodle_app:ro
     environment:
       - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
       - MOODLE_PORT=${MOODLE_PORT:-8080}
@@ -42,8 +42,11 @@ services:
     networks:
       - moodle
 
-volumes:
-  moodle_app:
+  redis:
+    image: redis:8-alpine
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
+    networks:
+      - moodle
 
 networks:
   moodle:

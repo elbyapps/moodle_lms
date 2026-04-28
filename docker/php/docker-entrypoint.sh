@@ -1,14 +1,41 @@
 #!/bin/bash
 set -e
 
-# Construct MOODLE_WWWROOT if not explicitly set
+# =============================================================================
+# 1. Calculate PHP-FPM resource settings from env vars
+# =============================================================================
+source /usr/local/bin/calculate-resources.sh
+echo "=== PHP-FPM Resource Settings ==="
+echo "  Replicas: ${PHP_REPLICAS} | PM mode: ${PHP_PM_MODE}"
+echo "  max_children: ${PM_MAX_CHILDREN} | start: ${PM_START_SERVERS} | min_spare: ${PM_MIN_SPARE_SERVERS} | max_spare: ${PM_MAX_SPARE_SERVERS}"
+echo "  OPcache: ${OPCACHE_MEMORY_MB}MB | JIT buffer: ${OPCACHE_JIT_BUFFER_MB}MB"
+
+# =============================================================================
+# 2. Render PHP-FPM pool config and OPcache config from env vars
+# =============================================================================
+envsubst < /usr/local/etc/php-fpm.d/www.conf.template > /usr/local/etc/php-fpm.d/www.conf
+echo "Rendered PHP-FPM pool config."
+
+cat > /usr/local/etc/php/conf.d/opcache.ini <<OPCACHE
+opcache.enable = 1
+opcache.memory_consumption = ${OPCACHE_MEMORY_MB}
+opcache.max_accelerated_files = 20000
+opcache.revalidate_freq = 60
+opcache.validate_timestamps = 0
+opcache.save_comments = 1
+opcache.jit = 1255
+opcache.jit_buffer_size = ${OPCACHE_JIT_BUFFER_MB}M
+OPCACHE
+echo "Rendered OPcache + JIT config."
+
+# =============================================================================
+# 3. Construct MOODLE_WWWROOT if not explicitly set
+# =============================================================================
 if [ -z "$MOODLE_WWWROOT" ]; then
     MOODLE_PROTOCOL=${MOODLE_PROTOCOL:-http}
     MOODLE_HOST=${MOODLE_HOST:-localhost}
     MOODLE_PORT=${MOODLE_PORT:-8080}
 
-    # Construct the URL
-    # For standard ports (80, 443), we can omit the port
     if [[ "$MOODLE_PORT" == "80" && "$MOODLE_PROTOCOL" == "http" ]] || \
        [[ "$MOODLE_PORT" == "443" && "$MOODLE_PROTOCOL" == "https" ]]; then
         export MOODLE_WWWROOT="${MOODLE_PROTOCOL}://${MOODLE_HOST}"
@@ -21,53 +48,27 @@ else
     echo "Using explicitly set MOODLE_WWWROOT: $MOODLE_WWWROOT"
 fi
 
-# Initialize moodle_app volume with files from image on first run
-# This allows the Docker image to contain Moodle, but share it via named volume
-# Skip entirely for bind mounts (detected by .git directory)
-if [ -d "/var/www/html/moodle_app/.git" ]; then
-    echo "Host bind mount detected, skipping volume initialization..."
-elif [ ! -f "/var/www/html/moodle_app/.initialized" ]; then
-    echo "Initializing moodle_app volume from Docker image..."
-
-    # Check if moodle_app exists in the image but not in the volume
-    # Note: version.php is at public/version.php in this project structure
-    if [ -d "/opt/moodle_app" ] && [ ! -f "/var/www/html/moodle_app/public/version.php" ]; then
-        echo "Copying Moodle files from image to volume..."
-        cp -a /opt/moodle_app/. /var/www/html/moodle_app/
-
-        # Mark as initialized
-        touch /var/www/html/moodle_app/.initialized
-        echo "Moodle files copied successfully."
-    else
-        echo "Moodle files already exist in volume."
-        touch /var/www/html/moodle_app/.initialized
-    fi
-else
-    echo "moodle_app volume already initialized."
-fi
-
-# Create and fix permissions for moodledata directory and subdirectories
+# =============================================================================
+# 4. Create moodledata directories and set permissions
+#    (moodle_app code comes baked into the image, nothing to initialize here.)
+# =============================================================================
 echo "Creating moodledata directories..."
 mkdir -p /var/www/moodledata/sessions
 mkdir -p /var/www/moodledata/temp
 mkdir -p /var/www/moodledata/cache
 mkdir -p /var/www/moodledata/localcache
 
+# Create container-local localcache dir (not shared across replicas)
+mkdir -p /tmp/moodle_localcache
+
 echo "Setting permissions for moodledata..."
 chown -R www-data:www-data /var/www/moodledata
 chmod -R 0777 /var/www/moodledata
+chown -R www-data:www-data /tmp/moodle_localcache
 
-# Set proper permissions for moodle_app
-# Only change ownership if moodle_app is from a volume (not a host mount)
-# Host mounts will maintain host permissions
-if [ -d "/var/www/html/moodle_app" ] && [ ! -d "/var/www/html/moodle_app/.git" ]; then
-    echo "Setting permissions for moodle_app (volume-based)..."
-    chown -R www-data:www-data /var/www/html/moodle_app
-else
-    echo "Skipping permission changes for moodle_app (host mount detected)..."
-fi
-
-# Copy Moodle config if it doesn't exist
+# =============================================================================
+# 5. Copy Moodle config if needed
+# =============================================================================
 if [ ! -f "/var/www/html/moodle_app/config.php" ] && [ -f "/var/www/html/config.php.docker" ]; then
     echo "Copying config.php.docker to moodle_app/config.php..."
     cp /var/www/html/config.php.docker /var/www/html/moodle_app/config.php
@@ -75,7 +76,9 @@ if [ ! -f "/var/www/html/moodle_app/config.php" ] && [ -f "/var/www/html/config.
     echo "Config file created successfully."
 fi
 
-# Database auto-initialization functions
+# =============================================================================
+# 6. Database auto-initialization (flock-guarded for replicas)
+# =============================================================================
 wait_for_db() {
     echo "Waiting for database to be ready..."
     local db_type="${DB_TYPE:-mariadb}"
@@ -118,24 +121,28 @@ check_moodle_installed() {
     fi
 }
 
-# Auto-install Moodle database if needed
 if wait_for_db; then
-    if ! check_moodle_installed; then
-        echo "Moodle database not initialized. Running installer..."
-        php /var/www/html/moodle_app/admin/cli/install_database.php \
-            --adminuser="${MOODLE_ADMIN_USER:-admin}" \
-            --adminpass="${MOODLE_ADMIN_PASS:-Admin123!}" \
-            --adminemail="${MOODLE_ADMIN_EMAIL:-admin@example.com}" \
-            --fullname="${MOODLE_SITE_FULLNAME:-Moodle Dev}" \
-            --shortname="${MOODLE_SITE_SHORTNAME:-moodle}" \
-            --agree-license
-        echo "Moodle database installation complete."
-    else
-        echo "Moodle database already initialized."
-    fi
+    (
+        flock -x 200
+        if ! check_moodle_installed; then
+            echo "Moodle database not initialized. Running installer..."
+            php /var/www/html/moodle_app/admin/cli/install_database.php \
+                --adminuser="${MOODLE_ADMIN_USER:-admin}" \
+                --adminpass="${MOODLE_ADMIN_PASS:-Admin123!}" \
+                --adminemail="${MOODLE_ADMIN_EMAIL:-admin@example.com}" \
+                --fullname="${MOODLE_SITE_FULLNAME:-Moodle Dev}" \
+                --shortname="${MOODLE_SITE_SHORTNAME:-moodle}" \
+                --agree-license
+            echo "Moodle database installation complete."
+        else
+            echo "Moodle database already initialized."
+        fi
+    ) 200>/var/www/moodledata/.db_install_lock
 fi
 
-# Check if we're running cron or PHP-FPM
+# =============================================================================
+# 7. Start PHP-FPM or cron
+# =============================================================================
 if [ "$1" = "cron" ]; then
     echo "Starting Moodle cron service..."
     while true; do
@@ -144,6 +151,5 @@ if [ "$1" = "cron" ]; then
     done
 else
     echo "Starting PHP-FPM..."
-    # Execute PHP-FPM (it will run worker processes as www-data based on php-fpm.conf)
     exec "$@"
 fi

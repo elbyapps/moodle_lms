@@ -1,0 +1,94 @@
+# =============================================================================
+# MariaDB Performance Tuning for Moodle
+# Server: 42 CPUs, ~125 GiB RAM dedicated to database
+# Overrides defaults from 50-server.cnf
+# Deploy to: /etc/mysql/mariadb.conf.d/99-moodle-tuning.cnf
+# Then: sudo mkdir -p /var/log/mysql && sudo chown mysql:mysql /var/log/mysql
+#        sudo systemctl restart mariadb
+# =============================================================================
+
+[mariadbd]
+
+# -----------------------------------------------------------------------------
+# InnoDB Buffer Pool — CURRENT: 1G (uses 0.8% of available RAM!)
+# Target: 80G (~64% of 125G). Entire Moodle DB fits in RAM.
+# This alone is a 10-50x speedup on read-heavy workloads.
+# -----------------------------------------------------------------------------
+innodb_buffer_pool_size         = 80G
+innodb_buffer_pool_instances    = 16
+
+# -----------------------------------------------------------------------------
+# InnoDB Redo Log — already 2G in 50-server.cnf (good)
+# Reduce log_buffer_size from 256M to 64M (256M is wasteful, 64M is plenty)
+# -----------------------------------------------------------------------------
+innodb_log_buffer_size          = 64M
+
+# -----------------------------------------------------------------------------
+# InnoDB I/O — CURRENT: all defaults (io_capacity=200, 4 threads, fsync)
+# Measured: ~6,100 IOPS (fio randread 16k). Set capacity to ~50% of max,
+# and max to the measured ceiling.
+# -----------------------------------------------------------------------------
+innodb_io_capacity              = 3000
+innodb_io_capacity_max          = 6000
+innodb_read_io_threads          = 16
+innodb_write_io_threads         = 16
+innodb_flush_method             = O_DIRECT
+
+# -----------------------------------------------------------------------------
+# InnoDB Durability — flush redo log once per second instead of every commit
+# Trade-off: at most 1 second of data loss on crash, ~2-5x faster writes.
+# Set to 1 if you need strict ACID compliance.
+# -----------------------------------------------------------------------------
+innodb_flush_log_at_trx_commit  = 2
+
+# -----------------------------------------------------------------------------
+# InnoDB Misc
+# -----------------------------------------------------------------------------
+innodb_file_per_table           = ON
+innodb_sort_buffer_size         = 4M
+
+# -----------------------------------------------------------------------------
+# Connections — CURRENT: 400 (too low for 1,020 PHP workers)
+# Need 1,020 PHP workers + cron + admin + headroom
+# -----------------------------------------------------------------------------
+max_connections                 = 1500
+thread_cache_size               = 100
+back_log                        = 256
+
+# -----------------------------------------------------------------------------
+# Temp Tables — CURRENT: 64M (Moodle gradebook/reports spill to disk)
+# 256M keeps most temp tables in memory
+# -----------------------------------------------------------------------------
+tmp_table_size                  = 256M
+max_heap_table_size             = 256M
+
+# -----------------------------------------------------------------------------
+# Table Cache — CURRENT: table_open_cache=65533 (already high, keep it)
+# Only override table_definition_cache (CURRENT: 800, too low)
+# -----------------------------------------------------------------------------
+table_definition_cache          = 4000
+
+# -----------------------------------------------------------------------------
+# Sort / Join Buffers — per-connection, so keep conservative
+# 4M × 1500 connections = 6G max theoretical (rarely all active at once)
+# -----------------------------------------------------------------------------
+sort_buffer_size                = 4M
+join_buffer_size                = 4M
+read_buffer_size                = 2M
+read_rnd_buffer_size            = 2M
+
+# -----------------------------------------------------------------------------
+# Slow Query Log — CURRENT: disabled (flying blind on performance)
+# Logs queries taking >2s and queries not using indexes.
+# Review with: mysqldumpslow /var/log/mysql/slow-query.log
+# -----------------------------------------------------------------------------
+slow_query_log                  = ON
+slow_query_log_file             = /var/log/mysql/slow-query.log
+long_query_time                 = 2
+log_queries_not_using_indexes   = ON
+
+# -----------------------------------------------------------------------------
+# Networking / Timeouts
+# -----------------------------------------------------------------------------
+wait_timeout                    = 600
+interactive_timeout             = 600

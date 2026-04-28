@@ -5,10 +5,10 @@
        },
        "plugins": [
               {
-                     "name": "theme_moove",
-                     "repository": "https://github.com/willianmano/moodle-theme_moove.git",
-                     "version": "main",
-                     "destination": "theme/moove"
+                     "name": "moodle-mod_hvp",
+                     "repository": "https://github.com/h5p/moodle-mod_hvp.git",
+                     "version": "stable",
+                     "destination": "mod/hvp"
               },
               {
                      "name": "coursefields",
@@ -139,8 +139,14 @@
               {
                      "name": "rtb-elearning",
                      "repository": "https://github.com/REB-ICTE/local_reblibrary.git",
-                     "version": "main",
+                     "version": "dev",
                      "destination": "local/reblibrary"
+              },
+              {
+                     "name": "moodle-block_xp",
+                     "repository": "https://github.com/FMCorz/moodle-block_xp.git",
+                     "version": "master",
+                     "destination": "blocks/xp"
               }
        ],
        "destination_folder": "moodle_app"
