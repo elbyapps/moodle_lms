@@ -20,7 +20,7 @@ server {
     listen 80;
     server_name _;
 
-    root /var/www/html/moodle_app/public;
+    root /var/www/html/moodle_app;
     index index.php index.html;
 
     client_max_body_size 600M;
