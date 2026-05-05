@@ -13,7 +13,6 @@ RUN chmod +x build.sh
 ARG SKIP_CLONE=false
 RUN --mount=type=ssh if [ "$SKIP_CLONE" = "false" ]; then \
         ./build.sh; \
-COPY vendor/filter_buku_oembed /tmp/moodle/moodle_app/public/filter/buku_oembed
     else \
         echo "SKIP_CLONE=true, creating empty public/ for dev bind mount"; \
         mkdir -p moodle_app/public; \
@@ -23,3 +22,4 @@ COPY vendor/filter_buku_oembed /tmp/moodle/moodle_app/public/filter/buku_oembed
 # nginx serves static assets directly (theme CSS/JS/images) and hands PHP off via FastCGI.
 FROM nginx:alpine
 COPY --from=moodle_fetch /build/moodle_app /var/www/html/moodle_app
+COPY vendor/filter_buku_oembed /var/www/html/moodle_app/public/filter/buku_oembed
