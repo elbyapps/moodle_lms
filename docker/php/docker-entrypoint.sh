@@ -146,8 +146,12 @@ fi
 # =============================================================================
 if [ "$1" = "cron" ]; then
     echo "Starting Moodle cron service..."
+    # `set -e` is on at the top of this script. cron.php legitimately exits 1
+    # during maintenance mode or while an upgrade is pending; without `|| true`
+    # the entrypoint would die on the first such exit and the container would
+    # stop instead of retrying on the next sleep.
     while true; do
-        php /var/www/html/moodle_app/admin/cli/cron.php
+        php /var/www/html/moodle_app/admin/cli/cron.php || true
         sleep 60
     done
 else
