@@ -23,6 +23,7 @@ opcache.max_accelerated_files = 20000
 opcache.revalidate_freq = 60
 opcache.validate_timestamps = 0
 opcache.save_comments = 1
+opcache.interned_strings_buffer = ${OPCACHE_INTERNED_STRINGS_MB}
 opcache.jit = 1255
 opcache.jit_buffer_size = ${OPCACHE_JIT_BUFFER_MB}M
 OPCACHE
