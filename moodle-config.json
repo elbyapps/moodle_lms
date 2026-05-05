@@ -1,13 +1,13 @@
 {
   "moodle": {
     "repository": "https://github.com/moodle/moodle.git",
-    "version": "MOODLE_500_STABLE"
+    "version": "v5.1.4"
   },
   "plugins": [
     {
       "name": "moodle-auth_oidc",
       "repository": "https://github.com/microsoft/moodle-auth_oidc.git",
-      "version": "MOODLE_500_STABLE",
+      "version": "MOODLE_501_STABLE",
       "destination": "auth/oidc"
     },
     {
@@ -25,7 +25,7 @@
     {
       "name": "moodle-local_sandbox",
       "repository": "https://github.com/moodle-an-hochschulen/moodle-local_sandbox.git",
-      "version": "MOODLE_500_STABLE",
+      "version": "MOODLE_501_STABLE",
       "destination": "local/sandbox"
     },
     {
@@ -55,7 +55,7 @@
     {
       "name": "moodle-theme_moove",
       "repository": "https://github.com/willianmano/moodle-theme_moove.git",
-      "version": "MOODLE_500_STABLE",
+      "version": "MOODLE_501_STABLE",
       "destination": "theme/moove"
     },
     {
@@ -73,7 +73,7 @@
     {
       "name": "moodle-tool_coursefields",
       "repository": "https://github.com/moodle-an-hochschulen/moodle-tool_coursefields.git",
-      "version": "main",
+      "version": "MOODLE_501_STABLE",
       "destination": "admin/tool/coursefields"
     },
     {
@@ -121,13 +121,13 @@
     {
       "name": "moodle-local_bulkenrol",
       "repository": "https://github.com/moodle-an-hochschulen/moodle-local_bulkenrol.git",
-      "version": "main",
+      "version": "MOODLE_501_STABLE",
       "destination": "local/bulkenrol"
     },
     {
       "name": "moodle-local_o365",
       "repository": "https://github.com/microsoft/moodle-local_o365.git",
-      "version": "master",
+      "version": "MOODLE_501_STABLE",
       "destination": "local/o365"
     },
     {
@@ -139,7 +139,7 @@
     {
       "name": "moodle-mod_attendance",
       "repository": "https://github.com/danmarsden/moodle-mod_attendance.git",
-      "version": "MOODLE_500_STABLE",
+      "version": "MOODLE_501_STABLE",
       "destination": "mod/attendance"
     },
     {
@@ -169,7 +169,7 @@
     {
       "name": "moodle-mod_organizer",
       "repository": "https://github.com/academic-moodle-cooperation/moodle-mod_organizer.git",
-      "version": "main",
+      "version": "MOODLE_501_STABLE",
       "destination": "mod/organizer"
     },
     {
