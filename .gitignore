@@ -27,3 +27,6 @@ Thumbs.db
 # PHP/Composer
 vendor/
 composer.lock
+
+# Deliberately vendored Moodle plugins with no public upstream
+!vendor/
