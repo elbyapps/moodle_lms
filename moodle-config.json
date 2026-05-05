@@ -13,7 +13,7 @@
     {
       "name": "moodle-block_configurable_reports",
       "repository": "https://github.com/jleyva/moodle-block_configurablereports.git",
-      "version": "master",
+      "version": "MOODLE_4x_STABLE",
       "destination": "blocks/configurable_reports"
     },
     {

@@ -90,7 +90,6 @@ RUN if [ "$SKIP_CLONE" = "false" ]; then cd moodle_app && composer install --no-
 # Code lives at /var/www/html/moodle_app directly — no named volume, no copy-on-boot.
 # Vendor in-house plugins that have no public git upstream (see vendor/ in repo root)
 COPY vendor/filter_buku_oembed /var/www/html/moodle_app/filter/buku_oembed
-COPY vendor/block_configurable_reports /var/www/html/moodle_app/blocks/configurable_reports
 
 RUN chown -R www-data:www-data /var/www/html
 
