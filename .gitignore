@@ -30,3 +30,6 @@ composer.lock
 
 # Deliberately vendored Moodle plugins with no public upstream
 !vendor/
+
+# Site-local compose override (not for commit)
+docker-compose.local.yml
