@@ -88,9 +88,11 @@ RUN --mount=type=ssh if [ "$SKIP_CLONE" = "false" ]; then ./build.sh; else echo 
 RUN if [ "$SKIP_CLONE" = "false" ]; then cd moodle_app && composer install --no-dev --classmap-authoritative; fi
 
 # Code lives at /var/www/html/moodle_app directly — no named volume, no copy-on-boot.
-# Vendor in-house plugins that have no public git upstream (see vendor/ in repo root)
-COPY vendor/filter_buku_oembed /var/www/html/moodle_app/public/filter/buku_oembed
-
+#
+# Vendoring pattern: if you have Moodle plugins that aren't on a public git
+# remote, drop their source trees under vendor/ and add a COPY here, e.g.
+#   COPY vendor/<plugin> /var/www/html/moodle_app/public/<destination>
+# See vendor/README.md.
 RUN chown -R www-data:www-data /var/www/html
 
 # Copy entrypoint script and resource tuning files

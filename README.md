@@ -1,269 +1,183 @@
-# REB Moodle LMS
+# Moodle in containers
 
-Dockerized Moodle 5.0.1 e-learning platform with git-based plugin management.
+An opinionated, production-ready way to run Moodle 5.x with Docker
+Compose. PHP-FPM behind nginx, Redis for sessions and MUC, Postgres or
+MariaDB, plugin set declared in JSON. Three compose overlays cover dev,
+staging and prod.
 
-## Quick Start
+This is not a Bitnami-style appliance. It assumes you're comfortable
+editing a Dockerfile and reading entrypoint scripts. The opinions are
+documented; everything is intended to be forked.
+
+## Stack
+
+| Service  | Image                       | Where        | Purpose                                                |
+|----------|-----------------------------|--------------|--------------------------------------------------------|
+| `php`    | built from `docker/php/`    | all stacks   | PHP-FPM 8.2 with Moodle extensions; serves Moodle code |
+| `nginx`  | built from `docker/nginx/`  | all stacks   | HTTP-only on `:8080`; SSL is terminated upstream       |
+| `redis`  | `redis:alpine`              | base + prod  | session handler + MUC backend                          |
+| `cron`   | reuses `php` image          | base         | runs `admin/cli/cron.php` on a 60s loop                |
+| `mariadb`| `mariadb:lts`               | dev / db     | dev-only DB; in prod the DB is external                |
+| `garage` | `dxflrs/garage`             | dev          | dev-only S3-compatible store for plugins that need S3  |
+
+Web root is `/var/www/html/moodle_app/public`. Moodle data is at
+`/var/www/moodledata`. Code lives in the image, not in a named volume —
+upgrades happen by rebuilding the image, not by mutating a volume.
+
+## Quick start (dev)
 
 ```bash
-# 1. Copy and configure environment
 cp .env.example .env
-
-# 2. Start development environment
 make dev
+# browse to http://localhost:8080
 ```
 
-Moodle will be available at `http://localhost:8080`.
+The first run will build the PHP and nginx images (this clones Moodle
+core and every plugin in `moodle-config.json`), bring up MariaDB and
+Garage, and let Moodle's installer initialize the DB on first hit.
 
-Default admin credentials: `admin` / `Admin123!`
+Stop with `make dev-down`.
 
-Run `make help` to see all available commands.
+## Plugins
 
-## Architecture
-
-### Plugin Management
-
-Plugins are defined in `moodle-config.json`. Each entry specifies a git repository, branch/tag, and destination path within Moodle. `build.sh` reads this config, clones Moodle core to `moodle_app/`, and installs plugins to `moodle_app/public/<destination>`.
-
-To add a plugin, append an entry to the `plugins` array in `moodle-config.json`:
+`moodle-config.json` is the single source of truth. Each entry:
 
 ```json
 {
-  "name": "my_plugin",
-  "repository": "https://github.com/org/moodle-mod_example.git",
-  "version": "main",
-  "destination": "mod/example"
+  "name": "moodle-mod_attendance",
+  "repository": "https://github.com/danmarsden/moodle-mod_attendance.git",
+  "version": "MOODLE_501_STABLE",
+  "destination": "mod/attendance"
 }
 ```
 
-Then rebuild: `make build-fresh` (removes moodle_app volume and rebuilds with no cache).
+`build.sh` clones each repo at the given ref into
+`moodle_app/public/<destination>`. The script:
 
-### Included Plugins
+- Clones with `--depth 1 --branch <ref>`, so `version` must be a tag or
+  branch — **not** a commit SHA.
+- Removes `.git/` after cloning to keep the image smaller.
+- Skips plugins whose target directory already exists.
+- Verifies after the loop that every configured plugin actually landed
+  on disk; missing one fails the build instead of shipping a broken
+  image.
 
-| Plugin | Type | Description |
-|---|---|---|
-| theme_moove | Theme | Modern responsive theme |
-| theme_elby | Theme | Elby custom theme |
-| auth_oidc | Auth | Microsoft OpenID Connect |
-| auth_antihammer | Auth | Brute-force login protection |
-| mod_attendance | Activity | Attendance tracking |
-| mod_attendanceregister | Activity | Attendance register |
-| mod_customcert | Activity | Custom certificates |
-| mod_organizer | Activity | Appointment organizer |
-| mod_activitymap | Activity | Activity dependency map |
-| format_grid | Course format | Grid course format |
-| enrol_attributes | Enrolment | Profile-based auto-enrolment |
-| block_accessibility | Block | Accessibility tools |
-| block_completion_progress | Block | Progress bar block |
-| block_attendance | Block | Attendance block |
-| filter_wiris | Filter | MathType equation editor |
-| local_o365 | Local | Microsoft 365 integration |
-| local_bulkenrol | Local | Bulk user enrolment |
-| local_reblibrary | Local | REB digital library (S3 storage) |
-| local_elby_dashboard | Local | Elby dashboard |
-| tool_coursefields | Admin tool | Custom course fields |
-| customfield_dynamic | Custom field | Dynamic custom fields |
-| booktool_importepub | Book tool | EPUB import for Book module |
-| report_benchmark | Report | Performance benchmarking |
+### Pin discipline
 
-### Docker Services
+Branch tips move; tags don't. Prefer tags. The `MOODLE_*_STABLE`
+branches are the exception — they only receive backports within a
+release line, so they're effectively stable refs. See
+[`docs/plugin-clone-anomalies.md`](docs/plugin-clone-anomalies.md) for
+the verification recipe and known traps (e.g. `block_configurablereports`'s
+orphan `master` branch).
 
-| Service | Description |
-|---|---|
-| **php** | PHP 8.2-FPM with Moodle and all extensions |
-| **cron** | Moodle scheduled task runner (same image as php) |
-| **nginx** | Web server proxying to PHP-FPM |
-| **mariadb** | MariaDB 11 database (dev only) |
-| **garage** | S3-compatible object storage (dev only) |
-| **garage-init** | One-shot bucket/key setup for Garage (dev only) |
-| **certbot** | Let's Encrypt certificate renewal (prod only) |
+### Plugins not on a public git remote
 
-### Container Paths
-
-| Path | Purpose |
-|---|---|
-| `/var/www/html/moodle_app` | Moodle installation |
-| `/var/www/html/moodle_app/public` | Web root |
-| `/var/www/moodledata` | Moodle data directory |
+Drop the plugin tree under `vendor/<name>/` and add a `COPY` to the PHP
+and nginx Dockerfiles. See [`vendor/README.md`](vendor/README.md).
 
 ## Configuration
 
-Copy `.env.example` to `.env` and customize. Key variable groups:
+Copy `.env.example` to `.env` and edit. Key knobs:
 
-### Database
+| Variable                       | Default            | Notes                                                            |
+|--------------------------------|--------------------|------------------------------------------------------------------|
+| `DB_TYPE`                      | `mariadb`          | or `pgsql`                                                       |
+| `DB_HOST`, `DB_PORT`, ...      | dev defaults       | in prod, point at your external DB                               |
+| `MOODLE_WWWROOT`               | `http://localhost:8080` | full URL Moodle should advertise                            |
+| `MOODLE_REVERSEPROXY`          | `false`            | **must be `false`** when the upstream proxy forwards your `Host` |
+| `MOODLE_SSLPROXY`              | `false`            | set to `true` in prod so Moodle emits `https://` URLs            |
+| `SERVER_CPUS`, `SERVER_MEMORY_GB` | host-sized      | feed the resource calculator (see below)                         |
+| `OPCACHE_MEMORY_MB`            | `256`              | per replica                                                      |
+| `OPCACHE_JIT_BUFFER_MB`        | `128`              | per replica                                                      |
+| `OPCACHE_INTERNED_STRINGS_MB`  | `64`               | bump from PHP's stock 8 MB — Moodle bootstraps a lot of strings  |
+| `REDIS_HOST`, `REDIS_PORT`     | `redis:6379`       | sessions + MUC                                                   |
 
-| Variable | Default | Description |
-|---|---|---|
-| `DB_TYPE` | `mariadb` | Database type (`mariadb` or `pgsql`) |
-| `DB_HOST` | `mariadb` | Database hostname |
-| `DB_PORT` | `3306` | Database port |
-| `DB_NAME` | `moodle` | Database name |
-| `DB_USER` | `moodleuser` | Database user |
-| `DB_PASSWORD` | `moodlepass` | Database password |
+`docker/php/calculate-resources.sh` derives PHP-FPM `pm.*` values from
+`SERVER_CPUS`, `SERVER_MEMORY_GB`, `CPUS_PER_REPLICA`, and
+`PHP_MEMORY_FRACTION`. The numbers are baked into the rendered
+`www.conf` at container start.
 
-### Moodle
+## Stacks
 
-| Variable | Default | Description |
-|---|---|---|
-| `MOODLE_WWWROOT` | `http://localhost:8080` | Full site URL (overrides components below) |
-| `MOODLE_PROTOCOL` | `http` | URL protocol |
-| `MOODLE_HOST` | `localhost` | Hostname |
-| `MOODLE_PORT` | `8080` | Port |
-| `MOODLE_DEBUG` | `false` | Enable debug mode |
-| `MOODLE_REVERSEPROXY` | `false` | Behind a reverse proxy |
-| `MOODLE_SSLPROXY` | `false` | SSL terminated by proxy |
+| Make target | Files used                                                  | What it adds over the base                                |
+|-------------|-------------------------------------------------------------|-----------------------------------------------------------|
+| `make dev`  | `docker-compose.yml` + `docker-compose.dev.yml`             | MariaDB, Garage (S3), bind mounts                         |
+| `make staging` | `docker-compose.yml` + `docker-compose.staging.yml`      | external DB, no Garage                                    |
+| `make prod` | `docker-compose.yml` + `docker-compose.prod.yml`            | external DB, Redis, multiple PHP replicas, named volumes  |
+| `make db-up`| `docker-compose.db.yml`                                     | standalone MariaDB only (e.g. for staging-on-host setups) |
 
-### Admin (auto-install)
+If a `docker-compose.local.yml` exists at the repo root it is included
+automatically by every Make target above. Use it for host-specific
+overrides (pre-existing external volumes, host-specific DB credentials,
+etc.) — it's gitignored.
 
-| Variable | Default |
-|---|---|
-| `MOODLE_ADMIN_USER` | `admin` |
-| `MOODLE_ADMIN_PASS` | `Admin123!` |
-| `MOODLE_ADMIN_EMAIL` | `admin@example.com` |
-| `MOODLE_SITE_FULLNAME` | `Moodle Dev` |
-| `MOODLE_SITE_SHORTNAME` | `moodle` |
+## Production realities
 
-## Environments
+- **Run behind a reverse proxy.** This stack speaks HTTP on `:8080`. Put
+  nginx, Caddy, Traefik, or a cloud load balancer in front of it for
+  TLS. The `MOODLE_SSLPROXY=true` + `MOODLE_REVERSEPROXY=false` combo
+  is what tells Moodle to emit `https://` URLs while accepting HTTP
+  traffic without flagging `reverseproxyabused`.
+- **External DB.** `docker-compose.prod.yml` doesn't ship a database
+  service. Point `DB_HOST` at the real one.
+- **Redis is required in prod.** Sessions go through `\core\session\redis`,
+  and MUC's session/application modes are mapped to a Redis store. Run
+  `scripts/setup_redis_muc.php` once after the first prod boot to
+  create the MUC redis store and set the mode mappings (it prints the
+  persisted state for verification).
+- **Read-only sessions.** `$CFG->enable_read_only_sessions = true` is on,
+  which skips session write locks on read-only pages — meaningful
+  concurrency win behind Redis. Safe because no caches still resolve to
+  PHP's session handler.
+- **Rolling deploys.** `scripts/deploy.sh code` does a rolling
+  replacement of PHP-FPM replicas without downtime. Nginx is a single
+  instance, so expect a ~5s blip when it's recreated at the end.
+- **Cron doesn't fail loudly.** The cron container loops `cron.php` with
+  `|| true` because Moodle legitimately exits non-zero during
+  maintenance mode and pending upgrades. Look at the container logs
+  rather than its exit code to tell whether cron is actually working.
+- **Image, not volume.** Code is baked into the image; there is no
+  `moodle_app` named volume to upgrade. To roll out a code change:
+  rebuild the image, then redeploy.
 
-### Development
+## Make targets
 
-```bash
-make dev        # start (MariaDB + Garage included)
-make dev-down   # stop
+```
+make help            # list all targets
+make build           # build every service that has a build: stanza
+make build-fresh     # full rebuild: no cache + drop the moodle_app volume
+make dev | dev-down
+make staging | staging-down
+make prod | prod-down
+make db-up | db-down
+make logs s=php      # tail logs for one service
+make shell           # bash into the PHP container
+make clean-cache     # purge Moodle MUC caches
 ```
 
-### Staging
+## Repo layout
 
-Staging simulates production with a separate database container and no SSL (behind an external reverse proxy).
-
-```bash
-make db-up      # start standalone MariaDB
-make staging    # start Moodle stack
-make staging-down
+```
+.
+├── build.sh                      # clones Moodle core + plugins per moodle-config.json
+├── moodle-config.json            # single source of truth: Moodle ref + plugin list
+├── config.php.docker             # Moodle config rendered into the image
+├── docker/
+│   ├── php/                      # PHP-FPM image (also runs cron)
+│   └── nginx/                    # nginx image with Moodle's tree baked in
+├── docker-compose.yml            # base
+├── docker-compose.{dev,staging,prod,db}.yml
+├── scripts/
+│   ├── deploy.sh                 # rolling replacement of PHP replicas
+│   └── setup_redis_muc.php       # one-shot MUC redis-store + mode mapping
+├── docs/
+│   └── plugin-clone-anomalies.md # plugin pin discipline + known traps
+└── vendor/                       # plugins not on a public git remote (see vendor/README.md)
 ```
 
-`.env` for staging:
-```
-DB_HOST=elearning_mariadb
-MOODLE_SSLPROXY=true
-MOODLE_WWWROOT=https://your-staging-domain
-```
+## Contributing
 
-### Production
-
-```bash
-make prod       # start (HTTPS on port 443 with certbot)
-make prod-down  # stop
-```
-
-The production compose file:
-- Enables HTTPS on port 443 with Let's Encrypt via Certbot
-- Does **not** include MariaDB or Garage (use external services)
-
-Set `CERTBOT_EMAIL` in your `.env` for Let's Encrypt registration.
-
-### Rebuilding
-
-To force a fresh build with updated plugins:
-
-```bash
-make build-fresh   # rebuild image (no cache) + remove moodle_app volume
-make staging       # or make dev / make prod
-```
-
-## S3 Object Storage
-
-The **reblibrary** plugin uses S3-compatible object storage for PDF files and cover images. Any S3-compatible service works (Garage, SeaweedFS, AWS S3, etc.).
-
-### Development
-
-[Garage](https://garagehq.deuxfleurs.fr/) runs automatically as a Docker service via `docker-compose.dev.yml`. No extra setup needed — the bucket and API keys are created on startup by the `garage-init` service.
-
-- S3 API: `http://localhost:3900`
-- Admin API: `http://localhost:3903`
-
-Default dev credentials (in `.env.example`):
-
-| Variable | Default |
-|---|---|
-| `S3_ENDPOINT` | `http://garage:3900` |
-| `S3_ACCESS_KEY` | `GK000000000000000000000000` |
-| `S3_SECRET_KEY` | `0000000000000000000000000000000000000000000000000000000000000000` |
-| `S3_BUCKET` | `moodle` |
-| `S3_REGION` | `us-east-1` |
-
-### Production
-
-In production, point the S3 environment variables at your dedicated S3-compatible server. No Garage container is included in the production compose file.
-
-Update your `.env`:
-
-```bash
-S3_ENDPOINT=https://s3.your-server.com
-S3_ACCESS_KEY=your-access-key
-S3_SECRET_KEY=your-secret-key
-S3_BUCKET=moodle
-S3_REGION=us-east-1
-```
-
-### Setting Up a Standalone Garage Server
-
-If you want to run Garage as your production S3 server:
-
-1. **Install Garage** (see [official docs](https://garagehq.deuxfleurs.fr/documentation/quick-start/)):
-
-   ```bash
-   curl -Lo /usr/local/bin/garage \
-     https://garagehq.deuxfleurs.fr/_releases/v1.1.0/x86_64-unknown-linux-musl/garage
-   chmod +x /usr/local/bin/garage
-   ```
-
-2. **Create configuration** at `/etc/garage.toml`:
-
-   ```toml
-   metadata_dir = "/var/lib/garage/meta"
-   data_dir = "/var/lib/garage/data"
-   db_engine = "sqlite"
-   replication_factor = 1
-
-   [s3_api]
-   s3_region = "us-east-1"
-   api_bind_addr = "[::]:3900"
-
-   [admin]
-   api_bind_addr = "[::]:3903"
-
-   [rpc]
-   bind_addr = "[::]:3901"
-   secret = "<generate with: openssl rand -hex 32>"
-   ```
-
-3. **Start Garage and configure layout**:
-
-   ```bash
-   garage server &
-
-   # Get node ID
-   garage status
-
-   # Configure layout (replace NODE_ID with first 16 chars from status)
-   garage layout assign -z dc1 -c 100GB NODE_ID
-   garage layout apply --version 1
-   ```
-
-4. **Create bucket and API key**:
-
-   ```bash
-   garage key create moodle-key
-   garage bucket create moodle
-   garage bucket allow moodle --read --write --owner --key moodle-key
-
-   # Show key credentials (use these in your .env)
-   garage key info moodle-key
-   ```
-
-5. **Update `.env`** with the key ID and secret from `garage key info`.
-
-## Prerequisites
-
-- Docker and Docker Compose
-- `git` and `jq` (for running `build.sh` locally)
+Forks welcome. The shape is intentionally minimal — if you find yourself
+copying the same overlay across multiple deployments, that's a signal
+the pattern belongs here, not in your fork.
