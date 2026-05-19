@@ -107,6 +107,34 @@ if (getenv('MOODLE_SSLPROXY') === 'true') {
     $_SERVER['HTTPS'] = 'on';
 }
 
+// =========================================================================
+// FILE STORAGE BACKEND (tool_objectfs)
+// =========================================================================
+// Switch the file_system implementation based on FILESTORAGE_BACKEND.
+//   local : Moodle writes/reads $CFG->dataroot/filedir on local disk. Default.
+//   s3    : tool_objectfs routes filedir through an S3-compatible bucket.
+//
+// Credentials and the bucket location are forced via $CFG->forced_plugin_settings
+// so they live in .env, are read-only in the admin UI, and never get written
+// to mdl_config_plugins. Operational tuning (size threshold, age, deletion
+// policy, pre-signed URLs) is NOT forced here — it's seeded once into the DB
+// via scripts/setup_objectfs.php and editable in Site Admin afterwards.
+// This split is deliberate: it lets the test harness and ops change tuning
+// at runtime without redeploys, while secrets remain immutable from the UI.
+if ((getenv('FILESTORAGE_BACKEND') ?: 'local') === 's3') {
+    $CFG->alternative_file_system_class = '\tool_objectfs\s3_file_system';
+    $CFG->forced_plugin_settings['tool_objectfs'] = [
+        'filesystem'     => '\tool_objectfs\s3_file_system',
+        's3_key'         => getenv('S3_ACCESS_KEY') ?: '',
+        's3_secret'      => getenv('S3_SECRET_KEY') ?: '',
+        's3_bucket'      => getenv('S3_BUCKET')     ?: '',
+        's3_region'      => getenv('S3_REGION')     ?: 'us-east-1',
+        's3_base_url'    => getenv('S3_ENDPOINT')   ?: '',
+        's3_usesdkcreds' => 0,
+        'useproxy'       => 0,
+    ];
+}
+
 // Accelerate category / deep-course pages; must be defined before setup.php.
 define('CONTEXT_CACHE_MAX_SIZE', 20000);
 

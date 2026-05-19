@@ -99,7 +99,25 @@ for plugin in "${PLUGIN_LINES[@]}"; do
       PLUGIN_REPO=$(jq -r '.repository' <<<"$plugin")
       PLUGIN_VERSION=$(jq -r '.version' <<<"$plugin")
       echo "  -> Cloning $PLUGIN_NAME @ $PLUGIN_VERSION -> public/$PLUGIN_DEST"
-      if git clone --depth 1 --branch "$PLUGIN_VERSION" --recursive "$PLUGIN_REPO" "$TARGET"; then
+      clone_ok=true
+      if [[ "$PLUGIN_VERSION" =~ ^[0-9a-fA-F]{40}$ ]]; then
+        # Pinning by commit SHA. --depth 1 --branch <SHA> doesn't work; we have
+        # to init, fetch the specific commit, then checkout. GitHub allows
+        # fetching arbitrary commits when uploadpack.allowReachableSHA1InWant
+        # is on, which it is by default for public repos.
+        ( set -e
+          git init -q "$TARGET"
+          cd "$TARGET"
+          git remote add origin "$PLUGIN_REPO"
+          git fetch --depth 1 origin "$PLUGIN_VERSION" -q
+          git checkout -q FETCH_HEAD
+          git submodule update --init --recursive -q 2>/dev/null || true ) \
+          || clone_ok=false
+      else
+        git clone --depth 1 --branch "$PLUGIN_VERSION" --recursive "$PLUGIN_REPO" "$TARGET" \
+          || clone_ok=false
+      fi
+      if $clone_ok; then
         rm -rf "$TARGET/.git"
         installed=$((installed + 1))
       else

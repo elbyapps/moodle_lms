@@ -13,7 +13,15 @@ rpc_secret = "0000000000000000000000000000000000000000000000000000000000000000"
 [s3_api]
 s3_region = "rw-central-1"
 api_bind_addr = "[::]:3900"
-root_domain = ".s3.garage.localhost"
+# root_domain lets Garage parse virtual-hosted-style S3 URLs:
+#   https://<bucket>.<root_domain>/<key>  ->  bucket=<bucket>, key=<key>
+# We use ".garage" so a request with Host header "moodle.garage" routes to
+# the "moodle" bucket. Pair this with a `moodle.garage` network alias on the
+# garage service in compose so PHP/cron containers can resolve it.
+# tool_objectfs (AWS SDK) only emits virtual-hosted URLs — there's no
+# upstream path-style toggle — so this alias-plus-root_domain trick is what
+# makes objectfs work against a dev Garage out of the box.
+root_domain = ".garage"
 
 
 [s3_web]

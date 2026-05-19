@@ -40,7 +40,16 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - moodle
+      moodle:
+        # tool_objectfs (AWS SDK) constructs virtual-hosted S3 URLs
+        # (https://<bucket>.<endpoint-host>/<key>) and has no upstream knob
+        # for path-style. Alias <bucket>.garage so the in-container DNS
+        # resolves it back to this container; combined with
+        # root_domain=".garage" in garage.toml, Garage then treats the request
+        # as virtual-hosted and routes to the right bucket.
+        # Add one alias per bucket you use from the dev stack.
+        aliases:
+          - moodle.garage
 
   garage-init:
     image: python:3.12-alpine
