@@ -1,7 +1,9 @@
 services:
   php:
     # Scaling: deploy.replicas is Swarm-only. Use:
-    #   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale php=${PHP_REPLICAS:-3}
+    #   docker compose --project-directory . \
+    #     -f compose/docker-compose.yml -f compose/docker-compose.prod.yml \
+    #     up -d --scale php=${PHP_REPLICAS:-3}
     cpus: "${CPUS_PER_REPLICA:-4}"
     mem_limit: "${PHP_REPLICA_MEMORY:-12G}"
     volumes:

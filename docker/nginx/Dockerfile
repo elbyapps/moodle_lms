@@ -8,7 +8,11 @@ RUN apk add --no-cache git jq bash openssh-client && \
     ssh-keyscan github.com >> /root/.ssh/known_hosts
 ENV GIT_TERMINAL_PROMPT=0
 WORKDIR /build
+# Vendored plugin trees ship in the build context; build.sh copies them into
+# moodle_app/public/ alongside the cloned plugins. Keep this in sync with
+# docker/php/Dockerfile so nginx serves the same plugin set PHP runs.
 COPY build.sh moodle-config.json ./
+COPY vendor ./vendor
 RUN chmod +x build.sh
 ARG SKIP_CLONE=false
 RUN --mount=type=ssh if [ "$SKIP_CLONE" = "false" ]; then \
@@ -20,8 +24,7 @@ RUN --mount=type=ssh if [ "$SKIP_CLONE" = "false" ]; then \
 
 # Stage 2: nginx runtime with Moodle's public tree baked in.
 # nginx serves static assets directly (theme CSS/JS/images) and hands PHP off via FastCGI.
+# Vendored plugins are already inside moodle_app/public/ because build.sh installed
+# them in stage 1 — no extra COPYs needed here. See vendor/README.md.
 FROM nginx:alpine
 COPY --from=moodle_fetch /build/moodle_app /var/www/html/moodle_app
-# If you vendor non-public plugins (see vendor/README.md), mirror the COPY
-# from docker/php/Dockerfile here so nginx can serve their static assets:
-#   COPY vendor/<plugin> /var/www/html/moodle_app/public/<destination>

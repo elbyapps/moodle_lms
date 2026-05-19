@@ -63,8 +63,11 @@ RUN echo "memory_limit = 256M" > /usr/local/etc/php/conf.d/moodle.ini \
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy build scripts from project root
+# Copy build scripts and vendored plugin trees from project root.
+# build.sh reads moodle-config.json and either clones (source=git) or copies
+# (source=vendor, reading from ./vendor/) each plugin into moodle_app/public/.
 COPY build.sh moodle-config.json ./
+COPY vendor ./vendor
 RUN chmod +x build.sh
 
 # Build arg to skip cloning (for development with bind mounts)
@@ -88,11 +91,7 @@ RUN --mount=type=ssh if [ "$SKIP_CLONE" = "false" ]; then ./build.sh; else echo 
 RUN if [ "$SKIP_CLONE" = "false" ]; then cd moodle_app && composer install --no-dev --classmap-authoritative; fi
 
 # Code lives at /var/www/html/moodle_app directly — no named volume, no copy-on-boot.
-#
-# Vendoring pattern: if you have Moodle plugins that aren't on a public git
-# remote, drop their source trees under vendor/ and add a COPY here, e.g.
-#   COPY vendor/<plugin> /var/www/html/moodle_app/public/<destination>
-# See vendor/README.md.
+# Vendored plugins are installed by build.sh from ./vendor/ — see vendor/README.md.
 RUN chown -R www-data:www-data /var/www/html
 
 # Copy entrypoint script and resource tuning files

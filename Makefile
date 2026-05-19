@@ -1,12 +1,26 @@
-# When docker-compose.local.yml is present (host-specific overrides like
-# pre-existing volume names), include it in every stack-aware target.
-LOCAL_OVERRIDE = $(if $(wildcard docker-compose.local.yml),-f docker-compose.local.yml,)
+# Compose files live under compose/, but every relative path inside them
+# (build context:, bind-mount sources, env_file:) is resolved against
+# --project-directory, NOT against the YAML file's own directory. We pin
+# --project-directory . (the repo root) so:
+#   - paths like ./moodledata, ./docker/..., context: . resolve to the repo
+#     root as they did when the YAMLs lived there — no rewriting needed.
+#   - the project name stays "moodle_lms" instead of becoming "compose"
+#     (volume names are prefixed by project name — changing it would orphan
+#     moodle_lms_moodledata, moodle_lms_redis_data, etc.)
+#   - .env at the repo root is picked up for ${VAR} interpolation and for
+#     the services' env_file: .env directive.
+# Do not strip --project-directory . from these commands.
+PROJECT_DIR = --project-directory .
 
-COMPOSE_BASE = docker compose -f docker-compose.yml $(LOCAL_OVERRIDE)
-COMPOSE_DEV = docker compose -f docker-compose.yml -f docker-compose.dev.yml $(LOCAL_OVERRIDE)
-COMPOSE_STAGING = docker compose -f docker-compose.yml -f docker-compose.staging.yml $(LOCAL_OVERRIDE)
-COMPOSE_PROD = docker compose -f docker-compose.yml -f docker-compose.prod.yml $(LOCAL_OVERRIDE)
-COMPOSE_DB = docker compose -f docker-compose.db.yml
+# When compose/docker-compose.local.yml is present (host-specific overrides like
+# pre-existing volume names), include it in every stack-aware target.
+LOCAL_OVERRIDE = $(if $(wildcard compose/docker-compose.local.yml),-f compose/docker-compose.local.yml,)
+
+COMPOSE_BASE = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml $(LOCAL_OVERRIDE)
+COMPOSE_DEV = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.dev.yml $(LOCAL_OVERRIDE)
+COMPOSE_STAGING = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.staging.yml $(LOCAL_OVERRIDE)
+COMPOSE_PROD = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.prod.yml $(LOCAL_OVERRIDE)
+COMPOSE_DB = docker compose $(PROJECT_DIR) -f compose/docker-compose.db.yml
 
 .PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down db-up db-down logs shell clean-cache
 

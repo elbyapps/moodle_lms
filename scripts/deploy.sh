@@ -21,12 +21,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
-COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)
+# Compose files live under compose/. --project-directory . keeps the project
+# name as the repo dir (volume prefix stability) and lets .env load from root.
+COMPOSE=(docker compose --project-directory . -f compose/docker-compose.yml -f compose/docker-compose.prod.yml)
 # Honour host-specific overrides (e.g. an external moodledata volume) when
-# docker-compose.local.yml is committed/present on this host. This keeps
+# compose/docker-compose.local.yml is committed/present on this host. This keeps
 # scripts/deploy.sh aligned with `make prod` on machines that need the override.
-if [ -f docker-compose.local.yml ]; then
-    COMPOSE+=(-f docker-compose.local.yml)
+if [ -f compose/docker-compose.local.yml ]; then
+    COMPOSE+=(-f compose/docker-compose.local.yml)
 fi
 
 if [ -f .env ]; then

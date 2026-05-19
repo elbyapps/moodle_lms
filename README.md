@@ -28,6 +28,7 @@ upgrades happen by rebuilding the image, not by mutating a volume.
 
 ```bash
 cp .env.example .env
+cp moodle-config.example.json moodle-config.json
 make dev
 # browse to http://localhost:8080
 ```
@@ -40,19 +41,29 @@ Stop with `make dev-down`.
 
 ## Plugins
 
-`moodle-config.json` is the single source of truth. Each entry:
+`moodle-config.json` is the single source of truth for your site. It's
+gitignored — copy `moodle-config.example.json` to `moodle-config.json`
+and edit it. The example file is what gets committed, so it should stay
+minimal.
+
+Each plugin entry has a `source`:
 
 ```json
 {
   "name": "moodle-mod_attendance",
+  "source": "git",
   "repository": "https://github.com/danmarsden/moodle-mod_attendance.git",
   "version": "MOODLE_501_STABLE",
   "destination": "mod/attendance"
 }
 ```
 
-`build.sh` clones each repo at the given ref into
-`moodle_app/public/<destination>`. The script:
+For an in-house plugin shipped under `vendor/` use `source: "vendor"`
+instead — see [`vendor/README.md`](vendor/README.md). `source` defaults
+to `"git"` if omitted.
+
+`build.sh` installs each plugin at the given ref into
+`moodle_app/public/<destination>`. For git sources the script:
 
 - Clones with `--depth 1 --branch <ref>`, so `version` must be a tag or
   branch — **not** a commit SHA.
@@ -73,8 +84,10 @@ orphan `master` branch).
 
 ### Plugins not on a public git remote
 
-Drop the plugin tree under `vendor/<name>/` and add a `COPY` to the PHP
-and nginx Dockerfiles. See [`vendor/README.md`](vendor/README.md).
+Drop the plugin tree under `vendor/<name>/` and add a `source: "vendor"`
+entry to `moodle-config.json`. `build.sh` copies it into
+`moodle_app/public/<destination>` in both image builds — no Dockerfile
+edits needed. See [`vendor/README.md`](vendor/README.md).
 
 ## Configuration
 
@@ -102,12 +115,12 @@ Copy `.env.example` to `.env` and edit. Key knobs:
 
 | Make target | Files used                                                  | What it adds over the base                                |
 |-------------|-------------------------------------------------------------|-----------------------------------------------------------|
-| `make dev`  | `docker-compose.yml` + `docker-compose.dev.yml`             | MariaDB, Garage (S3), bind mounts                         |
-| `make staging` | `docker-compose.yml` + `docker-compose.staging.yml`      | external DB, no Garage                                    |
-| `make prod` | `docker-compose.yml` + `docker-compose.prod.yml`            | external DB, Redis, multiple PHP replicas, named volumes  |
-| `make db-up`| `docker-compose.db.yml`                                     | standalone MariaDB only (e.g. for staging-on-host setups) |
+| `make dev`  | `compose/docker-compose.yml` + `compose/docker-compose.dev.yml`         | MariaDB, Garage (S3), bind mounts                         |
+| `make staging` | `compose/docker-compose.yml` + `compose/docker-compose.staging.yml`  | external DB, no Garage                                    |
+| `make prod` | `compose/docker-compose.yml` + `compose/docker-compose.prod.yml`        | external DB, Redis, multiple PHP replicas, named volumes  |
+| `make db-up`| `compose/docker-compose.db.yml`                                         | standalone MariaDB only (e.g. for staging-on-host setups) |
 
-If a `docker-compose.local.yml` exists at the repo root it is included
+If a `compose/docker-compose.local.yml` exists it is included
 automatically by every Make target above. Use it for host-specific
 overrides (pre-existing external volumes, host-specific DB credentials,
 etc.) — it's gitignored.
@@ -119,7 +132,7 @@ etc.) — it's gitignored.
   TLS. The `MOODLE_SSLPROXY=true` + `MOODLE_REVERSEPROXY=false` combo
   is what tells Moodle to emit `https://` URLs while accepting HTTP
   traffic without flagging `reverseproxyabused`.
-- **External DB.** `docker-compose.prod.yml` doesn't ship a database
+- **External DB.** `compose/docker-compose.prod.yml` doesn't ship a database
   service. Point `DB_HOST` at the real one.
 - **Redis is required in prod.** Sessions go through `\core\session\redis`,
   and MUC's session/application modes are mapped to a Redis store. Run
@@ -166,8 +179,9 @@ make clean-cache     # purge Moodle MUC caches
 ├── docker/
 │   ├── php/                      # PHP-FPM image (also runs cron)
 │   └── nginx/                    # nginx image with Moodle's tree baked in
-├── docker-compose.yml            # base
-├── docker-compose.{dev,staging,prod,db}.yml
+├── compose/
+│   ├── docker-compose.yml         # base
+│   └── docker-compose.{dev,staging,prod,db}.yml
 ├── scripts/
 │   ├── deploy.sh                 # rolling replacement of PHP replicas
 │   └── setup_redis_muc.php       # one-shot MUC redis-store + mode mapping

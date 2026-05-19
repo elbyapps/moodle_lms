@@ -1,5 +1,7 @@
-# Development compose file - adds MariaDB and bind mounts for plugin development
-# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Development compose file - adds MariaDB and bind mounts for plugin development.
+# Usage (via Makefile): make dev
+# Or directly: docker compose --project-directory . \
+#                -f compose/docker-compose.yml -f compose/docker-compose.dev.yml up --build
 
 services:
 

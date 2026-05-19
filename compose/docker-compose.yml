@@ -9,6 +9,10 @@ services:
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
     env_file:
+      # All relative paths in this file (env_file, bind mounts, build
+      # context) resolve against --project-directory, which the Makefile
+      # and scripts/deploy.sh pin to the repo root. That's why this is
+      # ".env" and not "../.env" even though we live under compose/.
       - .env
     networks:
       - moodle

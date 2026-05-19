@@ -24,7 +24,14 @@ for cmd in git jq; do
   fi
 done
 
-[ -f "$CONFIG_FILE" ] || { echo "Error: $CONFIG_FILE not found." >&2; exit 1; }
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo "Error: $CONFIG_FILE not found." >&2
+  if [ -f "${CONFIG_FILE%.json}.example.json" ]; then
+    echo "Hint: copy the template and edit it:" >&2
+    echo "  cp ${CONFIG_FILE%.json}.example.json $CONFIG_FILE" >&2
+  fi
+  exit 1
+fi
 
 MOODLE_REPO=$(jq -r '.moodle.repository' "$CONFIG_FILE")
 MOODLE_VERSION=$(jq -r '.moodle.version' "$CONFIG_FILE")
@@ -64,14 +71,13 @@ installed=0
 skipped=0
 
 for plugin in "${PLUGIN_LINES[@]}"; do
-  PLUGIN_NAME=$(jq -r '.name'        <<<"$plugin")
-  PLUGIN_REPO=$(jq -r '.repository'  <<<"$plugin")
-  PLUGIN_VERSION=$(jq -r '.version'  <<<"$plugin")
-  PLUGIN_DEST=$(jq -r '.destination' <<<"$plugin")
+  PLUGIN_NAME=$(jq -r '.name'              <<<"$plugin")
+  PLUGIN_DEST=$(jq -r '.destination'       <<<"$plugin")
+  PLUGIN_SOURCE=$(jq -r '.source // "git"' <<<"$plugin")
 
-  # IMPORTANT: skip-check and clone use the SAME path. Earlier versions
-  # checked $PLUGIN_DEST but cloned to public/$PLUGIN_DEST, which silently
-  # skipped re-cloning whenever a stale legacy directory existed.
+  # IMPORTANT: skip-check and install use the SAME path. Earlier versions
+  # checked $PLUGIN_DEST but installed to public/$PLUGIN_DEST, which silently
+  # skipped re-installing whenever a stale legacy directory existed.
   TARGET="$DEST_FOLDER/public/$PLUGIN_DEST"
 
   if [ -d "$TARGET" ]; then
@@ -80,17 +86,42 @@ for plugin in "${PLUGIN_LINES[@]}"; do
     continue
   fi
 
-  echo "  -> Installing $PLUGIN_NAME @ $PLUGIN_VERSION -> public/$PLUGIN_DEST"
   mkdir -p "$(dirname "$TARGET")"
 
-  if git clone --depth 1 --branch "$PLUGIN_VERSION" --recursive "$PLUGIN_REPO" "$TARGET"; then
-    rm -rf "$TARGET/.git"
-    installed=$((installed + 1))
-  else
-    echo "ERROR: failed to clone $PLUGIN_NAME from $PLUGIN_REPO @ $PLUGIN_VERSION" >&2
-    failed+=("$PLUGIN_NAME")
-    rm -rf "$TARGET"
-  fi
+  case "$PLUGIN_SOURCE" in
+    git)
+      PLUGIN_REPO=$(jq -r '.repository' <<<"$plugin")
+      PLUGIN_VERSION=$(jq -r '.version' <<<"$plugin")
+      echo "  -> Cloning $PLUGIN_NAME @ $PLUGIN_VERSION -> public/$PLUGIN_DEST"
+      if git clone --depth 1 --branch "$PLUGIN_VERSION" --recursive "$PLUGIN_REPO" "$TARGET"; then
+        rm -rf "$TARGET/.git"
+        installed=$((installed + 1))
+      else
+        echo "ERROR: failed to clone $PLUGIN_NAME from $PLUGIN_REPO @ $PLUGIN_VERSION" >&2
+        failed+=("$PLUGIN_NAME")
+        rm -rf "$TARGET"
+      fi
+      ;;
+    vendor)
+      # Vendored plugins: source tree shipped in the build context under vendor/.
+      # Used for in-house or non-public plugins that have no git remote.
+      PLUGIN_PATH=$(jq -r '.path' <<<"$plugin")
+      if [ ! -d "$PLUGIN_PATH" ]; then
+        echo "ERROR: vendor plugin $PLUGIN_NAME missing at $PLUGIN_PATH" >&2
+        failed+=("$PLUGIN_NAME")
+        continue
+      fi
+      echo "  -> Copying $PLUGIN_NAME from $PLUGIN_PATH -> public/$PLUGIN_DEST"
+      # 'cp -R src/. dst/' copies the *contents* of src into dst, which is what
+      # we want — TARGET should end up as the plugin root, not contain it.
+      cp -R "$PLUGIN_PATH/." "$TARGET/"
+      installed=$((installed + 1))
+      ;;
+    *)
+      echo "ERROR: unknown source '$PLUGIN_SOURCE' for $PLUGIN_NAME (expected 'git' or 'vendor')" >&2
+      failed+=("$PLUGIN_NAME")
+      ;;
+  esac
 done
 
 # 3. Summary + post-condition ----------------------------------------------
