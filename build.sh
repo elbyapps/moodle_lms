@@ -60,11 +60,17 @@ if [ ! -d "$DEST_FOLDER/public" ]; then
 fi
 
 # 2. Plugins ----------------------------------------------------------------
-# Read all plugin lines first so we run the loop in the parent shell. A
-# 'jq ... | while read' pipeline runs the loop in a subshell where 'set -e'
-# does not abort the script on a failed clone — that's how plugins got
-# silently dropped from earlier image builds.
-mapfile -t PLUGIN_LINES < <(jq -c '.plugins[]' "$CONFIG_FILE")
+# Read all plugin lines first so we run the loop in the parent shell.
+# Process substitution + while-read keeps the loop in the parent shell so
+# 'set -e' applies inside it. Piping (jq ... | while read) would run it in
+# a subshell where a failed clone would NOT abort the script — that's how
+# plugins got silently dropped from earlier image builds.
+# Avoid `mapfile` (bash 4+) for compatibility with macOS's bash 3.2 when
+# the Makefile invokes this on the host before bringing up the dev stack.
+PLUGIN_LINES=()
+while IFS= read -r plugin_line; do
+  PLUGIN_LINES+=("$plugin_line")
+done < <(jq -c '.plugins[]' "$CONFIG_FILE")
 
 failed=()
 installed=0
