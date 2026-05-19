@@ -1,117 +1,116 @@
 #!/bin/bash
-
-# A script to set up a Moodle instance and plugins from a JSON config file.
+# Build a Moodle 5.x source tree by cloning core and the plugins listed in
+# moodle-config.json.
 #
-# REQUIREMENTS:
-# - git: For cloning the repositories.
-# - jq: For parsing the JSON config file.
+# Plugin destinations in moodle-config.json are paths relative to Moodle's
+# web root — e.g. "auth/oidc" — and Moodle 5.x serves its web root from
+# $DEST_FOLDER/public/. This script therefore clones every plugin to
+#   $DEST_FOLDER/public/$PLUGIN_DEST
+# Keeping the "public/" prefix as a build-script detail (instead of baking it
+# into moodle-config.json) means the JSON stays portable across Moodle layouts.
 #
-# USAGE:
-# 1. Customize the 'moodle-config.json' file with your desired Moodle version and plugins.
-# 2. Make this script executable: chmod +x build.sh
-# 3. Run the script: ./build.sh
+# Requirements: git, jq.
 
-set -e # Exit immediately if a command exits with a non-zero status.
+set -euo pipefail
 
 CONFIG_FILE="moodle-config.json"
 
-# --- Helper Functions ---
+command_exists() { command -v "$1" >/dev/null 2>&1; }
 
-# Function to check if a command exists
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
-}
+for cmd in git jq; do
+  if ! command_exists "$cmd"; then
+    echo "Error: '$cmd' is not installed." >&2
+    exit 1
+  fi
+done
 
-# --- Main Script ---
-
-echo "Starting Moodle setup..."
-
-# 1. Check for dependencies
-if ! command_exists git; then
-  echo "Error: 'git' is not installed. Please install git and try again."
-  exit 1
-fi
-
-if ! command_exists jq; then
-  echo "Error: 'jq' is not installed. Please install jq and try again."
-  echo "On Debian/Ubuntu: sudo apt-get install jq"
-  echo "On macOS (with Homebrew): brew install jq"
-  exit 1
-fi
-
-# 2. Read configuration from JSON file
-if [ ! -f "$CONFIG_FILE" ]; then
-  echo "Error: Configuration file '$CONFIG_FILE' not found."
-  exit 1
-fi
+[ -f "$CONFIG_FILE" ] || { echo "Error: $CONFIG_FILE not found." >&2; exit 1; }
 
 MOODLE_REPO=$(jq -r '.moodle.repository' "$CONFIG_FILE")
 MOODLE_VERSION=$(jq -r '.moodle.version' "$CONFIG_FILE")
 DEST_FOLDER=$(jq -r '.destination_folder' "$CONFIG_FILE")
 
-echo "Configuration loaded:"
-echo "  - Moodle Version: $MOODLE_VERSION"
-echo "  - Destination: $DEST_FOLDER"
+echo "Configuration:"
+echo "  Moodle:      $MOODLE_REPO @ $MOODLE_VERSION"
+echo "  Destination: $DEST_FOLDER"
 
-# 3. Check if destination folder already exists with content
-if [ -d "$DEST_FOLDER" ] && [ -f "$DEST_FOLDER/index.php" ]; then
-  echo "Moodle already exists in '$DEST_FOLDER', skipping clone."
-  echo "To force a fresh clone, remove the directory first: rm -rf $DEST_FOLDER"
+# 1. Moodle core ------------------------------------------------------------
+if [ -d "$DEST_FOLDER" ] && [ -f "$DEST_FOLDER/public/index.php" ]; then
+  echo "Moodle core already present at $DEST_FOLDER, skipping core clone."
 else
-  # Remove incomplete directory if it exists
   if [ -d "$DEST_FOLDER" ]; then
-    echo "Removing incomplete '$DEST_FOLDER' directory..."
+    echo "Removing incomplete $DEST_FOLDER directory..."
     rm -rf "$DEST_FOLDER"
   fi
-
-  # 4. Clone Moodle core
-  echo "----------------------------------------"
-  echo "Cloning Moodle core from $MOODLE_REPO (version: $MOODLE_VERSION)..."
+  echo "Cloning Moodle core..."
   git clone --depth 1 --branch "$MOODLE_VERSION" "$MOODLE_REPO" "$DEST_FOLDER"
-  echo "Moodle core downloaded successfully."
 fi
 
-# 5. Clone all plugins
-echo "----------------------------------------"
-echo "Installing plugins..."
+# Moodle 5.x must ship a public/ web root.
+if [ ! -d "$DEST_FOLDER/public" ]; then
+  echo "Error: $DEST_FOLDER/public does not exist. Moodle 5.x requires the public/ layout." >&2
+  exit 1
+fi
 
-# Change to the Moodle directory to handle plugin paths correctly
-cd "$DEST_FOLDER"
+# 2. Plugins ----------------------------------------------------------------
+# Read all plugin lines first so we run the loop in the parent shell. A
+# 'jq ... | while read' pipeline runs the loop in a subshell where 'set -e'
+# does not abort the script on a failed clone — that's how plugins got
+# silently dropped from earlier image builds.
+mapfile -t PLUGIN_LINES < <(jq -c '.plugins[]' "$CONFIG_FILE")
 
-jq -c '.plugins[]' "../$CONFIG_FILE" | while read -r plugin; do
-  PLUGIN_NAME=$(echo "$plugin" | jq -r '.name')
-  PLUGIN_REPO=$(echo "$plugin" | jq -r '.repository')
-  PLUGIN_VERSION=$(echo "$plugin" | jq -r '.version')
-  PLUGIN_DEST=$(echo "$plugin" | jq -r '.destination')
+failed=()
+installed=0
+skipped=0
 
-  # Skip if plugin already exists
-  if [ -d "public/$PLUGIN_DEST" ]; then
-    echo "  -> Skipping plugin: $PLUGIN_NAME (already exists at public/$PLUGIN_DEST)"
+for plugin in "${PLUGIN_LINES[@]}"; do
+  PLUGIN_NAME=$(jq -r '.name'        <<<"$plugin")
+  PLUGIN_REPO=$(jq -r '.repository'  <<<"$plugin")
+  PLUGIN_VERSION=$(jq -r '.version'  <<<"$plugin")
+  PLUGIN_DEST=$(jq -r '.destination' <<<"$plugin")
+
+  # IMPORTANT: skip-check and clone use the SAME path. Earlier versions
+  # checked $PLUGIN_DEST but cloned to public/$PLUGIN_DEST, which silently
+  # skipped re-cloning whenever a stale legacy directory existed.
+  TARGET="$DEST_FOLDER/public/$PLUGIN_DEST"
+
+  if [ -d "$TARGET" ]; then
+    echo "  -> Skipping $PLUGIN_NAME (already at public/$PLUGIN_DEST)"
+    skipped=$((skipped + 1))
     continue
   fi
 
-  echo "  -> Installing plugin: $PLUGIN_NAME"
-  echo "     - Repository: $PLUGIN_REPO"
-  echo "     - Version: $PLUGIN_VERSION"
-  echo "     - Destination: public/$PLUGIN_DEST"
+  echo "  -> Installing $PLUGIN_NAME @ $PLUGIN_VERSION -> public/$PLUGIN_DEST"
+  mkdir -p "$(dirname "$TARGET")"
 
-  # Create parent directory if it doesn't exist (e.g., 'mod' or 'theme')
-  mkdir -p "$(dirname "public/$PLUGIN_DEST")"
-
-  # Clone the specific plugin branch/tag (with submodules)
-  git clone --depth 1 --branch "$PLUGIN_VERSION" --recursive "$PLUGIN_REPO" "public/$PLUGIN_DEST"
-
-  echo "     - Plugin '$PLUGIN_NAME' installed."
+  if git clone --depth 1 --branch "$PLUGIN_VERSION" --recursive "$PLUGIN_REPO" "$TARGET"; then
+    rm -rf "$TARGET/.git"
+    installed=$((installed + 1))
+  else
+    echo "ERROR: failed to clone $PLUGIN_NAME from $PLUGIN_REPO @ $PLUGIN_VERSION" >&2
+    failed+=("$PLUGIN_NAME")
+    rm -rf "$TARGET"
+  fi
 done
 
-cd ..
-
+# 3. Summary + post-condition ----------------------------------------------
 echo "----------------------------------------"
-echo "✅ Moodle setup complete!"
-echo "Your Moodle project is ready in the '$DEST_FOLDER' directory."
-echo ""
-echo "Next steps:"
-echo "1. Create a database for Moodle."
-echo "2. Create a 'moodledata' directory outside of your web root."
-echo "3. Copy 'config-dist.php' to 'config.php' and edit it with your database and server details."
-echo "4. Visit your Moodle site in a web browser to start the installation process."
+echo "Plugin summary: installed=$installed skipped=$skipped failed=${#failed[@]}"
+if [ "${#failed[@]}" -gt 0 ]; then
+  printf '  failed: %s\n' "${failed[@]}" >&2
+  exit 1
+fi
+
+# Sanity: every configured plugin must now be on disk at the expected path.
+missing=()
+for plugin in "${PLUGIN_LINES[@]}"; do
+  PLUGIN_DEST=$(jq -r '.destination' <<<"$plugin")
+  [ -d "$DEST_FOLDER/public/$PLUGIN_DEST" ] || missing+=("$PLUGIN_DEST")
+done
+if [ "${#missing[@]}" -gt 0 ]; then
+  echo "ERROR: plugins missing after build:" >&2
+  printf '  %s\n' "${missing[@]}" >&2
+  exit 1
+fi
+
+echo "Build complete: $installed installed, $skipped skipped."

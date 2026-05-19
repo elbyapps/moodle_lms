@@ -1,7 +1,11 @@
-COMPOSE_BASE = docker compose -f docker-compose.yml
-COMPOSE_DEV = $(COMPOSE_BASE) -f docker-compose.dev.yml
-COMPOSE_STAGING = $(COMPOSE_BASE) -f docker-compose.staging.yml
-COMPOSE_PROD = $(COMPOSE_BASE) -f docker-compose.prod.yml
+# When docker-compose.local.yml is present (host-specific overrides like
+# pre-existing volume names), include it in every stack-aware target.
+LOCAL_OVERRIDE = $(if $(wildcard docker-compose.local.yml),-f docker-compose.local.yml,)
+
+COMPOSE_BASE = docker compose -f docker-compose.yml $(LOCAL_OVERRIDE)
+COMPOSE_DEV = docker compose -f docker-compose.yml -f docker-compose.dev.yml $(LOCAL_OVERRIDE)
+COMPOSE_STAGING = docker compose -f docker-compose.yml -f docker-compose.staging.yml $(LOCAL_OVERRIDE)
+COMPOSE_PROD = docker compose -f docker-compose.yml -f docker-compose.prod.yml $(LOCAL_OVERRIDE)
 COMPOSE_DB = docker compose -f docker-compose.db.yml
 
 .PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down db-up db-down logs shell clean-cache
@@ -11,13 +15,13 @@ help: ## Show available commands
 
 # --- Build ---
 
-build: ## Build Docker images
-	$(COMPOSE_BASE) build php
+build: ## Build Docker images (every service with a build: stanza)
+	$(COMPOSE_BASE) build
 
 build-fresh: ## Force full rebuild: no cache + remove moodle_app volume
 	$(COMPOSE_BASE) down || true
 	docker volume rm $$(docker volume ls -q --filter name=moodle_app) 2>/dev/null || true
-	$(COMPOSE_BASE) build --no-cache php
+	$(COMPOSE_BASE) build --no-cache
 
 # --- Development ---
 

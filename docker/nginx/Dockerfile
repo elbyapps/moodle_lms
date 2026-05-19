@@ -21,4 +21,7 @@ RUN --mount=type=ssh if [ "$SKIP_CLONE" = "false" ]; then \
 # Stage 2: nginx runtime with Moodle's public tree baked in.
 # nginx serves static assets directly (theme CSS/JS/images) and hands PHP off via FastCGI.
 FROM nginx:alpine
-COPY --from=moodle_fetch /build/moodle_app/public /var/www/html/moodle_app/public
+COPY --from=moodle_fetch /build/moodle_app /var/www/html/moodle_app
+# If you vendor non-public plugins (see vendor/README.md), mirror the COPY
+# from docker/php/Dockerfile here so nginx can serve their static assets:
+#   COPY vendor/<plugin> /var/www/html/moodle_app/public/<destination>

@@ -1,5 +1,7 @@
 services:
   php:
+    # Single source of the PHP+Moodle image. cron reuses it via image: below.
+    image: repo-php:latest
     build:
       context: .
       dockerfile: docker/php/Dockerfile
@@ -14,9 +16,9 @@ services:
       - "host.docker.internal:host-gateway"
 
   cron:
-    build:
-      context: .
-      dockerfile: docker/php/Dockerfile
+    # Reuse the php image — same Dockerfile, just a different command.
+    # Avoids 'make build' producing a second stale image (repo-cron:latest).
+    image: repo-php:latest
     volumes:
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro

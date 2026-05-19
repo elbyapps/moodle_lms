@@ -23,6 +23,7 @@ opcache.max_accelerated_files = 20000
 opcache.revalidate_freq = 60
 opcache.validate_timestamps = 0
 opcache.save_comments = 1
+opcache.interned_strings_buffer = ${OPCACHE_INTERNED_STRINGS_MB}
 opcache.jit = 1255
 opcache.jit_buffer_size = ${OPCACHE_JIT_BUFFER_MB}M
 OPCACHE
@@ -145,8 +146,12 @@ fi
 # =============================================================================
 if [ "$1" = "cron" ]; then
     echo "Starting Moodle cron service..."
+    # `set -e` is on at the top of this script. cron.php legitimately exits 1
+    # during maintenance mode or while an upgrade is pending; without `|| true`
+    # the entrypoint would die on the first such exit and the container would
+    # stop instead of retrying on the next sleep.
     while true; do
-        php /var/www/html/moodle_app/admin/cli/cron.php
+        php /var/www/html/moodle_app/admin/cli/cron.php || true
         sleep 60
     done
 else

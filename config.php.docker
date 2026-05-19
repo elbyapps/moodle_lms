@@ -63,6 +63,8 @@ $CFG->session_redis_acquire_lock_timeout = 120;
 $CFG->session_redis_lock_expire = 7200;
 
 // Skip session write locks on read-only pages (big concurrency win with Redis sessions).
+// Safe to enable now that MUC's session-mode mapping points at the Redis store
+// (see scripts/setup_redis_muc.php) — no caches still resolve to PHP's session handler.
 $CFG->enable_read_only_sessions = true;
 
 // Redis cache store for MUC (application and session caches)
