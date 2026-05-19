@@ -423,7 +423,7 @@ S3_BUCKET=moodle
 S3_REGION=garage
 ```
 
-These are passed to the PHP and Cron containers via `docker-compose.yml`.
+These are passed to the PHP and Cron containers via `compose/docker-compose.yml`.
 
 ### Moodle Admin Panel (reblibrary Plugin)
 

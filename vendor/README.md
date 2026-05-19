@@ -7,31 +7,49 @@ snapshot.
 
 ## How it works
 
-Plugins listed in `moodle-config.json` are cloned by `build.sh` into
-`moodle_app/public/<destination>`. Plugins under `vendor/` are *not*
-cloned — they're copied straight into the image at build time by
-`docker/php/Dockerfile`, alongside the cloned ones.
+`build.sh` reads `moodle-config.json` and processes every plugin entry,
+choosing how to install it based on the entry's `source` field:
+
+- `source: "git"` (default) — clone from `repository` at `version`.
+- `source: "vendor"` — copy the directory at `path` (relative to the repo
+  root, under `vendor/`) into `moodle_app/public/<destination>`.
+
+Both Docker build stages (`docker/php/Dockerfile` and the `moodle_fetch`
+stage of `docker/nginx/Dockerfile`) `COPY vendor ./vendor` before running
+`build.sh`, so vendored plugins land in `public/` exactly like cloned
+ones. There's no separate per-plugin `COPY` to maintain, and no way for
+the PHP and nginx images to disagree about which plugins are installed.
 
 ## Adding a vendored plugin
 
-1. Drop the plugin tree under `vendor/<plugin_name>/` so its `version.php`
-   is at `vendor/<plugin_name>/version.php`.
+1. Drop the plugin tree at `vendor/<name>/` so its `version.php` lives at
+   `vendor/<name>/version.php`.
 
-2. Add a `COPY` line to **both** `docker/php/Dockerfile` and
-   `docker/nginx/Dockerfile` (nginx needs the static assets):
+2. Add an entry to `moodle-config.json`:
 
-       COPY vendor/<plugin_name> /var/www/html/moodle_app/public/<destination>
+   ```json
+   {
+     "name": "<name>",
+     "source": "vendor",
+     "path": "vendor/<name>",
+     "destination": "local/<name>"
+   }
+   ```
 
-   `<destination>` follows Moodle's plugin path convention — e.g.
-   `filter/myfilter`, `local/mything`, `mod/whatever`.
+   `destination` follows Moodle's plugin path convention — e.g.
+   `filter/myfilter`, `local/mything`, `mod/whatever`. It is interpreted
+   relative to Moodle's web root (`moodle_app/public/`).
 
 3. Rebuild: `make build-fresh`.
 
-## Why two COPYs?
+## Placeholder example
 
-The PHP image runs the plugin code; the nginx image serves its static
-assets directly without going through PHP-FPM. Skipping the nginx COPY
-will produce 404s for the plugin's CSS/JS/images.
+`vendor/example_local_hello/` ships a minimal valid `local_` plugin
+(`version.php` + `lang/en/local_hello.php`) as a copy-paste template.
+It is **not** installed automatically — nothing in `vendor/` is touched
+unless `moodle-config.json` references it. Delete the directory once
+you don't need the template, or wire it up per its own README to see
+the vendoring flow end-to-end.
 
 ## Why this isn't `composer`
 
