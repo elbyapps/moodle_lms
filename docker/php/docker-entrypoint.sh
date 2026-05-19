@@ -138,6 +138,27 @@ if wait_for_db; then
         else
             echo "Moodle database already initialized."
         fi
+
+        # ---------------------------------------------------------------------
+        # Ensure MUC session/application mode caches are mapped to redis BEFORE
+        # php-fpm starts. Otherwise opcache (validate_timestamps=0) pins workers
+        # to the install-time muc/config.php (session mode -> default_session),
+        # which makes every session-mode cache lookup seed $SESSION->cachestore_session
+        # and trip the enable_read_only_sessions guard on the next request.
+        #
+        # Idempotent: scripts/setup_redis_muc.php is a no-op once the mapping
+        # is in place. Failure is non-fatal (set -e is on) so the container
+        # still boots if redis isn't reachable yet — admins can rerun the
+        # script manually and the error path is well-documented.
+        # ---------------------------------------------------------------------
+        if [ -f /var/www/moodledata/muc/config.php ] && \
+           grep -q "'store' => 'redis'" /var/www/moodledata/muc/config.php; then
+            echo "MUC: session/application mappings already point at redis."
+        else
+            echo "MUC: remapping session/application stores to redis..."
+            php /var/www/html/scripts/setup_redis_muc.php \
+                || echo "WARN: MUC remap failed — enable_read_only_sessions may misbehave until rerun."
+        fi
     ) 200>/var/www/moodledata/.db_install_lock
 fi
 

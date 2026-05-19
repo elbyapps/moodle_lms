@@ -68,6 +68,7 @@ WORKDIR /var/www/html
 # (source=vendor, reading from ./vendor/) each plugin into moodle_app/public/.
 COPY build.sh moodle-config.json ./
 COPY vendor ./vendor
+COPY scripts ./scripts
 RUN chmod +x build.sh
 
 # Build arg to skip cloning (for development with bind mounts)
