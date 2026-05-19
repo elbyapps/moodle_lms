@@ -70,6 +70,12 @@ services:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
+    # In dev the DB is shipped in the same stack. Wait for mariadb to be
+    # healthy before php starts so its entrypoint's PDO wait-loop doesn't
+    # burn its 60s budget on a DB that's still initialising.
+    depends_on:
+      mariadb:
+        condition: service_healthy
 
   cron:
     build:
@@ -81,6 +87,14 @@ services:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
+    # Override base depends_on so we get BOTH the implicit php ordering AND
+    # the mariadb-healthy gate — compose replaces depends_on when an override
+    # redefines it, so we have to redeclare php here.
+    depends_on:
+      php:
+        condition: service_started
+      mariadb:
+        condition: service_healthy
 
   nginx:
     build:

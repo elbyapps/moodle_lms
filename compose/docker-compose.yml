@@ -14,6 +14,17 @@ services:
       # and scripts/deploy.sh pin to the repo root. That's why this is
       # ".env" and not "../.env" even though we live under compose/.
       - .env
+    # fpm-ping endpoint is wired up in docker/php/www.conf.template
+    # (ping.path = /fpm-ping). nginx's depends_on below gates on this check,
+    # so the 502-while-php-fpm-starts race can't happen.
+    # start_period must cover the entrypoint's "Waiting for database..."
+    # loop (up to 60s) plus FPM warm-up; 90s is safe in every stack.
+    healthcheck:
+      test: ["CMD-SHELL", "SCRIPT_NAME=/fpm-ping SCRIPT_FILENAME=/fpm-ping REQUEST_METHOD=GET cgi-fcgi -bind -connect localhost:9000 | grep -q pong"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
     networks:
       - moodle
     extra_hosts:
@@ -30,7 +41,10 @@ services:
       - .env
     command: ["cron"]
     depends_on:
-      - php
+      # cron doesn't talk to php-fpm — it just shares the image and network.
+      # service_started is enough to enforce "php image is built first".
+      php:
+        condition: service_started
     networks:
       - moodle
 
@@ -44,7 +58,10 @@ services:
       - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
       - MOODLE_PORT=${MOODLE_PORT:-8080}
     depends_on:
-      - php
+      # Wait until php-fpm passes its /fpm-ping healthcheck before nginx
+      # starts forwarding FastCGI — prevents the cold-start 502 burst.
+      php:
+        condition: service_healthy
     networks:
       - moodle
 
