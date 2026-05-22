@@ -159,10 +159,12 @@ admin-cli: ## Run a Moodle admin/cli script (usage: make admin-cli cmd="script.p
 # This is intentionally a manual step — it is destructive (drops plugin DB
 # tables) and must not be hooked into container startup, where a malformed
 # config or temporarily-commented-out entry would wipe user data.
-# reconcile_plugins.php reads /var/www/html/moodle-config.json (baked into
-# the image alongside scripts/), so no docker cp is needed here either.
+# reconcile_plugins.php reads moodle-config.json. The Dockerfile copies it
+# into /var/www/html/moodle-config.json (alongside scripts/), and the script
+# accepts --config=PATH to override its /tmp/moodle-config.json default. So
+# no docker cp is needed: just point the script at the baked-in copy.
 reconcile-plugins-dry: ## List plugins installed in Moodle but not in moodle-config.json
-	$(PHP_RUN) php /var/www/html/scripts/reconcile_plugins.php --dry-run
+	$(PHP_RUN) php /var/www/html/scripts/reconcile_plugins.php --config=/var/www/html/moodle-config.json --dry-run
 
 reconcile-plugins: ## Uninstall (DB + disk) any plugins no longer in moodle-config.json
-	$(PHP_RUN) php /var/www/html/scripts/reconcile_plugins.php
+	$(PHP_RUN) php /var/www/html/scripts/reconcile_plugins.php --config=/var/www/html/moodle-config.json
