@@ -22,7 +22,7 @@ COMPOSE_STAGING = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f
 COMPOSE_PROD = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.prod.yml $(LOCAL_OVERRIDE)
 COMPOSE_DB = docker compose $(PROJECT_DIR) -f compose/docker-compose.db.yml
 
-.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-upgrade db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
+.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -74,8 +74,14 @@ prod-down: ## Stop production environment
 deploy-code: ## Zero-downtime rolling deploy of code-only changes (no DB migration)
 	./scripts/deploy.sh code
 
+deploy-code-fresh: ## Same as deploy-code but with --no-cache build (force-refetches git plugins; containers stay up)
+	./scripts/deploy.sh code --no-cache
+
 deploy-upgrade: ## Maintenance-mode deploy for changes that include a DB migration
 	./scripts/deploy.sh upgrade
+
+deploy-upgrade-fresh: ## Same as deploy-upgrade but with --no-cache build (force-refetches git plugins)
+	./scripts/deploy.sh upgrade --no-cache
 
 # --- Utilities ---
 
