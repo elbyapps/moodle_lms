@@ -82,11 +82,18 @@ deploy-upgrade: ## Maintenance-mode deploy for changes that include a DB migrati
 logs: ## Show logs (usage: make logs s=php)
 	$(COMPOSE_BASE) logs -f $(s)
 
+# In prod the php service is scaled to N replicas, so `docker ps -qf name=php`
+# returns multiple IDs and `docker exec/cp` rejects that. PHP_CONTAINER picks
+# the first one — fine for one-off admin scripts and idempotent migrations.
+# Use $(PHP_CONTAINER) (single-shell substitution) rather than $$(...) (one shell
+# per line) so we don't run docker ps repeatedly inside a single recipe.
+PHP_CONTAINER = $$(docker ps -qf "name=php" | head -n1)
+
 shell: ## Open shell in PHP container
-	docker exec -it $$(docker ps -qf "name=php") bash
+	docker exec -it $(PHP_CONTAINER) bash
 
 clean-cache: ## Purge Moodle caches
-	docker exec $$(docker ps -qf "name=php") php /var/www/html/moodle_app/admin/cli/purge_caches.php
+	docker exec $(PHP_CONTAINER) php /var/www/html/moodle_app/admin/cli/purge_caches.php
 
 # --- ObjectFS / S3 ---
 
@@ -95,19 +102,19 @@ clean-cache: ## Purge Moodle caches
 # overwrites existing values. Run after the initial Moodle install, or
 # whenever you change the OBJECTFS_* defaults you want enforced.
 objectfs-setup: ## Seed tool_objectfs tuning settings from OBJECTFS_* env vars (idempotent)
-	docker cp scripts/setup_objectfs.php $$(docker ps -qf "name=php"):/tmp/setup_objectfs.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/setup_objectfs.php
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/setup_objectfs.php
+	docker cp scripts/setup_objectfs.php $(PHP_CONTAINER):/tmp/setup_objectfs.php
+	docker exec $(PHP_CONTAINER) php /tmp/setup_objectfs.php
+	docker exec $(PHP_CONTAINER) rm -f /tmp/setup_objectfs.php
 
 objectfs-setup-force: ## Same as objectfs-setup but overwrites existing DB values
-	docker cp scripts/setup_objectfs.php $$(docker ps -qf "name=php"):/tmp/setup_objectfs.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/setup_objectfs.php --force
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/setup_objectfs.php
+	docker cp scripts/setup_objectfs.php $(PHP_CONTAINER):/tmp/setup_objectfs.php
+	docker exec $(PHP_CONTAINER) php /tmp/setup_objectfs.php --force
+	docker exec $(PHP_CONTAINER) rm -f /tmp/setup_objectfs.php
 
 objectfs-setup-dry: ## Show what objectfs-setup would change without writing
-	docker cp scripts/setup_objectfs.php $$(docker ps -qf "name=php"):/tmp/setup_objectfs.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/setup_objectfs.php --dry-run
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/setup_objectfs.php
+	docker cp scripts/setup_objectfs.php $(PHP_CONTAINER):/tmp/setup_objectfs.php
+	docker exec $(PHP_CONTAINER) php /tmp/setup_objectfs.php --dry-run
+	docker exec $(PHP_CONTAINER) rm -f /tmp/setup_objectfs.php
 
 test-s3: ## Run the tool_objectfs end-to-end round-trip test against the dev stack
 	./scripts/test-s3-roundtrip.sh
@@ -120,14 +127,14 @@ test-s3: ## Run the tool_objectfs end-to-end round-trip test against the dev sta
 # no-op. Passwords keep working — auth_externalid stored them with Moodle's
 # internal hash already.
 migrate-auth-externalid: ## Migrate users from auth_externalid to manual auth
-	docker cp scripts/migrate_auth_externalid.php $$(docker ps -qf "name=php"):/tmp/migrate_auth_externalid.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/migrate_auth_externalid.php
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/migrate_auth_externalid.php
+	docker cp scripts/migrate_auth_externalid.php $(PHP_CONTAINER):/tmp/migrate_auth_externalid.php
+	docker exec $(PHP_CONTAINER) php /tmp/migrate_auth_externalid.php
+	docker exec $(PHP_CONTAINER) rm -f /tmp/migrate_auth_externalid.php
 
 migrate-auth-externalid-dry: ## Show what migrate-auth-externalid would change without writing
-	docker cp scripts/migrate_auth_externalid.php $$(docker ps -qf "name=php"):/tmp/migrate_auth_externalid.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/migrate_auth_externalid.php --dry-run
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/migrate_auth_externalid.php
+	docker cp scripts/migrate_auth_externalid.php $(PHP_CONTAINER):/tmp/migrate_auth_externalid.php
+	docker exec $(PHP_CONTAINER) php /tmp/migrate_auth_externalid.php --dry-run
+	docker exec $(PHP_CONTAINER) rm -f /tmp/migrate_auth_externalid.php
 
 # --- Admin CLI passthrough ---
 
@@ -137,7 +144,7 @@ migrate-auth-externalid-dry: ## Show what migrate-auth-externalid would change w
 #   make admin-cli cmd="upgrade.php --non-interactive"
 admin-cli: ## Run a Moodle admin/cli script (usage: make admin-cli cmd="script.php --args")
 	@if [ -z "$(cmd)" ]; then echo 'usage: make admin-cli cmd="script.php --args"'; exit 1; fi
-	docker exec $$(docker ps -qf "name=php") php /var/www/html/moodle_app/public/admin/cli/$(cmd)
+	docker exec $(PHP_CONTAINER) php /var/www/html/moodle_app/public/admin/cli/$(cmd)
 
 # --- Plugin reconciliation (moodle-config.json -> live Moodle) ---
 
@@ -150,13 +157,13 @@ admin-cli: ## Run a Moodle admin/cli script (usage: make admin-cli cmd="script.p
 # tables) and must not be hooked into container startup, where a malformed
 # config or temporarily-commented-out entry would wipe user data.
 reconcile-plugins-dry: ## List plugins installed in Moodle but not in moodle-config.json
-	docker cp moodle-config.json $$(docker ps -qf "name=php"):/tmp/moodle-config.json
-	docker cp scripts/reconcile_plugins.php $$(docker ps -qf "name=php"):/tmp/reconcile_plugins.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/reconcile_plugins.php --dry-run
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/reconcile_plugins.php /tmp/moodle-config.json
+	docker cp moodle-config.json $(PHP_CONTAINER):/tmp/moodle-config.json
+	docker cp scripts/reconcile_plugins.php $(PHP_CONTAINER):/tmp/reconcile_plugins.php
+	docker exec $(PHP_CONTAINER) php /tmp/reconcile_plugins.php --dry-run
+	docker exec $(PHP_CONTAINER) rm -f /tmp/reconcile_plugins.php /tmp/moodle-config.json
 
 reconcile-plugins: ## Uninstall (DB + disk) any plugins no longer in moodle-config.json
-	docker cp moodle-config.json $$(docker ps -qf "name=php"):/tmp/moodle-config.json
-	docker cp scripts/reconcile_plugins.php $$(docker ps -qf "name=php"):/tmp/reconcile_plugins.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/reconcile_plugins.php
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/reconcile_plugins.php /tmp/moodle-config.json
+	docker cp moodle-config.json $(PHP_CONTAINER):/tmp/moodle-config.json
+	docker cp scripts/reconcile_plugins.php $(PHP_CONTAINER):/tmp/reconcile_plugins.php
+	docker exec $(PHP_CONTAINER) php /tmp/reconcile_plugins.php
+	docker exec $(PHP_CONTAINER) rm -f /tmp/reconcile_plugins.php /tmp/moodle-config.json
