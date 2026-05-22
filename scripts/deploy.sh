@@ -31,14 +31,28 @@ if [ -f compose/docker-compose.local.yml ]; then
     COMPOSE+=(-f compose/docker-compose.local.yml)
 fi
 
-if [ -f .env ]; then
-    set -a
-    # shellcheck disable=SC1091
-    source .env
-    set +a
-fi
+# We only need two knobs from .env (PHP_REPLICAS, HEALTH_TIMEOUT). Sourcing
+# the whole file with `set -a; source .env` is brittle — any unquoted value
+# containing shell metacharacters (e.g. `MOODLE_SITENAME=My Site [eLearning]`)
+# triggers globbing or word-splitting and the script aborts before it ever
+# reaches docker compose. Docker Compose itself reads .env directly via
+# --project-directory, so the variables every service needs still arrive.
+# Here we just pluck the two values this script reads, with no shell eval.
+read_env_var() {
+    # Strip optional surrounding quotes from the value.
+    local key="$1" line value
+    [ -f .env ] || return 0
+    line=$(grep -E "^${key}=" .env | tail -n1 || true)
+    [ -z "$line" ] && return 0
+    value="${line#*=}"
+    value="${value%\"}"; value="${value#\"}"
+    value="${value%\'}"; value="${value#\'}"
+    printf '%s' "$value"
+}
 
-REPLICAS="${PHP_REPLICAS:-3}"
+REPLICAS="${PHP_REPLICAS:-$(read_env_var PHP_REPLICAS)}"
+REPLICAS="${REPLICAS:-3}"
+HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-$(read_env_var HEALTH_TIMEOUT)}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-180}"
 
 php_exec() {
