@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Moodle ⇄ S3 integration — research & recommendation</title>
+<style>
+  :root{
+    --fg:#1a1f24; --muted:#5a6573; --bg:#fafbfc; --card:#fff;
+    --border:#e3e8ee; --accent:#0b6efd; --warn:#b35900; --bad:#a40000; --good:#1f7a3a;
+    --code-bg:#0f172a; --code-fg:#e2e8f0; --inline-bg:#eef2f7;
+  }
+  *{box-sizing:border-box}
+  body{font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg);margin:0}
+  .wrap{max-width:1100px;margin:0 auto;padding:32px 28px 96px}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:-.01em}
+  h2{font-size:22px;margin:48px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  h3{font-size:17px;margin:28px 0 8px}
+  h4{font-size:15px;margin:18px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  p{margin:8px 0}
+  ul,ol{margin:8px 0;padding-left:22px}
+  li{margin:3px 0}
+  small,.meta{color:var(--muted);font-size:13px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--inline-bg);padding:1px 5px;border-radius:4px}
+  pre{background:var(--code-bg);color:var(--code-fg);padding:14px 16px;border-radius:8px;overflow:auto;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;margin:10px 0}
+  pre code{background:transparent;padding:0;color:inherit}
+  table{border-collapse:collapse;width:100%;margin:12px 0;background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top;font-size:14px}
+  th{background:#f1f4f8;font-weight:600}
+  tr:last-child td{border-bottom:0}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin:14px 0}
+  .tldr{border-left:4px solid var(--accent);background:#eef4ff}
+  .warn{border-left:4px solid var(--warn);background:#fff6e8}
+  .bad{border-left:4px solid var(--bad);background:#fdecec}
+  .good{border-left:4px solid var(--good);background:#ecf6ef}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill-good{background:#d8f0df;color:#11542a}
+  .pill-warn{background:#fde9c6;color:#7a4a00}
+  .pill-bad{background:#fbdada;color:#6e0000}
+  .pill-muted{background:#e3e8ee;color:#3a4452}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .kbd{font-family:ui-monospace,monospace;background:#fff;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;padding:0 6px;font-size:12px}
+  hr{border:0;border-top:1px solid var(--border);margin:36px 0}
+  .toc{columns:2;column-gap:28px;font-size:14px}
+  .toc a{display:block;padding:2px 0}
+  @media(max-width:760px){.toc{columns:1}}
+  .footnote{font-size:12.5px;color:var(--muted)}
+  .src{font-size:12px;color:var(--muted)}
+  .src a{color:var(--muted);text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Moodle ⇄ S3 integration</h1>
+<p class="meta">Research + concrete plan for making S3 a smooth, env‑switchable choice in this repo. Compiled 2026‑05‑19. Focused on <code>tool_objectfs</code>; the in‑house <code>reblibrary</code> plugin is out of scope here and will be addressed separately.</p>
+
+<div class="card tldr">
+  <h3 style="margin-top:0">TL;DR</h3>
+  <ol>
+    <li><b>Use <code>tool_objectfs</code> by Catalyst IT</b> — the standard Moodle plugin for moving <code>filedir</code> to S3‑compatible storage. It works with AWS S3, Garage, MinIO, DigitalOcean Spaces, Azure Blob, GCS, Swift. <span class="src">(<a href="https://github.com/catalyst/moodle-tool_objectfs">github.com/catalyst/moodle-tool_objectfs</a>)</span></li>
+    <li><b>Moodle 5 compatibility caveat.</b> The latest stable branch <code>MOODLE_404_STABLE</code> declares <code>$plugin-&gt;supported = [404, 405]</code> — it works on Moodle 5 in practice (people are running it), but it doesn't <em>officially</em> claim 5.1 support and there is an open PR (#691) fixing one Moodle‑5‑specific exception. Pin a known commit, not a moving tag.</li>
+    <li><b>Make backend selection a single env knob</b>: <code>FILESTORAGE_BACKEND=local|s3</code>. <code>config.php.docker</code> branches on it and forces all S3 settings via <code>$CFG-&gt;forced_plugin_settings['tool_objectfs']</code> — so secrets stay in <code>.env</code>, never in the Moodle DB.</li>
+    <li><b>Dev → Garage container. Staging/Prod → external <code>https://storage.reb.rw</code></b>. Same plugin, different endpoint. Same compose, different env file.</li>
+    <li><b>Roll out in two phases, not one</b>: phase A ships local→S3 migration in the background with <code>deletelocal=0</code> (safe, reversible); phase B flips <code>deletelocal=1</code> and optionally enables pre‑signed URLs to offload PHP‑FPM bandwidth.</li>
+  </ol>
+</div>
+
+<h2 id="toc">Contents</h2>
+<div class="toc">
+  <a href="#current">1. Current state of this repo</a>
+  <a href="#options">2. Options surveyed</a>
+  <a href="#tool_objectfs">3. tool_objectfs: how it actually works</a>
+  <a href="#compat">4. Moodle 5.1 compatibility — the only real risk</a>
+  <a href="#design">5. Proposed design — one env var, three environments</a>
+  <a href="#code">6. Concrete code changes</a>
+  <a href="#migration">7. Migration plan + rollback</a>
+  <a href="#ops">8. Operational concerns</a>
+  <a href="#garage">9. Garage‑specific notes</a>
+  <a href="#decisions">10. Decisions you need to make</a>
+  <a href="#refs">11. References</a>
+</div>
+
+<hr>
+
+<h2 id="current">1. Current state of this repo</h2>
+<p>Confirmed by reading <code>compose/*.yml</code>, <code>config.php.docker</code>, <code>moodle-config.json</code>, and querying the running dev Garage:</p>
+<table>
+  <tr><th>Layer</th><th>Garage running?</th><th>S3 backend wired into Moodle?</th><th>Notes</th></tr>
+  <tr><td><code>dev</code></td><td><span class="pill pill-good">yes</span> (<code>moodle_garage_dev</code>, bucket <code>moodle</code>, 0 objects)</td><td><span class="pill pill-bad">no</span></td><td>Garage is provisioned and reachable; nothing reads/writes it.</td></tr>
+  <tr><td><code>prodtest</code></td><td><span class="pill pill-good">yes</span> (separate container, layered)</td><td><span class="pill pill-bad">no</span></td><td>Local "prod rehearsal".</td></tr>
+  <tr><td><code>staging</code></td><td><span class="pill pill-bad">no</span></td><td><span class="pill pill-bad">no</span></td><td>Uses named volume <code>prod_elearning_moodledata</code>.</td></tr>
+  <tr><td><code>prod</code></td><td><span class="pill pill-bad">no</span></td><td><span class="pill pill-bad">no</span></td><td>Local <code>moodledata</code> volume. External S3 (<code>https://storage.reb.rw</code>) exists but is unused.</td></tr>
+</table>
+<ul>
+  <li><code>config.php.docker</code> contains no <code>alternative_file_system_class</code> and no <code>forced_plugin_settings</code> for any S3 plugin.</li>
+  <li><code>moodle-config.json</code> only pins <code>theme_elby</code>. No object‑store plugin is cloned by <code>build.sh</code>.</li>
+  <li><code>S3_*</code> env vars in <code>.env</code> are read <em>only</em> by <code>docker/garage/init.sh</code> (to provision the bucket). They aren't visible inside PHP because PHP code never references them.</li>
+</ul>
+<p>So "S3 is wired up" is true at the infrastructure layer but false at the application layer.</p>
+
+<hr>
+
+<h2 id="options">2. Options surveyed</h2>
+<table>
+  <tr><th>Option</th><th>Status</th><th>What it gives you</th><th>Why pick / skip</th></tr>
+  <tr>
+    <td><b><code>tool_objectfs</code></b><br><span class="src">catalyst/moodle‑tool_objectfs</span></td>
+    <td><span class="pill pill-good">recommended</span></td>
+    <td>Drop‑in <code>$CFG-&gt;alternative_file_system_class</code> implementation; supports S3, Azure, GCS, DO Spaces, Swift; background migration with size + age thresholds; optional pre‑signed URL delivery; ~99 ⭐, last push 2026‑04‑15, default branch <code>MOODLE_404_STABLE</code>.</td>
+    <td>Battle‑tested at large Moodle hosts (Catalyst IT runs it for some of the biggest Moodles in the world). Mature settings UI, GDPR‑aware deletion, S3 + CloudFront pre‑signed URLs. Caveat: official support tag is <code>[404, 405]</code> — see §4.</td>
+  </tr>
+  <tr>
+    <td><code>local_aws</code><br><span class="src">catalyst/moodle‑local_aws</span></td>
+    <td><span class="pill pill-muted">dependency</span></td>
+    <td>Vendors the AWS PHP SDK so multiple plugins can share it.</td>
+    <td>Not a feature in itself — but <code>tool_objectfs</code> on S3 requires it (or you ship the SDK another way).</td>
+  </tr>
+  <tr>
+    <td><code>reblibrary</code><br><span class="src">in‑house plugin</span></td>
+    <td><span class="pill pill-muted">out of scope here</span></td>
+    <td>In‑house plugin that also consumes S3 directly. Will be aligned with this setup separately.</td>
+    <td>Tracked elsewhere. This document does not assume anything about its setting names or roll‑out timeline.</td>
+  </tr>
+  <tr>
+    <td>Mount S3 as a FUSE filesystem (<code>s3fs‑fuse</code>, <code>geesefs</code>, <code>rclone mount</code>)</td>
+    <td><span class="pill pill-bad">avoid</span></td>
+    <td>Lets Moodle keep treating <code>/var/www/moodledata</code> as POSIX.</td>
+    <td>Looks tempting because zero Moodle code changes — but POSIX semantics over S3 break under concurrent writes, Moodle's renames are non‑atomic on S3, latency multiplies for the <em>many small files</em> Moodle reads, and you lose pre‑signed URLs entirely. Industry consensus: don't.</td>
+  </tr>
+  <tr>
+    <td>Custom file system class implementing Moodle's <code>file_system</code> API directly</td>
+    <td><span class="pill pill-bad">avoid for now</span></td>
+    <td>Full control over how Moodle stores/serves files.</td>
+    <td>~3000 LOC of bug surface that <code>tool_objectfs</code> already pays the cost of. Only worth it if you're integrating an exotic store with no SDK.</td>
+  </tr>
+</table>
+<p class="footnote"><b>Note on plugin landscape.</b> Searching Moodle's plugin directory for "object storage" returns <code>tool_objectfs</code> and a handful of small wrappers. There is no realistic competitor on the application‑layer side.</p>
+
+<hr>
+
+<h2 id="tool_objectfs">3. <code>tool_objectfs</code>: how it actually works</h2>
+<p>It's important to understand the model before designing config around it — most "I broke production with objectfs" stories come from people who misunderstood this.</p>
+
+<h3>The two‑tier file system</h3>
+<ol>
+  <li>Moodle still writes new files to local <code>moodledata/filedir/&lt;hash[0..2]&gt;/&lt;hash[2..4]&gt;/&lt;hash&gt;</code> via the normal API. Local disk is always the source of truth at write time.</li>
+  <li>A scheduled task (<code>pusher</code>) periodically scans local files. Files that are <b>older than <code>minimumage</code></b> and <b>larger than <code>sizethreshold</code></b> get uploaded to the bucket under a key derived from the same content hash.</li>
+  <li>A second task (<code>deleter</code>) eventually removes the local copy of any file that's been verified in the remote, but only after <code>consistencydelay</code> has elapsed. Until that point, both copies coexist and reads transparently prefer local.</li>
+  <li>On read, if a file isn't local, <code>tool_objectfs</code> streams it back from S3 — or, if <b>pre‑signed URLs</b> are enabled and the request comes through Moodle's <code>pluginfile.php</code>, it issues a 302 to a time‑limited signed URL and the browser fetches from S3 directly.</li>
+</ol>
+
+<h3>What gets stored in the bucket</h3>
+<p><em>Only <code>filedir</code> contents</em> — i.e. files uploaded by users (assignments, course resources, badges, profile pics, mod_resource content, etc.). Caches (<code>moodledata/cache</code>, <code>moodledata/localcache</code>, <code>moodledata/muc</code>), sessions, temp dirs, and the lang cache <b>stay on local disk</b>. That's intentional: those need POSIX semantics and locality.</p>
+<p>Concretely, for our deployment that means the named volume <code>prod_elearning_moodledata</code> stays — but it shrinks dramatically because <code>filedir/</code> (the ~83 GB part) drains into S3 over time.</p>
+
+<h3>Key settings (from the upstream README)</h3>
+<table>
+  <tr><th>Setting</th><th>Meaning</th><th>Suggested value</th></tr>
+  <tr><td><code>enabletasks</code></td><td>Master on/off for the background migration</td><td><code>0</code> initially, flip to <code>1</code> after dry run</td></tr>
+  <tr><td><code>sizethreshold</code> (bytes)</td><td>Skip files smaller than this</td><td><code>131072</code> (128 KB) — tons of tiny files are cheaper on local disk</td></tr>
+  <tr><td><code>minimumage</code> (seconds)</td><td>How long a file must exist before it's eligible</td><td><code>604800</code> (7 days) initially; <code>0</code> once you're confident</td></tr>
+  <tr><td><code>deletelocal</code></td><td>Delete local copy after upload</td><td><code>0</code> in phase A, <code>1</code> in phase B</td></tr>
+  <tr><td><code>consistencydelay</code> (seconds)</td><td>Grace period before local delete</td><td><code>600</code></td></tr>
+  <tr><td><code>deleteexternal</code></td><td>Whether Moodle deletions remove from S3 too</td><td><code>1</code> for GDPR; <code>0</code> if you want immutable archive</td></tr>
+  <tr><td><code>s3_key</code> / <code>s3_secret</code> / <code>s3_bucket</code> / <code>s3_region</code></td><td>S3 credentials &amp; target</td><td>From env</td></tr>
+  <tr><td><code>s3_base_url</code></td><td>Custom endpoint (Garage / MinIO / R2 / GCS)</td><td><code>http://garage:3900</code> in dev, <code>https://storage.reb.rw</code> in staging/prod</td></tr>
+  <tr><td><code>useproxy</code></td><td>Use Moodle's outbound proxy</td><td><code>0</code></td></tr>
+  <tr><td><code>enablepresignedurls</code></td><td>302‑redirect large files to signed S3 URLs</td><td>off in phase A; consider on in phase B</td></tr>
+  <tr><td><code>signingmethod</code></td><td><code>s3</code> or <code>cloudfront</code></td><td><code>s3</code></td></tr>
+  <tr><td><code>expirationtime</code></td><td>Lifetime of signed URLs (seconds)</td><td><code>600</code></td></tr>
+  <tr><td><code>presignedminfilesize</code></td><td>Min size to bother signing</td><td><code>0</code> or e.g. <code>1048576</code> (1 MB)</td></tr>
+  <tr><td><code>signingwhitelist</code></td><td>Comma‑separated extensions allowed to redirect</td><td>e.g. <code>mp4,mp3,pdf,zip,iso,mkv</code> — big static stuff</td></tr>
+</table>
+
+<hr>
+
+<h2 id="compat">4. Moodle 5.1 compatibility — the only real risk</h2>
+<div class="card warn">
+  <p><b>Findings from the upstream repo today (2026‑05‑19):</b></p>
+  <ul>
+    <li>Default branch is <code>MOODLE_404_STABLE</code>, last push <b>2026‑04‑15</b>, version <code>2026041000</code>, <code>$plugin-&gt;supported = [404, 405]</code>.</li>
+    <li>The <code>master</code> branch is stale (2021) and labelled <code>DEPRECATED_master</code> in nearby branches.</li>
+    <li>No <code>MOODLE_500_STABLE</code> or <code>MOODLE_501_STABLE</code> branch exists.</li>
+    <li>Open PR <a href="https://github.com/catalyst/moodle-tool_objectfs/pull/691">#691</a> — "fix(s3.client): catch AWS <code>UnresolvedAuthSchemeException</code> when testing connection on Moodle 5" — open since 2025‑07‑13, not merged. Indicates Catalyst is aware of Moodle‑5 issues but hasn't shipped a 5.x branch.</li>
+    <li>Active forks (e.g. <code>borrown</code>, <code>rjfarnott/…_R2</code>, <code>CampusTraining</code>) all still track <code>MOODLE_404_STABLE</code>.</li>
+  </ul>
+
+  <p><b>What this means for our Moodle 5.1.4 stack</b></p>
+  <ul>
+    <li>Installation will print a "this plugin doesn't support your Moodle version" warning. <code>$plugin-&gt;supported</code> is advisory; install proceeds.</li>
+    <li>The Moodle <code>file_system</code> API has been stable since 3.3, so the core integration is very likely to work.</li>
+    <li>Risk is concentrated in: (a) the AWS SDK bundled with <code>local_aws</code> may use deprecated patterns on PHP 8.3+, (b) the "test connection" admin button may hit the bug PR #691 fixes, (c) some admin pages use Moodle UI APIs that changed in 5.x and may render with deprecations.</li>
+  </ul>
+
+  <p><b>Mitigation</b></p>
+  <ol>
+    <li>Pin a specific commit on <code>MOODLE_404_STABLE</code> in <code>moodle-config.json</code>, not the branch tip — so an upstream push can't change behaviour under our feet.</li>
+    <li>Apply PR #691 as a patch (or use a fork that has it merged) — small, surgical change.</li>
+    <li>Validate on <code>prodtest</code> with the same Moodle 5.1.4 image and the same Garage version before touching staging.</li>
+    <li>Keep <code>deletelocal=0</code> for at least one week in staging. Until you flip that switch, S3 is purely additive — local <code>filedir/</code> remains a fully working fallback.</li>
+  </ol>
+</div>
+
+<hr>
+
+<h2 id="design">5. Proposed design — one env var, three environments</h2>
+<p>The contract we want for "smooth configuration":</p>
+<ul>
+  <li>One env var <code>FILESTORAGE_BACKEND</code> with values <code>local</code> (default) or <code>s3</code>.</li>
+  <li>All S3 credentials and the endpoint come from the existing <code>S3_*</code> env vars.</li>
+  <li><code>config.php.docker</code> branches on the backend value and, when <code>s3</code> is selected, forces every <code>tool_objectfs</code> setting through <code>$CFG-&gt;forced_plugin_settings</code>. Forced settings are read‑only in the admin UI — that's the point: secrets live in the env file, never in the database, never in a Moodle export.</li>
+  <li>Compose files don't change shape per environment. Only the <code>.env</code> differs.</li>
+  <li><code>build.sh</code> clones <code>tool_objectfs</code> + <code>local_aws</code> into <code>moodle_app/public/admin/tool/objectfs</code> and <code>moodle_app/public/local/aws</code> regardless of backend — installed but inert when <code>FILESTORAGE_BACKEND=local</code>.</li>
+</ul>
+
+<table>
+  <tr><th>Env var</th><th>dev</th><th>prodtest</th><th>staging</th><th>prod</th></tr>
+  <tr><td><code>FILESTORAGE_BACKEND</code></td><td><code>local</code> or <code>s3</code></td><td><code>s3</code></td><td><code>s3</code></td><td><code>s3</code></td></tr>
+  <tr><td><code>S3_ENDPOINT</code></td><td><code>http://garage:3900</code></td><td><code>http://garage:3900</code></td><td><code>https://storage.reb.rw</code></td><td><code>https://storage.reb.rw</code></td></tr>
+  <tr><td><code>S3_BUCKET</code></td><td><code>moodle</code></td><td><code>moodle</code></td><td><code>moodle-staging</code></td><td><code>moodle</code></td></tr>
+  <tr><td><code>S3_REGION</code></td><td><code>rw-central-1</code></td><td><code>rw-central-1</code></td><td><code>rw-central-1</code></td><td><code>rw-central-1</code></td></tr>
+  <tr><td><code>S3_ACCESS_KEY</code> / <code>S3_SECRET_KEY</code></td><td colspan="2">Garage dev keys</td><td colspan="2">Production keys from <code>storage.reb.rw</code></td></tr>
+  <tr><td><code>OBJECTFS_DELETE_LOCAL</code></td><td><code>0</code></td><td><code>0</code> → <code>1</code></td><td><code>0</code> → <code>1</code></td><td><code>0</code> → <code>1</code></td></tr>
+  <tr><td><code>OBJECTFS_PRESIGNED</code></td><td><code>0</code></td><td><code>0</code></td><td><code>0</code> → <code>1</code></td><td><code>0</code> → <code>1</code></td></tr>
+</table>
+
+<hr>
+
+<h2 id="code">6. Concrete code changes</h2>
+
+<h3>6.1 <code>moodle-config.json</code> — add the plugins</h3>
+<pre><code>{
+  "moodle": {
+    "repository": "https://github.com/moodle/moodle.git",
+    "version": "v5.1.4"
+  },
+  "plugins": [
+    {
+      "name": "moodle-theme_elby",
+      "source": "git",
+      "repository": "https://github.com/elbyapps/moodle_theme_elby.git",
+      "version": "main",
+      "destination": "theme/elby"
+    },
+    {
+      "name": "moodle-tool_objectfs",
+      "source": "git",
+      "repository": "https://github.com/catalyst/moodle-tool_objectfs.git",
+      "version": "&lt;pin a specific commit on MOODLE_404_STABLE&gt;",
+      "destination": "admin/tool/objectfs"
+    },
+    {
+      "name": "moodle-local_aws",
+      "source": "git",
+      "repository": "https://github.com/catalyst/moodle-local_aws.git",
+      "version": "&lt;pin a specific commit on MOODLE_404_STABLE&gt;",
+      "destination": "local/aws"
+    }
+  ],
+  "destination_folder": "moodle_app"
+}
+</code></pre>
+<p>Pin commits, not branches. After <code>make build</code>, the plugins land in <code>moodle_app/public/admin/tool/objectfs</code> and <code>moodle_app/public/local/aws</code>.</p>
+
+<h3>6.2 <code>.env.example</code> — add the toggle &amp; defaults</h3>
+<pre><code># File storage backend
+FILESTORAGE_BACKEND=local        # local | s3
+
+# Object FS tuning (only used when FILESTORAGE_BACKEND=s3)
+OBJECTFS_ENABLE_TASKS=1
+OBJECTFS_SIZE_THRESHOLD=131072   # 128 KB
+OBJECTFS_MINIMUM_AGE=604800      # 7 days
+OBJECTFS_DELETE_LOCAL=0          # 0 in phase A, 1 in phase B
+OBJECTFS_CONSISTENCY_DELAY=600
+OBJECTFS_DELETE_EXTERNAL=1       # GDPR compliance
+OBJECTFS_PRESIGNED=0
+OBJECTFS_PRESIGNED_MIN_SIZE=1048576
+OBJECTFS_PRESIGNED_EXPIRATION=600
+OBJECTFS_PRESIGNED_WHITELIST=mp4,mp3,m4v,mkv,pdf,zip,iso,tar,gz
+</code></pre>
+
+<h3>6.3 <code>config.php.docker</code> — branch on the env</h3>
+<pre><code>// === Object storage (tool_objectfs) ===
+// Backend selector. When 'local', tool_objectfs is installed but inert.
+$filestoragebackend = getenv('FILESTORAGE_BACKEND') ?: 'local';
+
+if ($filestoragebackend === 's3') {
+    // 1. Hand Moodle's whole file_system over to objectfs.
+    $CFG-&gt;alternative_file_system_class = '\tool_objectfs\s3_file_system';
+
+    // 2. Force every plugin setting from env. Forced settings are read-only
+    //    in the admin UI and are *not* stored in mdl_config_plugins, so
+    //    secrets live in .env, not in DB exports.
+    $CFG-&gt;forced_plugin_settings['tool_objectfs'] = [
+        // Generic
+        'enabletasks'        =&gt; (int)(getenv('OBJECTFS_ENABLE_TASKS') ?: 1),
+        'sizethreshold'      =&gt; (int)(getenv('OBJECTFS_SIZE_THRESHOLD') ?: 131072),
+        'minimumage'         =&gt; (int)(getenv('OBJECTFS_MINIMUM_AGE') ?: 604800),
+        'deletelocal'        =&gt; (int)(getenv('OBJECTFS_DELETE_LOCAL') ?: 0),
+        'consistencydelay'   =&gt; (int)(getenv('OBJECTFS_CONSISTENCY_DELAY') ?: 600),
+        'deleteexternal'     =&gt; (int)(getenv('OBJECTFS_DELETE_EXTERNAL') ?: 1),
+        'filesystem'         =&gt; '\tool_objectfs\s3_file_system',
+
+        // S3 specifics (Garage in dev, storage.reb.rw in staging/prod)
+        's3_key'             =&gt; getenv('S3_ACCESS_KEY'),
+        's3_secret'          =&gt; getenv('S3_SECRET_KEY'),
+        's3_bucket'          =&gt; getenv('S3_BUCKET'),
+        's3_region'          =&gt; getenv('S3_REGION') ?: 'us-east-1',
+        's3_base_url'        =&gt; getenv('S3_ENDPOINT'),
+        's3_usesdkcreds'     =&gt; 0,
+
+        // Pre-signed URLs (off until phase B)
+        'enablepresignedurls'  =&gt; (int)(getenv('OBJECTFS_PRESIGNED') ?: 0),
+        'expirationtime'       =&gt; (int)(getenv('OBJECTFS_PRESIGNED_EXPIRATION') ?: 600),
+        'presignedminfilesize' =&gt; (int)(getenv('OBJECTFS_PRESIGNED_MIN_SIZE') ?: 0),
+        'signingwhitelist'     =&gt; getenv('OBJECTFS_PRESIGNED_WHITELIST') ?: '',
+        'signingmethod'        =&gt; 's3',
+    ];
+}
+</code></pre>
+
+<h3>6.4 Compose — pass <code>S3_*</code> into PHP/cron</h3>
+<p>The base <code>compose/docker-compose.yml</code> already sets <code>env_file: .env</code> for <code>php</code> and <code>cron</code>, so the variables are already reaching the containers. <b>No compose changes needed for staging/prod</b> — just populate the env file.</p>
+<p>For the <b>dev</b> case, <code>compose/docker-compose.dev.yml</code> defines <code>php</code> without <code>env_file</code> override and inherits from base — also fine. The only thing to add to dev is a <code>depends_on: garage-init</code> on <code>php</code> if you want PHP to wait for the bucket to exist before starting (optional; objectfs handles missing bucket gracefully on first task run).</p>
+
+<h3>6.5 <code>build.sh</code> — confirm it already supports git plugins with <code>destination</code></h3>
+<p>Spot‑check: the existing <code>moodle-theme_elby</code> entry uses the same <code>source: git</code> + <code>destination</code> shape, so adding two more entries is mechanical, not architectural. If <code>build.sh</code> currently hardcodes destinations under <code>theme/</code>, generalise it to honour the <code>destination</code> key.</p>
+
+<hr>
+
+<h2 id="migration">7. Migration plan + rollback</h2>
+
+<div class="grid">
+  <div class="card good">
+    <h4 style="margin-top:0">Phase A — dual‑write (safe, reversible)</h4>
+    <ol>
+      <li>Roll out plugin install on <b>prodtest</b>. Confirm: admin UI loads under Site Admin → Plugins → Admin tools → Object storage file system; all settings show as "locked" (forced).</li>
+      <li>Trigger a manual run of the pusher task: <code>php admin/cli/scheduled_task.php --execute='\tool_objectfs\task\push_objects_to_storage'</code> in the <code>cron</code> container.</li>
+      <li>Verify objects appear in the bucket. Verify Moodle still serves files correctly when local copy is present.</li>
+      <li>Promote to <b>staging</b> with the production endpoint <code>storage.reb.rw</code> and a <em>separate</em> bucket <code>moodle-staging</code> (or a prefix). <code>deletelocal=0</code>.</li>
+      <li>Let it run for ≥7 days. Watch task logs, S3 storage growth, response times.</li>
+    </ol>
+    <p><b>Rollback in phase A:</b> set <code>FILESTORAGE_BACKEND=local</code>, redeploy. Moodle returns to reading local <code>filedir</code> exclusively. Nothing was deleted.</p>
+  </div>
+
+  <div class="card warn">
+    <h4 style="margin-top:0">Phase B — drain local (one‑way)</h4>
+    <ol>
+      <li>Flip <code>OBJECTFS_DELETE_LOCAL=1</code> in staging. <code>cron</code> deleter starts reclaiming local disk.</li>
+      <li>After local has drained, optionally enable <code>OBJECTFS_PRESIGNED=1</code> with a whitelist of large‑file extensions to offload PHP‑FPM bandwidth on big downloads.</li>
+      <li>Repeat for prod. Production <code>filedir/</code> goes from ~83 GB to "small files + recent uploads only".</li>
+    </ol>
+    <p><b>Rollback in phase B is harder.</b> Once <code>deletelocal=1</code> has reclaimed a file locally, the only way back to "local‑only" is to download every object from S3 — possible via <code>aws s3 sync</code>, but slow and storage‑hungry. Treat this flip as a real production change.</p>
+  </div>
+</div>
+
+<hr>
+
+<h2 id="ops">8. Operational concerns</h2>
+
+<h3>8.1 Two endpoints (internal vs public)</h3>
+<p>PHP talks to S3 server‑side. Browsers only ever see S3 if you turn on pre‑signed URLs. When that day comes, PHP and browsers may need <em>different</em> hostnames:</p>
+<ul>
+  <li>PHP container: <code>https://storage.reb.rw</code> (or <code>http://garage:3900</code> in dev) — fast path, internal.</li>
+  <li>Browser: <code>https://storage.reb.rw</code> — same hostname is fine here since reb's S3 is internet‑reachable. If you ever put Moodle in a private VPC with S3 on a private endpoint, you'd need to split: PHP signs with the private endpoint, then we rewrite the signed URL to the public one. <code>tool_objectfs</code> doesn't ship that split natively — the cleanest workaround is to always use the public hostname for both.</li>
+  <li><b>In dev,</b> pre‑signed URLs are off (Phase A), so the dev split between <code>http://garage:3900</code> (PHP) and <code>http://localhost:3900</code> (browser) is moot. If you ever enable pre‑signed URLs in dev, set <code>S3_ENDPOINT=http://localhost:3900</code> so the signed URLs are reachable from the host browser — PHP can reach localhost from inside the container only via <code>host.docker.internal</code>, which is already in <code>extra_hosts</code>, so this works.</li>
+</ul>
+
+<h3>8.2 CORS</h3>
+<p>Required when pre‑signed URLs are enabled, because the browser fetches from a different origin. The dev Garage init script already sets up permissive CORS. For <b>prod</b> at <code>storage.reb.rw</code>, lock <code>AllowedOrigins</code> to your Moodle origin(s) — not <code>*</code>. The Garage prod install doc has the recipe (under "Enable CORS").</p>
+
+<h3>8.3 Backups</h3>
+<p>Today <code>scripts/moodle-backup.sh</code> presumably tars the moodledata volume. Once <code>filedir</code> lives in S3, your backup strategy must include:</p>
+<ul>
+  <li>Bucket replication / versioning on <code>storage.reb.rw</code>, OR a periodic <code>aws s3 sync</code> to a cold bucket. (Garage 1.x supports versioning per bucket.)</li>
+  <li>The DB backup remains the single most important artefact — files are content‑addressed; without the DB, files are orphan blobs.</li>
+  <li>Snapshot of Garage metadata if you self‑host (see <code>docs/garage-production-install.md</code>, <code>metadata_auto_snapshot_interval = "6h"</code>).</li>
+</ul>
+
+<h3>8.4 Cleanup / orphan files</h3>
+<p><code>tool_objectfs</code> ships a "delete orphaned objects" scheduled task that scans for objects in S3 with no matching <code>{files}</code> row. Enable it once you're comfortable; until then, deleted Moodle files stay in S3 forever (cheap insurance during rollout).</p>
+
+<h3>8.5 Monitoring</h3>
+<ul>
+  <li>Task health: Site Admin → Server → Scheduled tasks. The <code>push_objects_to_storage</code> and <code>delete_local_objects</code> tasks should run on cadence and not pile up failures.</li>
+  <li>Status report: Site Admin → Plugins → Admin tools → Object storage file system → "Object status" gives counts of local‑only / duplicated / remote‑only files. Eyeball this weekly during rollout.</li>
+  <li>S3 5xx rate from Garage / <code>storage.reb.rw</code> — surface as a metric to your existing observability.</li>
+</ul>
+
+<h3>8.6 Performance expectations</h3>
+<ul>
+  <li>Small file reads served from local stay at local‑disk latency — no change.</li>
+  <li>Files in S3 only: ~10–50 ms added per request for the HEAD+GET, dominated by network. For Moodle's typical small‑file traffic that's not great as a steady state — which is why <b>pre‑signed URLs</b> matter for the long tail of large media downloads.</li>
+  <li>PHP‑FPM memory is unaffected; objectfs streams chunks via the SDK rather than buffering.</li>
+</ul>
+
+<hr>
+
+<h2 id="garage">9. Garage‑specific notes</h2>
+<ul>
+  <li><b>Region naming.</b> Your <code>.env</code> uses <code>S3_REGION=rw-central-1</code>, but <code>docker/garage/garage.toml</code> declares <code>s3_region = "rw-central-1"</code> for dev — these must match exactly for signature v4 to validate. Production garage at <code>storage.reb.rw</code> presumably also reports <code>rw-central-1</code>; double‑check that's what the public node actually advertises.</li>
+  <li><b>Path‑style addressing.</b> Garage works with both virtual‑hosted and path‑style, but Catalyst's S3 client defaults are usually fine. If you see "bucket not found" while the bucket clearly exists, suspect virtual‑hosted DNS resolution and switch to path‑style via the SDK option (objectfs supports this via the <code>s3_base_url</code> being a plain hostname plus the client's default behaviour — verifiable empirically in prodtest before staging).</li>
+  <li><b>Signature v4.</b> Garage requires v4. The AWS PHP SDK uses v4 by default. No action.</li>
+  <li><b>Multipart uploads.</b> Supported by Garage. <code>tool_objectfs</code> uses multipart for large files automatically.</li>
+  <li><b>Object tagging.</b> <code>tool_objectfs</code> has an "object tagging" feature for orphan tracking; Garage's S3 tag support has improved across 1.x but verify with <code>aws s3api put-object-tagging</code> against the public endpoint before relying on it. Safe to leave the feature off initially.</li>
+  <li><b>Replication.</b> Production <code>storage.reb.rw</code> should be at least 3‑node, <code>replication_factor = 3</code>, distinct zones. The doc you already have covers this — make sure that's the actual deployed shape and not a single‑node install.</li>
+</ul>
+
+<hr>
+
+<h2 id="decisions">10. Decisions you need to make</h2>
+<ol>
+  <li><b>Pin commit vs branch.</b> Pick: pin a specific commit on <code>MOODLE_404_STABLE</code> (recommended), or vendor a fork that has PR #691 merged. Either way, decide where the canonical pin lives — <code>moodle-config.json</code> is the natural place.</li>
+  <li><b>Bucket scoping.</b> One bucket per environment (<code>moodle-staging</code>, <code>moodle</code>) or one bucket with a per‑env key prefix? Per‑bucket is cleaner for IAM/quotas; per‑prefix saves operational overhead. Recommendation: per‑bucket.</li>
+  <li><b>Phase B trigger.</b> Who decides when staging is "stable enough" to flip <code>deletelocal=1</code> there, and the same for prod? Suggest a checklist: 7+ days clean, &lt;0.1% task failure rate, zero "missing object" reports, no admin escalations.</li>
+  <li><b>Pre‑signed URL scope.</b> Whitelist of extensions matters. Aggressive whitelisting (lots of types) maximises PHP offload but exposes more direct‑S3 access; conservative whitelisting (just <code>mp4,mp3,zip,iso</code>) catches 80% of bandwidth at near‑zero risk.</li>
+  <li><b>Disposition of the existing <code>prod_elearning_moodledata</code> volume.</b> Keep it (it'll shrink over time and still hold caches/sessions/temp) — but plan the eventual size budget. Probably 5–10 GB after drain instead of 83 GB.</li>
+</ol>
+
+<hr>
+
+<h2 id="refs">11. References</h2>
+<ul>
+  <li><b>tool_objectfs source &amp; README</b> — <a href="https://github.com/catalyst/moodle-tool_objectfs">github.com/catalyst/moodle-tool_objectfs</a> (default branch <code>MOODLE_404_STABLE</code>, <code>$plugin-&gt;supported = [404, 405]</code>, last push 2026‑04‑15).</li>
+  <li><b>Moodle plugin directory listing</b> — <a href="https://moodle.org/plugins/tool_objectfs">moodle.org/plugins/tool_objectfs</a>.</li>
+  <li><b>local_aws (SDK loader)</b> — <a href="https://github.com/catalyst/moodle-local_aws">github.com/catalyst/moodle-local_aws</a>.</li>
+  <li><b>Open Moodle‑5 fix PR</b> — <a href="https://github.com/catalyst/moodle-tool_objectfs/pull/691">PR #691</a>, open since 2025‑07‑13.</li>
+  <li><b>Garage docs</b> — <a href="https://garagehq.deuxfleurs.fr/documentation/">garagehq.deuxfleurs.fr/documentation</a>.</li>
+  <li><b>Local doc already in repo</b> — <code>docs/garage-production-install.md</code>.</li>
+</ul>
+
+<p class="footnote">Compiled by reading the repository, querying GitHub for branch/PR state, and fetching upstream README + version manifest. Where claims rest on the upstream docs they are footnoted with links; where they rest on inspection of this repo they are stated with file paths.</p>
+
+</div>
+</body>
+</html>

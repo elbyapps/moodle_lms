@@ -24,7 +24,14 @@ for cmd in git jq; do
   fi
 done
 
-[ -f "$CONFIG_FILE" ] || { echo "Error: $CONFIG_FILE not found." >&2; exit 1; }
+if [ ! -f "$CONFIG_FILE" ]; then
+  echo "Error: $CONFIG_FILE not found." >&2
+  if [ -f "${CONFIG_FILE%.json}.example.json" ]; then
+    echo "Hint: copy the template and edit it:" >&2
+    echo "  cp ${CONFIG_FILE%.json}.example.json $CONFIG_FILE" >&2
+  fi
+  exit 1
+fi
 
 MOODLE_REPO=$(jq -r '.moodle.repository' "$CONFIG_FILE")
 MOODLE_VERSION=$(jq -r '.moodle.version' "$CONFIG_FILE")
@@ -53,25 +60,30 @@ if [ ! -d "$DEST_FOLDER/public" ]; then
 fi
 
 # 2. Plugins ----------------------------------------------------------------
-# Read all plugin lines first so we run the loop in the parent shell. A
-# 'jq ... | while read' pipeline runs the loop in a subshell where 'set -e'
-# does not abort the script on a failed clone — that's how plugins got
-# silently dropped from earlier image builds.
-mapfile -t PLUGIN_LINES < <(jq -c '.plugins[]' "$CONFIG_FILE")
+# Read all plugin lines first so we run the loop in the parent shell.
+# Process substitution + while-read keeps the loop in the parent shell so
+# 'set -e' applies inside it. Piping (jq ... | while read) would run it in
+# a subshell where a failed clone would NOT abort the script — that's how
+# plugins got silently dropped from earlier image builds.
+# Avoid `mapfile` (bash 4+) for compatibility with macOS's bash 3.2 when
+# the Makefile invokes this on the host before bringing up the dev stack.
+PLUGIN_LINES=()
+while IFS= read -r plugin_line; do
+  PLUGIN_LINES+=("$plugin_line")
+done < <(jq -c '.plugins[]' "$CONFIG_FILE")
 
 failed=()
 installed=0
 skipped=0
 
 for plugin in "${PLUGIN_LINES[@]}"; do
-  PLUGIN_NAME=$(jq -r '.name'        <<<"$plugin")
-  PLUGIN_REPO=$(jq -r '.repository'  <<<"$plugin")
-  PLUGIN_VERSION=$(jq -r '.version'  <<<"$plugin")
-  PLUGIN_DEST=$(jq -r '.destination' <<<"$plugin")
+  PLUGIN_NAME=$(jq -r '.name'              <<<"$plugin")
+  PLUGIN_DEST=$(jq -r '.destination'       <<<"$plugin")
+  PLUGIN_SOURCE=$(jq -r '.source // "git"' <<<"$plugin")
 
-  # IMPORTANT: skip-check and clone use the SAME path. Earlier versions
-  # checked $PLUGIN_DEST but cloned to public/$PLUGIN_DEST, which silently
-  # skipped re-cloning whenever a stale legacy directory existed.
+  # IMPORTANT: skip-check and install use the SAME path. Earlier versions
+  # checked $PLUGIN_DEST but installed to public/$PLUGIN_DEST, which silently
+  # skipped re-installing whenever a stale legacy directory existed.
   TARGET="$DEST_FOLDER/public/$PLUGIN_DEST"
 
   if [ -d "$TARGET" ]; then
@@ -80,17 +92,60 @@ for plugin in "${PLUGIN_LINES[@]}"; do
     continue
   fi
 
-  echo "  -> Installing $PLUGIN_NAME @ $PLUGIN_VERSION -> public/$PLUGIN_DEST"
   mkdir -p "$(dirname "$TARGET")"
 
-  if git clone --depth 1 --branch "$PLUGIN_VERSION" --recursive "$PLUGIN_REPO" "$TARGET"; then
-    rm -rf "$TARGET/.git"
-    installed=$((installed + 1))
-  else
-    echo "ERROR: failed to clone $PLUGIN_NAME from $PLUGIN_REPO @ $PLUGIN_VERSION" >&2
-    failed+=("$PLUGIN_NAME")
-    rm -rf "$TARGET"
-  fi
+  case "$PLUGIN_SOURCE" in
+    git)
+      PLUGIN_REPO=$(jq -r '.repository' <<<"$plugin")
+      PLUGIN_VERSION=$(jq -r '.version' <<<"$plugin")
+      echo "  -> Cloning $PLUGIN_NAME @ $PLUGIN_VERSION -> public/$PLUGIN_DEST"
+      clone_ok=true
+      if [[ "$PLUGIN_VERSION" =~ ^[0-9a-fA-F]{40}$ ]]; then
+        # Pinning by commit SHA. --depth 1 --branch <SHA> doesn't work; we have
+        # to init, fetch the specific commit, then checkout. GitHub allows
+        # fetching arbitrary commits when uploadpack.allowReachableSHA1InWant
+        # is on, which it is by default for public repos.
+        ( set -e
+          git init -q "$TARGET"
+          cd "$TARGET"
+          git remote add origin "$PLUGIN_REPO"
+          git fetch --depth 1 origin "$PLUGIN_VERSION" -q
+          git checkout -q FETCH_HEAD
+          git submodule update --init --recursive -q 2>/dev/null || true ) \
+          || clone_ok=false
+      else
+        git clone --depth 1 --branch "$PLUGIN_VERSION" --recursive "$PLUGIN_REPO" "$TARGET" \
+          || clone_ok=false
+      fi
+      if $clone_ok; then
+        rm -rf "$TARGET/.git"
+        installed=$((installed + 1))
+      else
+        echo "ERROR: failed to clone $PLUGIN_NAME from $PLUGIN_REPO @ $PLUGIN_VERSION" >&2
+        failed+=("$PLUGIN_NAME")
+        rm -rf "$TARGET"
+      fi
+      ;;
+    vendor)
+      # Vendored plugins: source tree shipped in the build context under vendor/.
+      # Used for in-house or non-public plugins that have no git remote.
+      PLUGIN_PATH=$(jq -r '.path' <<<"$plugin")
+      if [ ! -d "$PLUGIN_PATH" ]; then
+        echo "ERROR: vendor plugin $PLUGIN_NAME missing at $PLUGIN_PATH" >&2
+        failed+=("$PLUGIN_NAME")
+        continue
+      fi
+      echo "  -> Copying $PLUGIN_NAME from $PLUGIN_PATH -> public/$PLUGIN_DEST"
+      # 'cp -R src/. dst/' copies the *contents* of src into dst, which is what
+      # we want — TARGET should end up as the plugin root, not contain it.
+      cp -R "$PLUGIN_PATH/." "$TARGET/"
+      installed=$((installed + 1))
+      ;;
+    *)
+      echo "ERROR: unknown source '$PLUGIN_SOURCE' for $PLUGIN_NAME (expected 'git' or 'vendor')" >&2
+      failed+=("$PLUGIN_NAME")
+      ;;
+  esac
 done
 
 # 3. Summary + post-condition ----------------------------------------------

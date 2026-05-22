@@ -6,6 +6,7 @@
   "plugins": [
     {
       "name": "moodle-theme_elby",
+      "source": "git",
       "repository": "https://github.com/elbyapps/moodle_theme_elby.git",
       "version": "main",
       "destination": "theme/elby"

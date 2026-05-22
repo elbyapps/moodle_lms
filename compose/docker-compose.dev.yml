@@ -1,5 +1,7 @@
-# Development compose file - adds MariaDB and bind mounts for plugin development
-# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Development compose file - adds MariaDB and bind mounts for plugin development.
+# Usage (via Makefile): make dev
+# Or directly: docker compose --project-directory . \
+#                -f compose/docker-compose.yml -f compose/docker-compose.dev.yml up --build
 
 services:
 
@@ -38,7 +40,16 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - moodle
+      moodle:
+        # tool_objectfs (AWS SDK) constructs virtual-hosted S3 URLs
+        # (https://<bucket>.<endpoint-host>/<key>) and has no upstream knob
+        # for path-style. Alias <bucket>.garage so the in-container DNS
+        # resolves it back to this container; combined with
+        # root_domain=".garage" in garage.toml, Garage then treats the request
+        # as virtual-hosted and routes to the right bucket.
+        # Add one alias per bucket you use from the dev stack.
+        aliases:
+          - moodle.garage
 
   garage-init:
     image: python:3.12-alpine
@@ -68,6 +79,12 @@ services:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
+    # In dev the DB is shipped in the same stack. Wait for mariadb to be
+    # healthy before php starts so its entrypoint's PDO wait-loop doesn't
+    # burn its 60s budget on a DB that's still initialising.
+    depends_on:
+      mariadb:
+        condition: service_healthy
 
   cron:
     build:
@@ -79,6 +96,14 @@ services:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
+    # Override base depends_on so we get BOTH the implicit php ordering AND
+    # the mariadb-healthy gate — compose replaces depends_on when an override
+    # redefines it, so we have to redeclare php here.
+    depends_on:
+      php:
+        condition: service_started
+      mariadb:
+        condition: service_healthy
 
   nginx:
     build:
