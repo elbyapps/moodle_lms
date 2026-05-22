@@ -22,7 +22,7 @@ COMPOSE_STAGING = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f
 COMPOSE_PROD = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.prod.yml $(LOCAL_OVERRIDE)
 COMPOSE_DB = docker compose $(PROJECT_DIR) -f compose/docker-compose.db.yml
 
-.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
+.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-upgrade db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -65,11 +65,17 @@ staging-down: ## Stop staging environment
 
 # --- Production ---
 
-prod: ## Start production environment
+prod: ## Start production environment (first-time bring-up; for live updates use deploy-code or deploy-upgrade)
 	$(COMPOSE_PROD) up --build -d
 
 prod-down: ## Stop production environment
 	$(COMPOSE_PROD) down
+
+deploy-code: ## Zero-downtime rolling deploy of code-only changes (no DB migration)
+	./scripts/deploy.sh code
+
+deploy-upgrade: ## Maintenance-mode deploy for changes that include a DB migration
+	./scripts/deploy.sh upgrade
 
 # --- Utilities ---
 
