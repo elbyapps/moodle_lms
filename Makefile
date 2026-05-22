@@ -22,7 +22,7 @@ COMPOSE_STAGING = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f
 COMPOSE_PROD = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.prod.yml $(LOCAL_OVERRIDE)
 COMPOSE_DB = docker compose $(PROJECT_DIR) -f compose/docker-compose.db.yml
 
-.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3
+.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -105,3 +105,52 @@ objectfs-setup-dry: ## Show what objectfs-setup would change without writing
 
 test-s3: ## Run the tool_objectfs end-to-end round-trip test against the dev stack
 	./scripts/test-s3-roundtrip.sh
+
+# --- Auth migration ---
+
+# Move every user whose authentication method is the custom auth_externalid
+# plugin onto core `manual` auth, so auth_externalid (and its companion
+# local_custom_service) can be removed safely. Idempotent: a second run is a
+# no-op. Passwords keep working — auth_externalid stored them with Moodle's
+# internal hash already.
+migrate-auth-externalid: ## Migrate users from auth_externalid to manual auth
+	docker cp scripts/migrate_auth_externalid.php $$(docker ps -qf "name=php"):/tmp/migrate_auth_externalid.php
+	docker exec $$(docker ps -qf "name=php") php /tmp/migrate_auth_externalid.php
+	docker exec $$(docker ps -qf "name=php") rm -f /tmp/migrate_auth_externalid.php
+
+migrate-auth-externalid-dry: ## Show what migrate-auth-externalid would change without writing
+	docker cp scripts/migrate_auth_externalid.php $$(docker ps -qf "name=php"):/tmp/migrate_auth_externalid.php
+	docker exec $$(docker ps -qf "name=php") php /tmp/migrate_auth_externalid.php --dry-run
+	docker exec $$(docker ps -qf "name=php") rm -f /tmp/migrate_auth_externalid.php
+
+# --- Admin CLI passthrough ---
+
+# Run any script under moodle_app/public/admin/cli/. Pass the script name +
+# its args via cmd="...". Example:
+#   make admin-cli cmd="uninstall_plugins.php --plugins=block_progress --run"
+#   make admin-cli cmd="upgrade.php --non-interactive"
+admin-cli: ## Run a Moodle admin/cli script (usage: make admin-cli cmd="script.php --args")
+	@if [ -z "$(cmd)" ]; then echo 'usage: make admin-cli cmd="script.php --args"'; exit 1; fi
+	docker exec $$(docker ps -qf "name=php") php /var/www/html/moodle_app/public/admin/cli/$(cmd)
+
+# --- Plugin reconciliation (moodle-config.json -> live Moodle) ---
+
+# Diff the installed plugin set against moodle-config.json. Anything installed
+# but not declared in the config is uninstalled cleanly (Moodle's uninstall
+# API: DB tables, settings, language strings, then source dir). Core/standard
+# plugins are never touched.
+#
+# This is intentionally a manual step — it is destructive (drops plugin DB
+# tables) and must not be hooked into container startup, where a malformed
+# config or temporarily-commented-out entry would wipe user data.
+reconcile-plugins-dry: ## List plugins installed in Moodle but not in moodle-config.json
+	docker cp moodle-config.json $$(docker ps -qf "name=php"):/tmp/moodle-config.json
+	docker cp scripts/reconcile_plugins.php $$(docker ps -qf "name=php"):/tmp/reconcile_plugins.php
+	docker exec $$(docker ps -qf "name=php") php /tmp/reconcile_plugins.php --dry-run
+	docker exec $$(docker ps -qf "name=php") rm -f /tmp/reconcile_plugins.php /tmp/moodle-config.json
+
+reconcile-plugins: ## Uninstall (DB + disk) any plugins no longer in moodle-config.json
+	docker cp moodle-config.json $$(docker ps -qf "name=php"):/tmp/moodle-config.json
+	docker cp scripts/reconcile_plugins.php $$(docker ps -qf "name=php"):/tmp/reconcile_plugins.php
+	docker exec $$(docker ps -qf "name=php") php /tmp/reconcile_plugins.php
+	docker exec $$(docker ps -qf "name=php") rm -f /tmp/reconcile_plugins.php /tmp/moodle-config.json
