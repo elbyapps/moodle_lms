@@ -12,8 +12,17 @@
 #             containers, runs admin/cli/upgrade.php, then drops maintenance.
 #
 # Usage:
-#   scripts/deploy.sh code
-#   scripts/deploy.sh upgrade
+#   scripts/deploy.sh code [--no-cache]
+#   scripts/deploy.sh upgrade [--no-cache]
+#
+# Flags:
+#   --no-cache   Pass --no-cache to `docker compose build`. Useful when you
+#                want to force fresh `git clone`s of plugins whose ref in
+#                moodle-config.json hasn't changed (so the build.sh layer
+#                would otherwise be served from the Docker build cache).
+#                Unlike `make build-fresh`, this does NOT stop containers
+#                or delete the moodle_app volume — the rolling/maintenance
+#                deploy flow is preserved.
 
 set -euo pipefail
 
@@ -31,15 +40,33 @@ if [ -f compose/docker-compose.local.yml ]; then
     COMPOSE+=(-f compose/docker-compose.local.yml)
 fi
 
-if [ -f .env ]; then
-    set -a
-    # shellcheck disable=SC1091
-    source .env
-    set +a
-fi
+# We only need two knobs from .env (PHP_REPLICAS, HEALTH_TIMEOUT). Sourcing
+# the whole file with `set -a; source .env` is brittle — any unquoted value
+# containing shell metacharacters (e.g. `MOODLE_SITENAME=My Site [eLearning]`)
+# triggers globbing or word-splitting and the script aborts before it ever
+# reaches docker compose. Docker Compose itself reads .env directly via
+# --project-directory, so the variables every service needs still arrive.
+# Here we just pluck the two values this script reads, with no shell eval.
+read_env_var() {
+    # Strip optional surrounding quotes from the value.
+    local key="$1" line value
+    [ -f .env ] || return 0
+    line=$(grep -E "^${key}=" .env | tail -n1 || true)
+    [ -z "$line" ] && return 0
+    value="${line#*=}"
+    value="${value%\"}"; value="${value#\"}"
+    value="${value%\'}"; value="${value#\'}"
+    printf '%s' "$value"
+}
 
-REPLICAS="${PHP_REPLICAS:-3}"
+REPLICAS="${PHP_REPLICAS:-$(read_env_var PHP_REPLICAS)}"
+REPLICAS="${REPLICAS:-3}"
+HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-$(read_env_var HEALTH_TIMEOUT)}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-180}"
+
+# Extra args appended to `docker compose build` (e.g. --no-cache). Populated
+# from the CLI flag parser below.
+BUILD_ARGS=()
 
 php_exec() {
     "${COMPOSE[@]}" exec -T php "$@"
@@ -77,8 +104,12 @@ wait_healthy() {
 
 cmd_code() {
     echo "== Rolling code deploy (no DB migration) =="
-    echo "Building images..."
-    "${COMPOSE[@]}" build
+    if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
+        echo "Building images (${BUILD_ARGS[*]})..."
+    else
+        echo "Building images..."
+    fi
+    "${COMPOSE[@]}" build "${BUILD_ARGS[@]}"
 
     local old_ids
     old_ids=$("${COMPOSE[@]}" ps -q php || true)
@@ -124,8 +155,12 @@ cmd_upgrade() {
     echo "Enabling Moodle maintenance mode..."
     php_exec php /var/www/html/moodle_app/admin/cli/maintenance.php --enable
 
-    echo "Building images..."
-    "${COMPOSE[@]}" build
+    if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
+        echo "Building images (${BUILD_ARGS[*]})..."
+    else
+        echo "Building images..."
+    fi
+    "${COMPOSE[@]}" build "${BUILD_ARGS[@]}"
 
     echo "Recreating all containers..."
     "${COMPOSE[@]}" up -d --force-recreate --scale "php=$REPLICAS"
@@ -140,15 +175,35 @@ cmd_upgrade() {
     echo "Upgrade complete."
 }
 
-case "${1:-}" in
+SUBCMD="${1:-}"
+shift || true
+
+# Parse trailing flags. Keep this tiny — only --no-cache for now.
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --no-cache) BUILD_ARGS+=(--no-cache) ;;
+        -h|--help)  SUBCMD="" ;;
+        *)
+            echo "ERROR: unknown flag '$1'" >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+case "$SUBCMD" in
     code)    cmd_code ;;
     upgrade) cmd_upgrade ;;
     *)
         cat >&2 <<EOF
-Usage: $0 {code|upgrade}
+Usage: $0 {code|upgrade} [--no-cache]
 
-  code     Rolling deploy for code-only changes (no DB migration).
-  upgrade  Maintenance-mode upgrade for DB schema changes.
+  code        Rolling deploy for code-only changes (no DB migration).
+  upgrade     Maintenance-mode upgrade for DB schema changes.
+
+  --no-cache  Force a no-cache image rebuild (re-clones git plugins even
+              when moodle-config.json hasn't changed). Containers are
+              NOT stopped; the rolling/maintenance flow is preserved.
 EOF
         exit 1
         ;;

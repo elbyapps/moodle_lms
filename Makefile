@@ -22,7 +22,7 @@ COMPOSE_STAGING = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f
 COMPOSE_PROD = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.prod.yml $(LOCAL_OVERRIDE)
 COMPOSE_DB = docker compose $(PROJECT_DIR) -f compose/docker-compose.db.yml
 
-.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
+.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -65,22 +65,54 @@ staging-down: ## Stop staging environment
 
 # --- Production ---
 
-prod: ## Start production environment
+prod: ## Start production environment (first-time bring-up; for live updates use deploy-code or deploy-upgrade)
 	$(COMPOSE_PROD) up --build -d
 
 prod-down: ## Stop production environment
 	$(COMPOSE_PROD) down
+
+deploy-code: ## Zero-downtime rolling deploy of code-only changes (no DB migration)
+	./scripts/deploy.sh code
+
+deploy-code-fresh: ## Same as deploy-code but with --no-cache build (force-refetches git plugins; containers stay up)
+	./scripts/deploy.sh code --no-cache
+
+deploy-upgrade: ## Maintenance-mode deploy for changes that include a DB migration
+	./scripts/deploy.sh upgrade
+
+deploy-upgrade-fresh: ## Same as deploy-upgrade but with --no-cache build (force-refetches git plugins)
+	./scripts/deploy.sh upgrade --no-cache
 
 # --- Utilities ---
 
 logs: ## Show logs (usage: make logs s=php)
 	$(COMPOSE_BASE) logs -f $(s)
 
-shell: ## Open shell in PHP container
-	docker exec -it $$(docker ps -qf "name=php") bash
+# Admin recipes spin a throwaway php container from the same image the stack
+# is running. Benefits over `docker exec` on a serving replica:
+#   - works regardless of how many replicas are running (no "docker cp wants
+#     one container, got 3" failures in prod);
+#   - never touches a serving replica (no memory contention, no /tmp litter);
+#   - works even when the stack is down, as long as the image exists;
+#   - scripts/ is baked into the image (Dockerfile: COPY scripts ./scripts)
+#     so no docker cp dance is needed.
+#
+# Detect the currently-running stack's compose files from container labels,
+# so the same `make admin-cli ...` invocation works on dev/staging/prod
+# without env flags. Falls back to the dev stack when nothing is running yet.
+COMPOSE_FILES_RUNNING = $$(docker ps --filter "label=com.docker.compose.project=moodle_lms" --format '{{.Label "com.docker.compose.project.config_files"}}' | head -n1 | tr ',' '\n' | awk 'NF{printf "-f %s ", $$0}')
+COMPOSE_FILES_FALLBACK = -f compose/docker-compose.yml -f compose/docker-compose.dev.yml $(LOCAL_OVERRIDE)
+COMPOSE_AUTO = docker compose --project-directory . $$( files="$(COMPOSE_FILES_RUNNING)"; if [ -n "$$files" ]; then printf '%s' "$$files"; else printf '%s' '$(COMPOSE_FILES_FALLBACK)'; fi )
+
+# php-run: throwaway container for one-off admin scripts. --no-deps so we
+# don't accidentally start mariadb/redis; -T disables TTY (non-interactive).
+PHP_RUN = $(COMPOSE_AUTO) run --rm --no-deps -T php
+
+shell: ## Open interactive shell in a fresh php container (from current stack's image)
+	$(COMPOSE_AUTO) run --rm --no-deps php bash
 
 clean-cache: ## Purge Moodle caches
-	docker exec $$(docker ps -qf "name=php") php /var/www/html/moodle_app/admin/cli/purge_caches.php
+	$(PHP_RUN) php /var/www/html/moodle_app/admin/cli/purge_caches.php
 
 # --- ObjectFS / S3 ---
 
@@ -89,19 +121,13 @@ clean-cache: ## Purge Moodle caches
 # overwrites existing values. Run after the initial Moodle install, or
 # whenever you change the OBJECTFS_* defaults you want enforced.
 objectfs-setup: ## Seed tool_objectfs tuning settings from OBJECTFS_* env vars (idempotent)
-	docker cp scripts/setup_objectfs.php $$(docker ps -qf "name=php"):/tmp/setup_objectfs.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/setup_objectfs.php
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/setup_objectfs.php
+	$(PHP_RUN) php /var/www/html/scripts/setup_objectfs.php
 
 objectfs-setup-force: ## Same as objectfs-setup but overwrites existing DB values
-	docker cp scripts/setup_objectfs.php $$(docker ps -qf "name=php"):/tmp/setup_objectfs.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/setup_objectfs.php --force
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/setup_objectfs.php
+	$(PHP_RUN) php /var/www/html/scripts/setup_objectfs.php --force
 
 objectfs-setup-dry: ## Show what objectfs-setup would change without writing
-	docker cp scripts/setup_objectfs.php $$(docker ps -qf "name=php"):/tmp/setup_objectfs.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/setup_objectfs.php --dry-run
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/setup_objectfs.php
+	$(PHP_RUN) php /var/www/html/scripts/setup_objectfs.php --dry-run
 
 test-s3: ## Run the tool_objectfs end-to-end round-trip test against the dev stack
 	./scripts/test-s3-roundtrip.sh
@@ -114,14 +140,10 @@ test-s3: ## Run the tool_objectfs end-to-end round-trip test against the dev sta
 # no-op. Passwords keep working — auth_externalid stored them with Moodle's
 # internal hash already.
 migrate-auth-externalid: ## Migrate users from auth_externalid to manual auth
-	docker cp scripts/migrate_auth_externalid.php $$(docker ps -qf "name=php"):/tmp/migrate_auth_externalid.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/migrate_auth_externalid.php
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/migrate_auth_externalid.php
+	$(PHP_RUN) php /var/www/html/scripts/migrate_auth_externalid.php
 
 migrate-auth-externalid-dry: ## Show what migrate-auth-externalid would change without writing
-	docker cp scripts/migrate_auth_externalid.php $$(docker ps -qf "name=php"):/tmp/migrate_auth_externalid.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/migrate_auth_externalid.php --dry-run
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/migrate_auth_externalid.php
+	$(PHP_RUN) php /var/www/html/scripts/migrate_auth_externalid.php --dry-run
 
 # --- Admin CLI passthrough ---
 
@@ -131,7 +153,7 @@ migrate-auth-externalid-dry: ## Show what migrate-auth-externalid would change w
 #   make admin-cli cmd="upgrade.php --non-interactive"
 admin-cli: ## Run a Moodle admin/cli script (usage: make admin-cli cmd="script.php --args")
 	@if [ -z "$(cmd)" ]; then echo 'usage: make admin-cli cmd="script.php --args"'; exit 1; fi
-	docker exec $$(docker ps -qf "name=php") php /var/www/html/moodle_app/public/admin/cli/$(cmd)
+	$(PHP_RUN) php /var/www/html/moodle_app/admin/cli/$(cmd)
 
 # --- Plugin reconciliation (moodle-config.json -> live Moodle) ---
 
@@ -143,14 +165,12 @@ admin-cli: ## Run a Moodle admin/cli script (usage: make admin-cli cmd="script.p
 # This is intentionally a manual step — it is destructive (drops plugin DB
 # tables) and must not be hooked into container startup, where a malformed
 # config or temporarily-commented-out entry would wipe user data.
+# reconcile_plugins.php reads moodle-config.json. The Dockerfile copies it
+# into /var/www/html/moodle-config.json (alongside scripts/), and the script
+# accepts --config=PATH to override its /tmp/moodle-config.json default. So
+# no docker cp is needed: just point the script at the baked-in copy.
 reconcile-plugins-dry: ## List plugins installed in Moodle but not in moodle-config.json
-	docker cp moodle-config.json $$(docker ps -qf "name=php"):/tmp/moodle-config.json
-	docker cp scripts/reconcile_plugins.php $$(docker ps -qf "name=php"):/tmp/reconcile_plugins.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/reconcile_plugins.php --dry-run
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/reconcile_plugins.php /tmp/moodle-config.json
+	$(PHP_RUN) php /var/www/html/scripts/reconcile_plugins.php --config=/var/www/html/moodle-config.json --dry-run
 
 reconcile-plugins: ## Uninstall (DB + disk) any plugins no longer in moodle-config.json
-	docker cp moodle-config.json $$(docker ps -qf "name=php"):/tmp/moodle-config.json
-	docker cp scripts/reconcile_plugins.php $$(docker ps -qf "name=php"):/tmp/reconcile_plugins.php
-	docker exec $$(docker ps -qf "name=php") php /tmp/reconcile_plugins.php
-	docker exec $$(docker ps -qf "name=php") rm -f /tmp/reconcile_plugins.php /tmp/moodle-config.json
+	$(PHP_RUN) php /var/www/html/scripts/reconcile_plugins.php --config=/var/www/html/moodle-config.json

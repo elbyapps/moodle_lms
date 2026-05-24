@@ -6,7 +6,6 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     jq \
-    openssh-client \
     libpng-dev \
     libjpeg-dev \
     libfreetype6-dev \
@@ -74,19 +73,17 @@ RUN chmod +x build.sh
 # Build arg to skip cloning (for development with bind mounts)
 ARG SKIP_CLONE=false
 
-# Configure Git for non-interactive cloning (public repos)
-# Disable credential prompt to avoid "No such device or address" errors
+# Configure Git for non-interactive cloning. All plugin repos in
+# moodle-config.json are public HTTPS URLs (see build.sh) — no SSH agent,
+# known_hosts seeding, or BuildKit ssh mount needed. GIT_TERMINAL_PROMPT=0
+# turns any unexpected auth prompt (e.g. a repo that went private) into an
+# immediate hard failure instead of a hung build.
 ENV GIT_TERMINAL_PROMPT=0
 RUN git config --global credential.helper '' && \
     git config --global init.defaultBranch main
 
-# Configure SSH for GitHub (for private repositories)
-RUN mkdir -p -m 0700 ~/.ssh && \
-    ssh-keyscan github.com >> ~/.ssh/known_hosts
-
-# Run build script to clone Moodle and plugins (skip in dev mode)
-# Mount SSH socket to enable cloning private repositories
-RUN --mount=type=ssh if [ "$SKIP_CLONE" = "false" ]; then ./build.sh; else echo "SKIP_CLONE=true, skipping build.sh"; fi
+# Run build script to clone Moodle and plugins (skip in dev mode).
+RUN if [ "$SKIP_CLONE" = "false" ]; then ./build.sh; else echo "SKIP_CLONE=true, skipping build.sh"; fi
 
 # Install Composer dependencies for Moodle (skip in dev mode)
 RUN if [ "$SKIP_CLONE" = "false" ]; then cd moodle_app && composer install --no-dev --classmap-authoritative; fi
