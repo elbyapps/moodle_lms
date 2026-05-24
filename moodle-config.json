@@ -1,0 +1,212 @@
+{
+       "moodle": {
+              "repository": "https://github.com/moodle/moodle.git",
+              "version": "v5.1.4"
+       },
+       "destination_folder": "moodle_app",
+       "plugins": [
+              {
+                     "name": "admin_tool_objectfs",
+                     "source": "git",
+                     "repository": "https://github.com/catalyst/moodle-tool_objectfs.git",
+                     "version": "MOODLE_404_STABLE",
+                     "destination": "admin/tool/objectfs"
+              },
+              {
+                     "name": "tool_coursefields",
+                     "source": "git",
+                     "repository": "https://github.com/moodle-an-hochschulen/moodle-tool_coursefields.git",
+                     "version": "db1bd7d38dbbc016a457ec98dd533e17ba26b775",
+                     "destination": "admin/tool/coursefields"
+              },
+              {
+                     "name": "auth_antihammer",
+                     "source": "git",
+                     "repository": "https://github.com/sebsoftnl/moodle-auth_antihammer.git",
+                     "version": "3.7.0",
+                     "destination": "auth/antihammer"
+              },
+              {
+                     "name": "auth_oidc",
+                     "source": "git",
+                     "repository": "https://github.com/microsoft/moodle-auth_oidc.git",
+                     "version": "v5.1.2",
+                     "destination": "auth/oidc"
+              },
+              {
+                     "name": "block_accessibility",
+                     "source": "git",
+                     "repository": "https://github.com/brickfield/moodle-block_accessibility.git",
+                     "version": "bd8e5d729d8a5c5efd9a290ecbf953e54fbf8e21",
+                     "destination": "blocks/accessibility"
+              },
+              {
+                     "name": "block_completion_progress",
+                     "source": "git",
+                     "repository": "https://github.com/jonof/moodle-block_completion_progress.git",
+                     "version": "2025041400",
+                     "destination": "blocks/completion_progress"
+              },
+              {
+                     "name": "format_grid",
+                     "source": "git",
+                     "repository": "https://github.com/gjbarnard/moodle-format_grid.git",
+                     "version": "V500.1.0",
+                     "destination": "course/format/grid"
+              },
+              {
+                     "name": "customfield_dynamic",
+                     "source": "git",
+                     "repository": "https://github.com/soorajsingh/moodle-customfield_dynamic.git",
+                     "version": "c15c6c9170973c0fd0957da7bc83d03039502ac9",
+                     "destination": "customfield/field/dynamic"
+              },
+              {
+                     "name": "enrol_attributes",
+                     "source": "git",
+                     "repository": "https://github.com/ndunand/moodle-enrol_attributes.git",
+                     "version": "41d8915c4a30901a184daf3773c3c1294d4edc05",
+                     "destination": "enrol/attributes"
+              },
+              {
+                     "name": "filter_siyavula",
+                     "source": "git",
+                     "repository": "https://github.com/Siyavula/siyavula-moodle-filter.git",
+                     "version": "v2.0.9",
+                     "destination": "filter/siyavula"
+              },
+              {
+                     "name": "filter_wiris",
+                     "source": "git",
+                     "repository": "https://github.com/wiris/moodle-filter_wiris.git",
+                     "version": "v.8.11.0",
+                     "destination": "filter/wiris"
+              },
+              {
+                     "name": "tiny_wiris",
+                     "source": "git",
+                     "repository": "https://github.com/wiris/moodle-tiny_wiris.git",
+                     "version": "v.8.11.0",
+                     "destination": "lib/editor/tiny/plugins/wiris"
+              },
+              {
+                     "name": "local_bulkenrol",
+                     "source": "git",
+                     "repository": "https://github.com/moodle-an-hochschulen/moodle-local_bulkenrol.git",
+                     "version": "v5.0-r3",
+                     "destination": "local/bulkenrol"
+              },
+              {
+                     "name": "local_elby_dashboard",
+                     "source": "git",
+                     "repository": "https://github.com/rtb-elearning/dashboard.git",
+                     "version": "main",
+                     "destination": "local/elby_dashboard"
+              },
+              {
+                     "name": "local_mr",
+                     "source": "git",
+                     "repository": "https://github.com/open-lms-open-source/moodle-local_mr.git",
+                     "version": "9d66901753690ac2956df9a9d744e4071ec8a67d",
+                     "destination": "local/mr"
+              },
+              {
+                     "name": "local_o365",
+                     "source": "git",
+                     "repository": "https://github.com/microsoft/moodle-local_o365.git",
+                     "version": "v5.1.2",
+                     "destination": "local/o365"
+              },
+              {
+                     "name": "local_ultimate",
+                     "source": "git",
+                     "repository": "https://github.com/willianmano/moodle-local_ultimate.git",
+                     "version": "main",
+                     "destination": "local/ultimate"
+              },
+              {
+                     "name": "mod_activitymap",
+                     "source": "git",
+                     "repository": "https://github.com/bytebang/moodle-mod_activitymap.git",
+                     "version": "v1.4",
+                     "destination": "mod/activitymap"
+              },
+              {
+                     "name": "mod_attendance",
+                     "source": "git",
+                     "repository": "https://github.com/danmarsden/moodle-mod_attendance.git",
+                     "version": "d40cbe2ecad6fb960769431a7a300cce8fd36fb7",
+                     "destination": "mod/attendance"
+              },
+              {
+                     "name": "booktool_importepub",
+                     "source": "git",
+                     "repository": "https://github.com/HaakonME/moodle-booktool_importepub.git",
+                     "version": "0d4cbcb561cc832f7416c44c2e03f930aad3d360",
+                     "destination": "mod/book/tool/importepub"
+              },
+              {
+                     "name": "mod_customcert",
+                     "source": "git",
+                     "repository": "https://github.com/mdjnelson/moodle-mod_customcert.git",
+                     "version": "7a871e9fcc8d75fa774cda893f8ae11c8f7e098f",
+                     "destination": "mod/customcert"
+              },
+              {
+                     "name": "mod_hvp",
+                     "source": "git",
+                     "repository": "https://github.com/h5p/moodle-mod_hvp.git",
+                     "version": "e0255812be2c4b74dae34650da79dc945cdb6b80",
+                     "destination": "mod/hvp"
+              },
+              {
+                     "name": "mod_jitsi",
+                     "source": "git",
+                     "repository": "https://github.com/udima-university/moodle-mod_jitsi.git",
+                     "version": "v5.1.0",
+                     "destination": "mod/jitsi"
+              },
+              {
+                     "name": "mod_organizer",
+                     "source": "git",
+                     "repository": "https://github.com/academic-moodle-cooperation/moodle-mod_organizer.git",
+                     "version": "v5.0.0",
+                     "destination": "mod/organizer"
+              },
+              {
+                     "name": "mod_siyavula",
+                     "source": "git",
+                     "repository": "https://github.com/Siyavula/siyavula-moodle-activity-module.git",
+                     "version": "v2.0.3",
+                     "destination": "mod/siyavula"
+              },
+              {
+                     "name": "qtype_siyavulaqt",
+                     "source": "git",
+                     "repository": "https://github.com/Siyavula/siyavula-moodle-question.git",
+                     "version": "v2.0.0",
+                     "destination": "question/type/siyavulaqt"
+              },
+              {
+                     "name": "report_benchmark",
+                     "source": "git",
+                     "repository": "https://github.com/mikasmart/moodle-report_benchmark.git",
+                     "version": "v1.5.3",
+                     "destination": "report/benchmark"
+              },
+              {
+                     "name": "theme_elby",
+                     "source": "git",
+                     "repository": "https://github.com/elbyapps/moodle_theme_elby.git",
+                     "version": "main",
+                     "destination": "theme/elby"
+              },
+              {
+                     "name": "local_reblibrary",
+                     "source": "git",
+                     "repository": "https://github.com/REB-ICTE/local_reblibrary.git",
+                     "version": "main",
+                     "destination": "local/reblibrary"
+              }
+       ]
+}
