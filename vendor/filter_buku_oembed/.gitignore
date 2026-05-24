@@ -1,0 +1,3 @@
+# Files that might appear on external disk
+.idea
+vendor/
