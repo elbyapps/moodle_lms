@@ -54,7 +54,9 @@ if (!function_exists('simplexml_load_string')) {
         'sdms-url'     => getenv('SDMS_URL') ?: 'http://100.87.223.50:8082/sdms/api',
         'code-column'  => null,         // header name; auto-detected when null
         'sheet'        => null,         // sheet name or 0-based index
-        'match'        => 'idnumber',   // idnumber | username | email
+        'match'        => 'username',   // username | idnumber | email
+                                       // (this workbook's "ID number" col
+                                       //  is the Moodle username)
         'dry-run'      => false,
         'limit'        => 0,
         'sleep-ms'     => 0,
@@ -83,7 +85,7 @@ Options:
                       "number" is used.
   --sheet=NAME|N      Sheet to read (name, or 0-based index). Default: 0.
   --match=FIELD       Moodle user field to identify users by:
-                      idnumber (default), username, or email.
+                      username (default), idnumber, or email.
   --dry-run           Print planned writes; do not modify the DB.
   --limit=N           Process at most N non-empty rows (0 = all).
   --sleep-ms=N        Sleep this many ms between SDMS calls.
@@ -147,16 +149,31 @@ if ($codecolumn !== null && $codecolumn !== '') {
                   implode(' | ', array_map('strval', $headers)));
     }
 } else {
+    // Auto-detect: prefer student-* headers, but also accept the common
+    // "ID number" / "idnumber" Moodle field naming.
+    $candidates = [];
     foreach ($headers as $i => $h) {
         if (!is_string($h)) {
             continue;
         }
-        $lh = strtolower($h);
-        if (strpos($lh, 'student') !== false &&
-            (strpos($lh, 'code') !== false || strpos($lh, 'number') !== false)) {
-            $colidx = $i;
-            break;
+        // Normalise: lowercase, strip non-alphanumerics.
+        $norm = preg_replace('/[^a-z0-9]/', '', strtolower($h));
+        if ($norm === '') {
+            continue;
         }
+        if (strpos($norm, 'student') !== false &&
+            (strpos($norm, 'code') !== false || strpos($norm, 'number') !== false)) {
+            $candidates[1] = $i;          // best: studentcode / studentnumber
+        } else if ($norm === 'idnumber' ||
+                   (strpos($norm, 'id') !== false && strpos($norm, 'number') !== false)) {
+            $candidates[2] = $i;          // good: ID number, id_number, idnumber
+        } else if ($norm === 'studentid' || $norm === 'studentcode') {
+            $candidates[3] = $i;
+        }
+    }
+    if ($candidates) {
+        ksort($candidates);
+        $colidx = reset($candidates);
     }
     if ($colidx === null) {
         cli_error("Could not auto-detect a student-code column. " .
