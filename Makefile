@@ -200,11 +200,15 @@ populate-user-schoolcode: ## Backfill user.schoolcode/institution from SDMS usin
 	  echo "Override with: make populate-user-schoolcode SDMS_XLSX=/abs/path.xlsx"; \
 	  exit 1; \
 	fi
+	@if [ ! -f "$(CURDIR)/scripts/populate_user_schoolcode.php" ]; then \
+	  echo "scripts/populate_user_schoolcode.php not found in $(CURDIR)"; exit 1; \
+	fi
 	@dir=$$(cd "$$(dirname "$(SDMS_XLSX)")" && pwd); \
 	 file=$$(basename "$(SDMS_XLSX)"); \
 	 echo "Mounting $$dir -> /data (ro), file: $$file"; \
 	 $(COMPOSE_AUTO) run --rm --no-deps -T \
 	   -v "$$dir:/data:ro" \
+	   -v "$(CURDIR)/scripts/populate_user_schoolcode.php:/var/www/html/scripts/populate_user_schoolcode.php:ro" \
 	   -e SDMS_URL="$(SDMS_URL)" php \
 	   php /var/www/html/scripts/populate_user_schoolcode.php \
 	     --file="/data/$$file" --sdms-url="$(SDMS_URL)" $(args)
