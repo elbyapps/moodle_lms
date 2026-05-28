@@ -53,6 +53,7 @@ if (!function_exists('simplexml_load_string')) {
         'file'         => null,
         'sdms-url'     => getenv('SDMS_URL') ?: 'http://100.87.223.50:8082/sdms/api',
         'code-column'  => null,         // header name; auto-detected when null
+        'school-column'=> null,         // header for institution name; auto-detected
         'sheet'        => null,         // sheet name or 0-based index
         'match'        => 'username',   // username | idnumber | email
                                        // (this workbook's "ID number" col
@@ -82,7 +83,14 @@ Options:
                       http://100.87.223.50:8082/sdms/api
   --code-column=NAME  Header of the student-code column. When omitted, the
                       first header containing "student" plus "code" or
-                      "number" is used.
+                      "number" (or "ID number") is used.
+  --school-column=NAME
+                      Header of the column holding the human-readable
+                      school/institution name. When omitted, the first
+                      header that is exactly or starts with "school" (but
+                      not "school code") is used. Used to populate
+                      mdl_user.institution; falls back to {elby_schools}
+                      and finally to schoolCode.
   --sheet=NAME|N      Sheet to read (name, or 0-based index). When omitted,
                       every sheet in the workbook is processed; the code
                       column is auto-detected per sheet (sheets without a
@@ -140,16 +148,17 @@ cli_writeln('');
 global $DB;
 
 $counters = [
-    'sheets_done'    => 0,
-    'sheets_skipped' => 0,
-    'rows'           => 0,
-    'no_code'        => 0,
-    'duplicate'      => 0,
-    'sdms_fail'      => 0,
-    'no_schoolcode'  => 0,
-    'user_not_found' => 0,
-    'unchanged'      => 0,
-    'updated'        => 0,
+    'sheets_done'     => 0,
+    'sheets_skipped'  => 0,
+    'rows'            => 0,
+    'no_code'         => 0,
+    'duplicate'       => 0,
+    'sdms_fail'       => 0,
+    'no_schoolcode'   => 0,
+    'user_not_found'  => 0,
+    'unchanged'       => 0,
+    'updated'         => 0,
+    'schools_fetched' => 0,
 ];
 
 // In-process caches.
@@ -162,6 +171,7 @@ $counters = [
 $schoolnamecache = [];
 $studentcache    = [];
 $codecolumnopt   = $options['code-column'];
+$schoolcolumnopt = $options['school-column'];
 $stoploop        = false;
 
 foreach ($sheetnames as $sheetref) {
@@ -230,6 +240,38 @@ foreach ($sheetnames as $sheetref) {
         }
         cli_writeln("  Code col: '" . $headers[$colidx] . "' (column " . ($colidx + 1) . ', auto-detected)');
     }
+
+    // Locate the institution / school-name column. Optional — sheets
+    // without one just fall back to {elby_schools} / schoolCode.
+    $schoolidx = null;
+    if ($schoolcolumnopt !== null && $schoolcolumnopt !== '') {
+        foreach ($headers as $i => $h) {
+            if (is_string($h) && strcasecmp(trim($h), $schoolcolumnopt) === 0) {
+                $schoolidx = $i;
+                break;
+            }
+        }
+        if ($schoolidx === null) {
+            cli_writeln("  (school column '$schoolcolumnopt' not found in this sheet)");
+        }
+    } else {
+        foreach ($headers as $i => $h) {
+            if (!is_string($h)) {
+                continue;
+            }
+            $norm = preg_replace('/[^a-z0-9]/', '', strtolower($h));
+            // Match "school" / "schoolname" / "institution"; reject
+            // "schoolcode" so we don't double up with the code column.
+            if ($norm === 'school' || $norm === 'schoolname' ||
+                $norm === 'institution' || $norm === 'institutionname') {
+                $schoolidx = $i;
+                break;
+            }
+        }
+    }
+    if ($schoolidx !== null) {
+        cli_writeln("  Sch col : '" . $headers[$schoolidx] . "' (column " . ($schoolidx + 1) . ')');
+    }
     $counters['sheets_done']++;
 
     for ($r = 1; $r < $nrows; $r++) {
@@ -289,14 +331,36 @@ foreach ($sheetnames as $sheetref) {
         }
         $schoolcode = trim((string) $data['schoolCode']);
 
+        // Resolve the institution name with this priority:
+        //   1. SDMS /school?schoolCode=... -> schoolName.
+        //      Cached per schoolCode so each school is fetched at most
+        //      once for the entire run.
+        //   2. The cached SDMS metadata in {elby_schools}.
+        //   3. The current row's "School" cell (workbook fallback).
+        //   4. The bare schoolCode (last resort, never empty).
         if (!array_key_exists($schoolcode, $schoolnamecache)) {
-            $school = $DB->get_record('elby_schools',
-                ['school_code' => $schoolcode], 'school_name', IGNORE_MISSING);
-            $schoolnamecache[$schoolcode] = ($school && !empty($school->school_name))
-                ? $school->school_name
-                : $schoolcode;
+            $name = sdms_fetch_school_name($schoolcode, $sdmsbase);
+            $counters['schools_fetched']++;
+            if ($name === null) {
+                $school = $DB->get_record('elby_schools',
+                    ['school_code' => $schoolcode], 'school_name', IGNORE_MISSING);
+                if ($school && !empty($school->school_name)) {
+                    $name = (string) $school->school_name;
+                }
+            }
+            $schoolnamecache[$schoolcode] = $name; // may be null
+            sdms_sleep($sleepms);
         }
         $institution = $schoolnamecache[$schoolcode];
+        if ($institution === null && $schoolidx !== null) {
+            $sv = isset($row[$schoolidx]) ? trim((string) $row[$schoolidx]) : '';
+            if ($sv !== '') {
+                $institution = $sv;
+            }
+        }
+        if ($institution === null) {
+            $institution = $schoolcode;
+        }
 
         // Mark as seen now — even if the user lookup below fails, we don't
         // want to re-hit SDMS for this same code on a later sheet.
@@ -361,6 +425,7 @@ cli_writeln(sprintf('Sheets skipped     : %d', $counters['sheets_skipped']));
 cli_writeln(sprintf('Rows processed     : %d', $counters['rows']));
 cli_writeln(sprintf('Duplicate rows     : %d  (same studentCode, SDMS not re-called)', $counters['duplicate']));
 cli_writeln(sprintf('Unique students    : %d', count($studentcache)));
+cli_writeln(sprintf('Unique schools fetched: %d  (one SDMS /school call per code)', $counters['schools_fetched']));
 cli_writeln(sprintf('Blank code rows    : %d', $counters['no_code']));
 cli_writeln(sprintf('SDMS errors        : %d', $counters['sdms_fail']));
 cli_writeln(sprintf('Missing schoolCode : %d', $counters['no_schoolcode']));
@@ -403,6 +468,25 @@ function sdms_sleep(int $ms): void {
     if ($ms > 0) {
         usleep($ms * 1000);
     }
+}
+
+/**
+ * Call SDMS /school?schoolCode=XXX and return the schoolName, or null on
+ * failure / empty response. The endpoint returns a JSON array; we take
+ * the first element.
+ */
+function sdms_fetch_school_name(string $schoolcode, string $sdmsbase): ?string {
+    $url  = $sdmsbase . '/school?schoolCode=' . rawurlencode($schoolcode);
+    $body = sdms_fetch($url);
+    if ($body === false) {
+        return null;
+    }
+    $data = json_decode($body, true);
+    if (!is_array($data) || !isset($data[0]) || !is_array($data[0])) {
+        return null;
+    }
+    $name = trim((string) ($data[0]['schoolName'] ?? ''));
+    return $name !== '' ? $name : null;
 }
 
 // -----------------------------------------------------------------------
