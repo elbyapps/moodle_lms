@@ -37,16 +37,15 @@ define('NO_OUTPUT_BUFFERING', true);
 require(__DIR__ . '/../moodle_app/public/config.php');
 require_once($CFG->libdir . '/clilib.php');
 
-// Moodle ships PhpSpreadsheet under lib/phpspreadsheet with a Composer
-// autoloader. This is the supported way to read XLSX from a CLI script.
-$autoload = $CFG->libdir . '/phpspreadsheet/vendor/autoload.php';
-if (!is_readable($autoload)) {
-    cli_error("PhpSpreadsheet autoloader not found at $autoload. " .
-              "Is this Moodle 4.x/5.x with the bundled phpspreadsheet?");
+// Reading XLSX: rather than depend on PhpSpreadsheet (not consistently
+// bundled across Moodle 4.x/5.x), we parse the workbook ourselves below
+// using ZipArchive + SimpleXML — both ship with every Moodle PHP build.
+if (!class_exists('ZipArchive')) {
+    cli_error('PHP ext-zip is required to read XLSX files.');
 }
-require_once($autoload);
-
-use PhpOffice\PhpSpreadsheet\IOFactory;
+if (!function_exists('simplexml_load_string')) {
+    cli_error('PHP ext-simplexml is required to read XLSX files.');
+}
 
 [$options, $unrecognized] = cli_get_params(
     [
@@ -121,25 +120,8 @@ cli_writeln("Match on : mdl_user.$matchfield");
 cli_writeln("Mode     : " . ($dryrun ? 'DRY-RUN (no DB writes)' : 'WRITE'));
 cli_writeln('');
 
-$reader = IOFactory::createReaderForFile($file);
-$reader->setReadDataOnly(true);
-$spreadsheet = $reader->load($file);
-
-// Pick the sheet.
-$sheetparam = $options['sheet'];
-if ($sheetparam === null || $sheetparam === '') {
-    $sheet = $spreadsheet->getSheet(0);
-} else if (ctype_digit((string) $sheetparam)) {
-    $sheet = $spreadsheet->getSheet((int) $sheetparam);
-} else {
-    $sheet = $spreadsheet->getSheetByName((string) $sheetparam);
-    if (!$sheet) {
-        cli_error("Sheet not found: $sheetparam");
-    }
-}
-cli_writeln('Sheet    : ' . $sheet->getTitle());
-
-$rows = $sheet->toArray(null, true, true, false);
+[$sheettitle, $rows] = xlsx_load_sheet($file, $options['sheet']);
+cli_writeln('Sheet    : ' . $sheettitle);
 $nrows = count($rows);
 if ($nrows < 2) {
     cli_error('Sheet has no data rows (need at least a header + one row).');
@@ -349,4 +331,203 @@ function sdms_sleep(int $ms): void {
     if ($ms > 0) {
         usleep($ms * 1000);
     }
+}
+
+// -----------------------------------------------------------------------
+// Minimal XLSX reader (ZipArchive + SimpleXML).
+//
+// XLSX is a ZIP archive containing XML parts. We only need enough to read
+// a single sheet as a 2D array of strings:
+//   - xl/sharedStrings.xml    : the string pool (cells of type "s" index here)
+//   - xl/workbook.xml         : sheet list (names + r:id)
+//   - xl/_rels/workbook.xml.rels : maps r:id -> sheet XML path
+//   - xl/worksheets/sheetN.xml: the row/cell data
+// -----------------------------------------------------------------------
+
+/**
+ * Load a sheet from an XLSX file and return [title, rows].
+ *
+ * @param string      $file       Absolute path to .xlsx file.
+ * @param string|null $sheetparam Sheet name, 0-based index, or null for first.
+ * @return array{0:string,1:array<int,array<int,?string>>}
+ */
+function xlsx_load_sheet(string $file, $sheetparam = null): array {
+    $zip = new ZipArchive();
+    if ($zip->open($file) !== true) {
+        cli_error("Cannot open as XLSX (not a zip archive?): $file");
+    }
+
+    // Build shared-string table.
+    $shared = [];
+    $sxml = $zip->getFromName('xl/sharedStrings.xml');
+    if ($sxml !== false) {
+        $sx = @simplexml_load_string($sxml);
+        if ($sx !== false) {
+            foreach ($sx->si as $si) {
+                $text = '';
+                if (isset($si->t)) {
+                    $text = (string) $si->t;
+                } else if (isset($si->r)) {
+                    foreach ($si->r as $run) {
+                        $text .= (string) $run->t;
+                    }
+                }
+                $shared[] = $text;
+            }
+        }
+    }
+
+    // Resolve which sheet XML part to read.
+    [$sheetpath, $sheettitle] = xlsx_resolve_sheet($zip, $sheetparam);
+
+    $sheetxml = $zip->getFromName($sheetpath);
+    $zip->close();
+    if ($sheetxml === false) {
+        cli_error("Sheet part not found in workbook: $sheetpath");
+    }
+
+    $sx = @simplexml_load_string($sheetxml);
+    if ($sx === false) {
+        cli_error("Failed to parse sheet XML: $sheetpath");
+    }
+
+    // Pass 1: collect sparse rows + track max column index.
+    $sparse = [];
+    $maxcol = -1;
+    foreach ($sx->sheetData->row as $row) {
+        $rowarr = [];
+        foreach ($row->c as $c) {
+            $ref  = (string) $c['r'];        // e.g. "B12"
+            $col  = xlsx_col_index($ref);    // 0-based
+            $type = (string) ($c['t'] ?? '');
+            $val  = null;
+            if ($type === 's') {
+                $idx = (int) $c->v;
+                $val = $shared[$idx] ?? '';
+            } else if ($type === 'inlineStr') {
+                $val = isset($c->is->t) ? (string) $c->is->t : '';
+            } else if ($type === 'b') {
+                $val = ((string) $c->v) === '1' ? 'TRUE' : 'FALSE';
+            } else if ($type === 'e' || $type === 'str') {
+                $val = isset($c->v) ? (string) $c->v : '';
+            } else {
+                // Numeric or date; keep as string. Normalise trailing zeros
+                // for whole numbers so studentCode "110109230152" doesn't
+                // come through as "1.10109230152E+11".
+                $raw = isset($c->v) ? (string) $c->v : '';
+                if ($raw !== '' && is_numeric($raw)) {
+                    // Avoid scientific notation for big integers.
+                    $f = (float) $raw;
+                    if (floor($f) === $f && abs($f) < 1e16) {
+                        $val = number_format($f, 0, '.', '');
+                    } else {
+                        $val = $raw;
+                    }
+                } else {
+                    $val = $raw;
+                }
+            }
+            $rowarr[$col] = $val;
+            if ($col > $maxcol) {
+                $maxcol = $col;
+            }
+        }
+        $sparse[] = $rowarr;
+    }
+
+    // Pass 2: densify so every row has the same number of columns.
+    $rows = [];
+    foreach ($sparse as $rowarr) {
+        $dense = [];
+        for ($i = 0; $i <= $maxcol; $i++) {
+            $dense[$i] = array_key_exists($i, $rowarr) ? $rowarr[$i] : null;
+        }
+        // Skip completely empty rows.
+        $hasvalue = false;
+        foreach ($dense as $v) {
+            if ($v !== null && $v !== '') {
+                $hasvalue = true;
+                break;
+            }
+        }
+        if ($hasvalue) {
+            $rows[] = $dense;
+        }
+    }
+
+    return [$sheettitle, $rows];
+}
+
+/**
+ * Pick which sheetN.xml to read.
+ * @return array{0:string,1:string} [sheetPath, sheetTitle]
+ */
+function xlsx_resolve_sheet(ZipArchive $zip, $sheetparam): array {
+    $wb   = $zip->getFromName('xl/workbook.xml');
+    $rels = $zip->getFromName('xl/_rels/workbook.xml.rels');
+    if ($wb === false || $rels === false) {
+        // Fall back to the conventional first-sheet path.
+        return ['xl/worksheets/sheet1.xml', 'Sheet1'];
+    }
+    $wbx  = @simplexml_load_string($wb);
+    $relx = @simplexml_load_string($rels);
+    if ($wbx === false || $relx === false) {
+        return ['xl/worksheets/sheet1.xml', 'Sheet1'];
+    }
+
+    // r:id -> target path (relative to xl/)
+    $relmap = [];
+    foreach ($relx->Relationship as $rel) {
+        $relmap[(string) $rel['Id']] = (string) $rel['Target'];
+    }
+
+    $sheets = [];
+    foreach ($wbx->sheets->sheet as $sh) {
+        $attrs = $sh->attributes('r', true); // r:id
+        $rid   = (string) ($attrs['id'] ?? '');
+        $sheets[] = [
+            'name'   => (string) $sh['name'],
+            'rid'    => $rid,
+            'target' => $relmap[$rid] ?? '',
+        ];
+    }
+    if (!$sheets) {
+        return ['xl/worksheets/sheet1.xml', 'Sheet1'];
+    }
+
+    $picked = null;
+    if ($sheetparam === null || $sheetparam === '') {
+        $picked = $sheets[0];
+    } else if (ctype_digit((string) $sheetparam)) {
+        $picked = $sheets[(int) $sheetparam] ?? null;
+    } else {
+        foreach ($sheets as $s) {
+            if (strcasecmp($s['name'], (string) $sheetparam) === 0) {
+                $picked = $s;
+                break;
+            }
+        }
+    }
+    if ($picked === null) {
+        cli_error('Sheet not found: ' . $sheetparam .
+                  ' (available: ' . implode(', ', array_column($sheets, 'name')) . ')');
+    }
+
+    $target = $picked['target'];
+    // Targets are relative to xl/, e.g. "worksheets/sheet1.xml".
+    $path = 'xl/' . ltrim($target, '/');
+    return [$path, $picked['name']];
+}
+
+/**
+ * Cell ref (e.g. "AB12") -> 0-based column index.
+ */
+function xlsx_col_index(string $ref): int {
+    $letters = preg_replace('/[0-9]+/', '', $ref);
+    $col = 0;
+    $n = strlen($letters);
+    for ($i = 0; $i < $n; $i++) {
+        $col = $col * 26 + (ord(strtoupper($letters[$i])) - ord('A') + 1);
+    }
+    return $col - 1;
 }
