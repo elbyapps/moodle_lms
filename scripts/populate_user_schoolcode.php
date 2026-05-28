@@ -83,7 +83,10 @@ Options:
   --code-column=NAME  Header of the student-code column. When omitted, the
                       first header containing "student" plus "code" or
                       "number" is used.
-  --sheet=NAME|N      Sheet to read (name, or 0-based index). Default: 0.
+  --sheet=NAME|N      Sheet to read (name, or 0-based index). When omitted,
+                      every sheet in the workbook is processed; the code
+                      column is auto-detected per sheet (sheets without a
+                      recognisable header are skipped with a warning).
   --match=FIELD       Moodle user field to identify users by:
                       username (default), idnumber, or email.
   --dry-run           Print planned writes; do not modify the DB.
@@ -122,76 +125,26 @@ cli_writeln("Match on : mdl_user.$matchfield");
 cli_writeln("Mode     : " . ($dryrun ? 'DRY-RUN (no DB writes)' : 'WRITE'));
 cli_writeln('');
 
-[$sheettitle, $rows] = xlsx_load_sheet($file, $options['sheet']);
-cli_writeln('Sheet    : ' . $sheettitle);
-$nrows = count($rows);
-if ($nrows < 2) {
-    cli_error('Sheet has no data rows (need at least a header + one row).');
-}
+// --- Decide which sheets to walk ---------------------------------------
 
-$headers = array_map(static function ($v) {
-    return is_string($v) ? trim($v) : $v;
-}, $rows[0]);
-
-// --- Locate the student-code column ------------------------------------
-
-$colidx = null;
-$codecolumn = $options['code-column'];
-if ($codecolumn !== null && $codecolumn !== '') {
-    foreach ($headers as $i => $h) {
-        if (is_string($h) && strcasecmp(trim($h), $codecolumn) === 0) {
-            $colidx = $i;
-            break;
-        }
-    }
-    if ($colidx === null) {
-        cli_error("Code column '$codecolumn' not found. Headers: " .
-                  implode(' | ', array_map('strval', $headers)));
-    }
+$sheetparam = $options['sheet'];
+if ($sheetparam === null || $sheetparam === '') {
+    $sheetnames = xlsx_list_sheet_names($file);
+    cli_writeln('Sheets   : ' . count($sheetnames) . ' (all in workbook)');
 } else {
-    // Auto-detect: prefer student-* headers, but also accept the common
-    // "ID number" / "idnumber" Moodle field naming.
-    $candidates = [];
-    foreach ($headers as $i => $h) {
-        if (!is_string($h)) {
-            continue;
-        }
-        // Normalise: lowercase, strip non-alphanumerics.
-        $norm = preg_replace('/[^a-z0-9]/', '', strtolower($h));
-        if ($norm === '') {
-            continue;
-        }
-        if (strpos($norm, 'student') !== false &&
-            (strpos($norm, 'code') !== false || strpos($norm, 'number') !== false)) {
-            $candidates[1] = $i;          // best: studentcode / studentnumber
-        } else if ($norm === 'idnumber' ||
-                   (strpos($norm, 'id') !== false && strpos($norm, 'number') !== false)) {
-            $candidates[2] = $i;          // good: ID number, id_number, idnumber
-        } else if ($norm === 'studentid' || $norm === 'studentcode') {
-            $candidates[3] = $i;
-        }
-    }
-    if ($candidates) {
-        ksort($candidates);
-        $colidx = reset($candidates);
-    }
-    if ($colidx === null) {
-        cli_error("Could not auto-detect a student-code column. " .
-                  "Pass --code-column=\"...\". Headers: " .
-                  implode(' | ', array_map('strval', $headers)));
-    }
-    cli_writeln("Code col : '" . $headers[$colidx] . "' (column " . ($colidx + 1) . ", auto-detected)");
+    $sheetnames = [(string) $sheetparam];
+    cli_writeln('Sheets   : 1 (--sheet=' . $sheetparam . ')');
 }
-cli_writeln('Rows     : ' . ($nrows - 1));
 cli_writeln('');
-
-// --- Walk the rows ------------------------------------------------------
 
 global $DB;
 
 $counters = [
+    'sheets_done'    => 0,
+    'sheets_skipped' => 0,
     'rows'           => 0,
     'no_code'        => 0,
+    'duplicate'      => 0,
     'sdms_fail'      => 0,
     'no_schoolcode'  => 0,
     'user_not_found' => 0,
@@ -199,113 +152,215 @@ $counters = [
     'updated'        => 0,
 ];
 
-// Tiny in-process cache: school_code -> school_name (or schoolCode fallback).
+// In-process caches.
+// $schoolnamecache : school_code -> school_name (or schoolCode fallback).
+// $studentcache    : studentCode -> ['status' => ok|sdms_fail|no_schoolcode,
+//                                    'schoolcode' => ?, 'institution' => ?].
+// The student cache lets us hit SDMS at most once per code across the
+// whole workbook — even if the same student appears in several sheets
+// or twice in one sheet.
 $schoolnamecache = [];
+$studentcache    = [];
+$codecolumnopt   = $options['code-column'];
+$stoploop        = false;
 
-for ($r = 1; $r < $nrows; $r++) {
-    $row = $rows[$r];
-    $code = isset($row[$colidx]) ? trim((string) $row[$colidx]) : '';
-
-    if ($code === '') {
-        $counters['no_code']++;
-        continue;
-    }
-    // PhpSpreadsheet may have read numeric codes as floats — normalise.
-    if (is_numeric($code) && strpos($code, '.') !== false) {
-        $code = rtrim(rtrim($code, '0'), '.');
-    }
-
-    $counters['rows']++;
-    if ($limit > 0 && $counters['rows'] > $limit) {
-        $counters['rows']--;
+foreach ($sheetnames as $sheetref) {
+    if ($stoploop) {
         break;
     }
+    [$title, $rows] = xlsx_load_sheet($file, $sheetref);
+    $nrows = count($rows);
+    cli_writeln(str_repeat('=', 60));
+    cli_writeln("Sheet: $title  (data rows: " . max(0, $nrows - 1) . ')');
 
-    // Hit SDMS.
-    $url = $sdmsbase . '/student?studentCode=' . rawurlencode($code);
-    $body = sdms_fetch($url);
-    if ($body === false) {
-        $counters['sdms_fail']++;
-        if ($verbose) {
-            cli_writeln("  [$code] SDMS request failed");
-        }
-        sdms_sleep($sleepms);
+    if ($nrows < 2) {
+        cli_writeln('  -> no data rows, skipping.');
+        $counters['sheets_skipped']++;
         continue;
     }
 
-    $data = json_decode($body, true);
-    if (!is_array($data) || empty($data['schoolCode'])) {
-        $counters['no_schoolcode']++;
-        if ($verbose) {
-            cli_writeln("  [$code] no schoolCode in SDMS response");
+    $headers = array_map(static function ($v) {
+        return is_string($v) ? trim($v) : $v;
+    }, $rows[0]);
+
+    // Locate the student-code column for THIS sheet.
+    $colidx = null;
+    if ($codecolumnopt !== null && $codecolumnopt !== '') {
+        foreach ($headers as $i => $h) {
+            if (is_string($h) && strcasecmp(trim($h), $codecolumnopt) === 0) {
+                $colidx = $i;
+                break;
+            }
         }
-        sdms_sleep($sleepms);
-        continue;
-    }
-    $schoolcode = trim((string) $data['schoolCode']);
-
-    // Resolve institution name: prefer the cached SDMS metadata.
-    if (!array_key_exists($schoolcode, $schoolnamecache)) {
-        $school = $DB->get_record('elby_schools',
-            ['school_code' => $schoolcode], 'school_name', IGNORE_MISSING);
-        $schoolnamecache[$schoolcode] = ($school && !empty($school->school_name))
-            ? $school->school_name
-            : $schoolcode;
-    }
-    $institution = $schoolnamecache[$schoolcode];
-
-    // Locate the Moodle user.
-    $user = $DB->get_record('user',
-        [$matchfield => $code, 'deleted' => 0],
-        'id, schoolcode, institution',
-        IGNORE_MISSING
-    );
-    if (!$user) {
-        $counters['user_not_found']++;
-        if ($verbose) {
-            cli_writeln("  [$code] no mdl_user with $matchfield='$code'");
+        if ($colidx === null) {
+            cli_writeln("  -> code column '$codecolumnopt' not found in this sheet, skipping. " .
+                        'Headers: ' . implode(' | ', array_map('strval', $headers)));
+            $counters['sheets_skipped']++;
+            continue;
         }
-        sdms_sleep($sleepms);
-        continue;
-    }
-
-    if ((string) $user->schoolcode === $schoolcode &&
-        (string) $user->institution === $institution) {
-        $counters['unchanged']++;
-        if ($verbose) {
-            cli_writeln("  [$code] user#{$user->id} already up to date " .
-                        "($schoolcode / $institution)");
-        }
-        sdms_sleep($sleepms);
-        continue;
-    }
-
-    if ($dryrun) {
-        cli_writeln("  [$code] DRY user#{$user->id}: " .
-                    "schoolcode '{$user->schoolcode}' -> '$schoolcode', " .
-                    "institution '{$user->institution}' -> '$institution'");
     } else {
-        $DB->update_record('user', (object) [
-            'id'           => $user->id,
-            'schoolcode'   => $schoolcode,
-            'institution'  => $institution,
-            'timemodified' => time(),
-        ]);
-        if ($verbose) {
-            cli_writeln("  [$code] user#{$user->id} updated: " .
-                        "schoolcode='$schoolcode' institution='$institution'");
+        $candidates = [];
+        foreach ($headers as $i => $h) {
+            if (!is_string($h)) {
+                continue;
+            }
+            $norm = preg_replace('/[^a-z0-9]/', '', strtolower($h));
+            if ($norm === '') {
+                continue;
+            }
+            if (strpos($norm, 'student') !== false &&
+                (strpos($norm, 'code') !== false || strpos($norm, 'number') !== false)) {
+                $candidates[1] = $i;
+            } else if ($norm === 'idnumber' ||
+                       (strpos($norm, 'id') !== false && strpos($norm, 'number') !== false)) {
+                $candidates[2] = $i;
+            } else if ($norm === 'studentid' || $norm === 'studentcode') {
+                $candidates[3] = $i;
+            }
         }
+        if ($candidates) {
+            ksort($candidates);
+            $colidx = reset($candidates);
+        }
+        if ($colidx === null) {
+            cli_writeln('  -> no recognisable student-code header in this sheet, skipping. ' .
+                        'Headers: ' . implode(' | ', array_map('strval', $headers)));
+            $counters['sheets_skipped']++;
+            continue;
+        }
+        cli_writeln("  Code col: '" . $headers[$colidx] . "' (column " . ($colidx + 1) . ', auto-detected)');
     }
-    $counters['updated']++;
+    $counters['sheets_done']++;
 
-    sdms_sleep($sleepms);
+    for ($r = 1; $r < $nrows; $r++) {
+        $row  = $rows[$r];
+        $code = isset($row[$colidx]) ? trim((string) $row[$colidx]) : '';
+
+        if ($code === '') {
+            $counters['no_code']++;
+            continue;
+        }
+        // Defensive: numeric codes that came through as floats.
+        if (is_numeric($code) && strpos($code, '.') !== false) {
+            $code = rtrim(rtrim($code, '0'), '.');
+        }
+
+        $counters['rows']++;
+        if ($limit > 0 && $counters['rows'] > $limit) {
+            $counters['rows']--;
+            $stoploop = true;
+            cli_writeln("  -> --limit=$limit reached, stopping.");
+            break;
+        }
+
+        // Seen this studentCode already in this run? Short-circuit — no
+        // SDMS call, no DB write. The first occurrence already handled it
+        // (either updating the user, or recording a failure reason).
+        if (array_key_exists($code, $studentcache)) {
+            $counters['duplicate']++;
+            if ($verbose) {
+                $prev = $studentcache[$code]['status'];
+                cli_writeln("  [$code] duplicate (already processed: $prev)");
+            }
+            continue;
+        }
+
+        $url  = $sdmsbase . '/student?studentCode=' . rawurlencode($code);
+        $body = sdms_fetch($url);
+        if ($body === false) {
+            $counters['sdms_fail']++;
+            $studentcache[$code] = ['status' => 'sdms_fail'];
+            if ($verbose) {
+                cli_writeln("  [$code] SDMS request failed");
+            }
+            sdms_sleep($sleepms);
+            continue;
+        }
+
+        $data = json_decode($body, true);
+        if (!is_array($data) || empty($data['schoolCode'])) {
+            $counters['no_schoolcode']++;
+            $studentcache[$code] = ['status' => 'no_schoolcode'];
+            if ($verbose) {
+                cli_writeln("  [$code] no schoolCode in SDMS response");
+            }
+            sdms_sleep($sleepms);
+            continue;
+        }
+        $schoolcode = trim((string) $data['schoolCode']);
+
+        if (!array_key_exists($schoolcode, $schoolnamecache)) {
+            $school = $DB->get_record('elby_schools',
+                ['school_code' => $schoolcode], 'school_name', IGNORE_MISSING);
+            $schoolnamecache[$schoolcode] = ($school && !empty($school->school_name))
+                ? $school->school_name
+                : $schoolcode;
+        }
+        $institution = $schoolnamecache[$schoolcode];
+
+        // Mark as seen now — even if the user lookup below fails, we don't
+        // want to re-hit SDMS for this same code on a later sheet.
+        $studentcache[$code] = [
+            'status'      => 'ok',
+            'schoolcode'  => $schoolcode,
+            'institution' => $institution,
+        ];
+
+        $user = $DB->get_record('user',
+            [$matchfield => $code, 'deleted' => 0],
+            'id, schoolcode, institution',
+            IGNORE_MISSING
+        );
+        if (!$user) {
+            $counters['user_not_found']++;
+            if ($verbose) {
+                cli_writeln("  [$code] no mdl_user with $matchfield='$code'");
+            }
+            sdms_sleep($sleepms);
+            continue;
+        }
+
+        if ((string) $user->schoolcode === $schoolcode &&
+            (string) $user->institution === $institution) {
+            $counters['unchanged']++;
+            if ($verbose) {
+                cli_writeln("  [$code] user#{$user->id} already up to date ($schoolcode / $institution)");
+            }
+            sdms_sleep($sleepms);
+            continue;
+        }
+
+        if ($dryrun) {
+            cli_writeln("  [$code] DRY user#{$user->id}: " .
+                        "schoolcode '{$user->schoolcode}' -> '$schoolcode', " .
+                        "institution '{$user->institution}' -> '$institution'");
+        } else {
+            $DB->update_record('user', (object) [
+                'id'           => $user->id,
+                'schoolcode'   => $schoolcode,
+                'institution'  => $institution,
+                'timemodified' => time(),
+            ]);
+            if ($verbose) {
+                cli_writeln("  [$code] user#{$user->id} updated: " .
+                            "schoolcode='$schoolcode' institution='$institution'");
+            }
+        }
+        $counters['updated']++;
+
+        sdms_sleep($sleepms);
+    }
 }
 
 // --- Summary ------------------------------------------------------------
 
 cli_writeln('');
 cli_writeln(str_repeat('-', 60));
+cli_writeln(sprintf('Sheets processed   : %d', $counters['sheets_done']));
+cli_writeln(sprintf('Sheets skipped     : %d', $counters['sheets_skipped']));
 cli_writeln(sprintf('Rows processed     : %d', $counters['rows']));
+cli_writeln(sprintf('Duplicate rows     : %d  (same studentCode, SDMS not re-called)', $counters['duplicate']));
+cli_writeln(sprintf('Unique students    : %d', count($studentcache)));
 cli_writeln(sprintf('Blank code rows    : %d', $counters['no_code']));
 cli_writeln(sprintf('SDMS errors        : %d', $counters['sdms_fail']));
 cli_writeln(sprintf('Missing schoolCode : %d', $counters['no_schoolcode']));
@@ -534,6 +589,32 @@ function xlsx_resolve_sheet(ZipArchive $zip, $sheetparam): array {
     // Targets are relative to xl/, e.g. "worksheets/sheet1.xml".
     $path = 'xl/' . ltrim($target, '/');
     return [$path, $picked['name']];
+}
+
+/**
+ * Return the ordered list of sheet display names in an XLSX workbook.
+ *
+ * @return string[] e.g. ['IS ECLPE Y2 2025-2026', 'IS ECLPE Y3 2025-2026']
+ */
+function xlsx_list_sheet_names(string $file): array {
+    $zip = new ZipArchive();
+    if ($zip->open($file) !== true) {
+        cli_error("Cannot open as XLSX: $file");
+    }
+    $wb = $zip->getFromName('xl/workbook.xml');
+    $zip->close();
+    if ($wb === false) {
+        return [];
+    }
+    $sx = @simplexml_load_string($wb);
+    if ($sx === false) {
+        return [];
+    }
+    $names = [];
+    foreach ($sx->sheets->sheet as $sh) {
+        $names[] = (string) $sh['name'];
+    }
+    return $names;
 }
 
 /**
