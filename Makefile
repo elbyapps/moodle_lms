@@ -22,7 +22,7 @@ COMPOSE_STAGING = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f
 COMPOSE_PROD = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.prod.yml $(LOCAL_OVERRIDE)
 COMPOSE_DB = docker compose $(PROJECT_DIR) -f compose/docker-compose.db.yml
 
-.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
+.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry populate-user-schoolcode populate-user-schoolcode-dry
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -174,3 +174,40 @@ reconcile-plugins-dry: ## List plugins installed in Moodle but not in moodle-con
 
 reconcile-plugins: ## Uninstall (DB + disk) any plugins no longer in moodle-config.json
 	$(PHP_RUN) php /var/www/html/scripts/reconcile_plugins.php --config=/var/www/html/moodle-config.json
+
+# --- SDMS user backfill (local_elby_dashboard) ---
+
+# Walk an XLSX of students, call SDMS for each studentCode, and write
+# schoolCode (+ school name from the {elby_schools} cache) onto
+# mdl_user.schoolcode and mdl_user.institution.
+#
+# The XLSX lives on the host (typically the user's Desktop), so we cannot
+# use the standard PHP_RUN helper — the file needs to be bind-mounted into
+# the throwaway container. We mount its parent directory read-only at
+# /data and pass the basename to the script.
+#
+# Overrides (any can be passed on the command line):
+#   SDMS_XLSX  - host path to the workbook (default: ~bajustone Desktop file)
+#   SDMS_URL   - SDMS API base (default below)
+#   args       - extra flags forwarded to the PHP script, e.g.
+#                  args="--match=username --code-column='Student Code' -v"
+SDMS_XLSX ?= /Users/bajustone/Desktop/PRISM SDMS List_rev.xlsx
+SDMS_URL  ?= http://100.87.223.50:8082/sdms/api
+
+populate-user-schoolcode: ## Backfill user.schoolcode/institution from SDMS using SDMS_XLSX
+	@if [ ! -f "$(SDMS_XLSX)" ]; then \
+	  echo "SDMS_XLSX not found: $(SDMS_XLSX)"; \
+	  echo "Override with: make populate-user-schoolcode SDMS_XLSX=/abs/path.xlsx"; \
+	  exit 1; \
+	fi
+	@dir=$$(cd "$$(dirname "$(SDMS_XLSX)")" && pwd); \
+	 file=$$(basename "$(SDMS_XLSX)"); \
+	 echo "Mounting $$dir -> /data (ro), file: $$file"; \
+	 $(COMPOSE_AUTO) run --rm --no-deps -T \
+	   -v "$$dir:/data:ro" \
+	   -e SDMS_URL="$(SDMS_URL)" php \
+	   php /var/www/html/scripts/populate_user_schoolcode.php \
+	     --file="/data/$$file" --sdms-url="$(SDMS_URL)" $(args)
+
+populate-user-schoolcode-dry: ## Preview populate-user-schoolcode (no DB writes)
+	@$(MAKE) populate-user-schoolcode args="--dry-run --verbose $(args)"
