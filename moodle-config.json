@@ -174,8 +174,8 @@
     },
     {
       "name": "moodle-local_elby_dashboard",
-      "repository": "https://github.com/rtb-elearning/dashboard.git",
-      "version": "main",
+      "source": "vendor",
+      "path": "vendor/elby_dashboard",
       "destination": "local/elby_dashboard"
     },
     {
