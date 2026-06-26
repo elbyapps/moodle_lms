@@ -60,8 +60,8 @@
     },
     {
       "name": "moodle-theme_elby",
-      "repository": "https://github.com/elbyapps/moodle_theme_elby.git",
-      "version": "main",
+      "source": "vendor",
+      "path": "vendor/theme_elby",
       "destination": "theme/elby"
     },
     {
