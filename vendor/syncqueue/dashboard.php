@@ -256,8 +256,13 @@ function render_central_dashboard(): string {
     $html .= html_writer::end_div();
     $html .= html_writer::end_div();
 
-    // Overdue schools warning.
+    // Overdue schools warning (paginated).
     if (!empty($overdueschools)) {
+        $page = optional_param('page', 0, PARAM_INT);
+        $perpage = 20;
+        $totaloverdue = count($overdueschools);
+        $pageoverdue = array_slice($overdueschools, $page * $perpage, $perpage, true);
+
         $html .= html_writer::start_div('card mb-4 border-danger');
         $html .= html_writer::start_div('card-header bg-danger text-white');
         $html .= html_writer::tag('h4', get_string('overdueschoolswarning', 'local_syncqueue'), ['class' => 'mb-0']);
@@ -265,7 +270,7 @@ function render_central_dashboard(): string {
         $html .= html_writer::start_div('card-body');
 
         $html .= html_writer::start_tag('ul', ['class' => 'list-group']);
-        foreach ($overdueschools as $school) {
+        foreach ($pageoverdue as $school) {
             $lastsynced = $school->lastsynced ? userdate($school->lastsynced) : get_string('never', 'local_syncqueue');
             $html .= html_writer::tag('li',
                 $school->name . ' (' . $school->schoolid . ') - ' . get_string('lastsync', 'local_syncqueue') . ': ' . $lastsynced,
@@ -273,6 +278,7 @@ function render_central_dashboard(): string {
             );
         }
         $html .= html_writer::end_tag('ul');
+        $html .= $OUTPUT->paging_bar($totaloverdue, $page, $perpage, new moodle_url('/local/syncqueue/dashboard.php'));
 
         $html .= html_writer::end_div();
         $html .= html_writer::end_div();

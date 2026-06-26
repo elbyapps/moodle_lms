@@ -70,16 +70,27 @@ if ($action === 'push' && confirm_sesskey() && !empty($courseids)) {
     local_syncqueue_redirect_to_job($job);
 }
 
-// Handle push of a whole category (optionally recursive).
-if ($action === 'pushcategory' && confirm_sesskey() && $categoryid) {
-    $jobmgr = new \local_syncqueue\job_manager();
-    $expanded = $jobmgr->expand_category($categoryid, (bool) $includesub);
-    if (empty($expanded)) {
-        redirect($PAGE->url, get_string('categoryempty', 'local_syncqueue'), null,
-            \core\output\notification::NOTIFY_WARNING);
+// Handle push of one or more whole categories (optionally recursive).
+if ($action === 'pushcategory' && confirm_sesskey()) {
+    $catids = optional_param_array('catsel', [], PARAM_INT);
+    if (empty($catids) && $categoryid) {
+        $catids = [$categoryid];
     }
-    $job = $jobmgr->create_push_job($USER->id, $expanded, $categoryid);
-    local_syncqueue_redirect_to_job($job);
+    if (!empty($catids)) {
+        $jobmgr = new \local_syncqueue\job_manager();
+        $expanded = [];
+        foreach ($catids as $catid) {
+            $expanded = array_merge($expanded, $jobmgr->expand_category((int) $catid, (bool) $includesub));
+        }
+        $expanded = array_values(array_unique(array_map('intval', $expanded)));
+        if (empty($expanded)) {
+            redirect($PAGE->url, get_string('categoryempty', 'local_syncqueue'), null,
+                \core\output\notification::NOTIFY_WARNING);
+        }
+        $job = $jobmgr->create_push_job($USER->id, $expanded,
+            count($catids) === 1 ? (int) $catids[0] : null);
+        local_syncqueue_redirect_to_job($job);
+    }
 }
 
 /**
@@ -115,19 +126,57 @@ echo html_writer::tag('p', get_string('pushcategory_help', 'local_syncqueue'), [
 echo html_writer::start_tag('form', [
     'method' => 'post',
     'action' => (new moodle_url('/local/syncqueue/courses.php'))->out_omit_querystring(),
-    'class' => 'form-inline',
 ]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'pushcategory']);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()]);
-echo html_writer::select($categorylist, 'categoryid', '', ['' => get_string('choosedots')],
-    ['class' => 'custom-select mr-2']);
-echo html_writer::start_div('form-check mr-2');
+
+echo html_writer::start_div('form-check mb-2');
 echo html_writer::checkbox('includesub', 1, true, get_string('includesubcategories', 'local_syncqueue'),
     ['class' => 'form-check-input', 'id' => 'includesub']);
 echo html_writer::end_div();
-echo html_writer::tag('button', get_string('pushcategorybtn', 'local_syncqueue'),
-    ['type' => 'submit', 'class' => 'btn btn-primary']);
+
+echo html_writer::div(
+    html_writer::link('#', get_string('expandall', 'local_syncqueue'),
+        ['id' => 'sq-expand-all', 'class' => 'btn btn-sm btn-outline-secondary mr-2']) .
+    html_writer::link('#', get_string('collapseall', 'local_syncqueue'),
+        ['id' => 'sq-collapse-all', 'class' => 'btn btn-sm btn-outline-secondary']),
+    'mb-2'
+);
+
+echo local_syncqueue_render_category_push_tree();
+
+echo html_writer::empty_tag('input', [
+    'type' => 'submit',
+    'value' => get_string('pushcategorybtn', 'local_syncqueue'),
+    'class' => 'btn btn-primary mt-3',
+]);
 echo html_writer::end_tag('form');
+
+// Collapse/expand behaviour for the category push tree (styling in styles.css).
+$cattreejs = <<<JS
+(function() {
+    document.querySelectorAll('.sq-cat-push-tree .sq-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var body = document.getElementById(btn.getAttribute('data-target'));
+            if (!body) { return; }
+            var collapsed = body.classList.toggle('sq-collapsed');
+            btn.textContent = collapsed ? '+' : '-';
+            btn.setAttribute('aria-expanded', (!collapsed).toString());
+        });
+    });
+    var ea = document.getElementById('sq-expand-all');
+    var ca = document.getElementById('sq-collapse-all');
+    if (ea) { ea.addEventListener('click', function(e) { e.preventDefault();
+        document.querySelectorAll('.sq-cat-push-tree .sq-node-body').forEach(function(b) { b.classList.remove('sq-collapsed'); });
+        document.querySelectorAll('.sq-cat-push-tree .sq-toggle').forEach(function(t) { t.textContent = '-'; t.setAttribute('aria-expanded', 'true'); });
+    }); }
+    if (ca) { ca.addEventListener('click', function(e) { e.preventDefault();
+        document.querySelectorAll('.sq-cat-push-tree .sq-node-body').forEach(function(b) { b.classList.add('sq-collapsed'); });
+        document.querySelectorAll('.sq-cat-push-tree .sq-toggle').forEach(function(t) { t.textContent = '+'; t.setAttribute('aria-expanded', 'false'); });
+    }); }
+})();
+JS;
+echo html_writer::script($cattreejs);
 echo html_writer::end_div();
 echo html_writer::end_div();
 

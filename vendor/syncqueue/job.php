@@ -27,10 +27,12 @@ require_once($CFG->libdir . '/adminlib.php');
 require_once(__DIR__ . '/lib.php');
 
 $jobid = required_param('id', PARAM_INT);
+$page = optional_param('page', 0, PARAM_INT);
+$perpage = 50;
 
 admin_externalpage_setup('local_syncqueue_dashboard');
 
-$PAGE->set_url(new moodle_url('/local/syncqueue/job.php', ['id' => $jobid]));
+$PAGE->set_url(new moodle_url('/local/syncqueue/job.php', ['id' => $jobid, 'page' => $page]));
 $PAGE->set_title(get_string('jobprogress', 'local_syncqueue'));
 $PAGE->set_heading(get_string('jobprogress', 'local_syncqueue'));
 
@@ -124,7 +126,9 @@ $table->head = [
 ];
 $table->attributes['class'] = 'generaltable';
 
-foreach ($status['items'] as $item) {
+$totalitems = count($status['items']);
+$pageitems = array_slice($status['items'], $page * $perpage, $perpage, true);
+foreach ($pageitems as $item) {
     $state = (object) ['status' => $item['status'], 'timecompleted' => null];
     $table->data[] = [
         $item['coursename'], // Already passed through format_string() in get_status().
@@ -135,6 +139,7 @@ foreach ($status['items'] as $item) {
     ];
 }
 echo html_writer::table($table);
+echo $OUTPUT->paging_bar($totalitems, $page, $perpage, new moodle_url('/local/syncqueue/job.php', ['id' => $jobid]));
 
 echo html_writer::link($backurl,
     get_string($ispull ? 'backtodashboard' : 'backtocourses', 'local_syncqueue'),

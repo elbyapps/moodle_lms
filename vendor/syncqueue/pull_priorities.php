@@ -88,13 +88,8 @@ if (empty($courses)) {
     exit;
 }
 
-// Group by category path for a tree-like display.
-$groups = [];
-foreach ($courses as $c) {
-    $key = $c['categorypath'] !== '' ? $c['categorypath'] : get_string('uncategorized', 'local_syncqueue');
-    $groups[$key][] = $c;
-}
-ksort($groups);
+// Build a real category tree from the catalogue's category paths.
+$root = local_syncqueue_build_catalog_tree($courses);
 
 echo html_writer::start_tag('form', ['method' => 'post', 'action' => $PAGE->url->out_omit_querystring()]);
 echo html_writer::empty_tag('input', ['type' => 'hidden', 'name' => 'action', 'value' => 'save']);
@@ -107,57 +102,86 @@ echo html_writer::checkbox('onlyselected', 1, !empty($catalog['onlyselected']),
     ['class' => 'form-check-input', 'id' => 'onlyselected']);
 echo html_writer::end_div();
 
-foreach ($groups as $categorypath => $groupcourses) {
-    echo html_writer::start_div('card mb-3');
-    echo html_writer::start_div('card-header d-flex align-items-center');
-    echo html_writer::checkbox('', '', false, '', ['class' => 'cat-toggle mr-2', 'title' => get_string('selectall')]);
-    echo html_writer::tag('strong', s($categorypath));
-    echo html_writer::end_div();
+// Expand / collapse all.
+echo html_writer::div(
+    html_writer::link('#', get_string('expandall', 'local_syncqueue'),
+        ['id' => 'sq-expand-all', 'class' => 'btn btn-sm btn-outline-secondary mr-2']) .
+    html_writer::link('#', get_string('collapseall', 'local_syncqueue'),
+        ['id' => 'sq-collapse-all', 'class' => 'btn btn-sm btn-outline-secondary']),
+    'mb-2'
+);
 
-    $table = new html_table();
-    $table->head = [
-        '',
-        get_string('course'),
-        get_string('tradecode', 'local_syncqueue') . ' / ' . get_string('level', 'local_syncqueue'),
-        get_string('priorityweight', 'local_syncqueue'),
-    ];
-    $table->attributes['class'] = 'generaltable mb-0';
-    foreach ($groupcourses as $c) {
-        $cid = (int) $c['courseid'];
-        $check = html_writer::checkbox('sel[]', $cid, !empty($c['selected']), '',
-            ['class' => 'course-pref-checkbox']);
-        $tradelevel = trim(($c['tradecode'] ?? '') . ($c['level'] !== '' ? ' / ' . $c['level'] : '')) ?: '-';
-        $weightinput = html_writer::empty_tag('input', [
-            'type' => 'number',
-            'name' => 'weight[' . $cid . ']',
-            'value' => (int) $c['weight'],
-            'class' => 'form-control',
-            'style' => 'width: 90px;',
-            'min' => 0,
-        ]);
-        $table->data[] = [$check, s($c['fullname']), s($tradelevel), $weightinput];
-    }
-    echo html_writer::table($table);
-    echo html_writer::end_div();
-}
+// Category tree picker: tick a (sub)category to prioritise all its courses;
+// expand to fine-tune individual courses.
+echo local_syncqueue_render_catalog_tree($root);
 
 echo html_writer::empty_tag('input', [
     'type' => 'submit',
     'value' => get_string('savepriorities', 'local_syncqueue'),
-    'class' => 'btn btn-primary',
+    'class' => 'btn btn-primary mt-3',
 ]);
 echo html_writer::end_tag('form');
 
-// Category select-all (inline page JS).
+// Tree behaviour: collapse/expand + cascade select & weight + indeterminate roll-up.
+// (Tree styling lives in the plugin's styles.css.)
 $js = <<<JS
-document.querySelectorAll('.cat-toggle').forEach(function(toggle) {
-    toggle.addEventListener('change', function() {
-        var card = this.closest('.card');
-        card.querySelectorAll('.course-pref-checkbox').forEach(function(cb) {
-            cb.checked = toggle.checked;
+(function() {
+    function toggle(btn) {
+        var body = document.getElementById(btn.getAttribute('data-target'));
+        if (!body) { return; }
+        var collapsed = body.classList.toggle('sq-collapsed');
+        btn.textContent = collapsed ? '+' : '-';
+        btn.setAttribute('aria-expanded', (!collapsed).toString());
+    }
+    document.querySelectorAll('.sq-toggle').forEach(function(btn) {
+        btn.addEventListener('click', function() { toggle(btn); });
+    });
+    document.querySelectorAll('.sq-cat-cb').forEach(function(cb) {
+        cb.addEventListener('change', function() {
+            var body = document.getElementById(cb.getAttribute('data-target'));
+            if (!body) { return; }
+            body.querySelectorAll('.sq-course-cb').forEach(function(x) { x.checked = cb.checked; });
+            body.querySelectorAll('.sq-cat-cb').forEach(function(x) { x.checked = cb.checked; x.indeterminate = false; });
+            cb.indeterminate = false;
+            rollup();
         });
     });
-});
+    document.querySelectorAll('.sq-cat-weight').forEach(function(w) {
+        w.addEventListener('input', function() {
+            var body = document.getElementById(w.getAttribute('data-target'));
+            if (!body) { return; }
+            body.querySelectorAll('.sq-course-weight').forEach(function(x) { x.value = w.value; });
+            body.querySelectorAll('.sq-cat-weight').forEach(function(x) { x.value = w.value; });
+        });
+    });
+    document.querySelectorAll('.sq-course-cb').forEach(function(cb) {
+        cb.addEventListener('change', rollup);
+    });
+    function rollup() {
+        document.querySelectorAll('.sq-node').forEach(function(node) {
+            var cb = node.querySelector(':scope > .sq-cat-row > .sq-cat-cb');
+            var body = node.querySelector(':scope > .sq-node-body');
+            if (!cb || !body) { return; }
+            var boxes = body.querySelectorAll('.sq-course-cb');
+            var total = boxes.length, sel = 0;
+            boxes.forEach(function(b) { if (b.checked) { sel++; } });
+            if (total === 0 || sel === 0) { cb.checked = false; cb.indeterminate = false; }
+            else if (sel === total) { cb.checked = true; cb.indeterminate = false; }
+            else { cb.checked = false; cb.indeterminate = true; }
+        });
+    }
+    var ea = document.getElementById('sq-expand-all');
+    var ca = document.getElementById('sq-collapse-all');
+    if (ea) { ea.addEventListener('click', function(e) { e.preventDefault();
+        document.querySelectorAll('.sq-node-body').forEach(function(b) { b.classList.remove('sq-collapsed'); });
+        document.querySelectorAll('.sq-toggle').forEach(function(t) { t.textContent = '-'; t.setAttribute('aria-expanded', 'true'); });
+    }); }
+    if (ca) { ca.addEventListener('click', function(e) { e.preventDefault();
+        document.querySelectorAll('.sq-node-body').forEach(function(b) { b.classList.add('sq-collapsed'); });
+        document.querySelectorAll('.sq-toggle').forEach(function(t) { t.textContent = '+'; t.setAttribute('aria-expanded', 'false'); });
+    }); }
+    rollup();
+})();
 JS;
 echo html_writer::script($js);
 

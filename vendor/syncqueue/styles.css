@@ -1,0 +1,29 @@
+.sq-tree {
+    border: 1px solid #dee2e6;
+    border-radius: .25rem;
+    max-height: 32rem;
+    overflow-y: auto;
+}
+.sq-node {
+    border-top: 1px solid #f0f0f0;
+}
+.sq-cat-row,
+.sq-course-row {
+    display: flex;
+    align-items: center;
+    padding: .35rem .5rem;
+}
+.sq-cat-row {
+    background: #f8f9fa;
+}
+.sq-node-body {
+    padding-left: 1.25rem;
+    border-left: 2px solid #e9ecef;
+}
+.sq-collapsed {
+    display: none;
+}
+.sq-cat-weight,
+.sq-course-weight {
+    flex: 0 0 auto;
+}

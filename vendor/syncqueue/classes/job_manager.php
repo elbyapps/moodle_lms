@@ -172,14 +172,28 @@ class job_manager {
      * @return int[] Course ids (excluding the site course).
      */
     public function expand_category(int $categoryid, bool $recursive = true): array {
-        $category = \core_course_category::get($categoryid, IGNORE_MISSING);
-        if (!$category) {
+        global $DB;
+        $cat = $DB->get_record('course_categories', ['id' => $categoryid], 'id, path');
+        if (!$cat) {
             return [];
         }
-        $courses = $category->get_courses(['recursive' => $recursive, 'idonly' => true]);
-        return array_values(array_filter(array_map('intval', $courses), function($id) {
-            return $id > 0 && $id != SITEID;
-        }));
+        // Resolve courses directly from the category path rather than via
+        // core_course_category::get_courses(recursive), which has been observed to
+        // pull in courses from unrelated subtrees (stale coursecat cache). The path
+        // query is deterministic: this category plus any descendant by path.
+        if ($recursive) {
+            $like = $DB->sql_like('cc.path', ':descpath');
+            $sql = "SELECT c.id
+                      FROM {course} c
+                      JOIN {course_categories} cc ON cc.id = c.category
+                     WHERE c.id <> :siteid
+                       AND (cc.id = :catid OR $like)";
+            $params = ['siteid' => SITEID, 'catid' => $categoryid, 'descpath' => $cat->path . '/%'];
+        } else {
+            $sql = "SELECT c.id FROM {course} c WHERE c.category = :catid AND c.id <> :siteid";
+            $params = ['catid' => $categoryid, 'siteid' => SITEID];
+        }
+        return array_values(array_map('intval', array_keys($DB->get_records_sql($sql, $params))));
     }
 
     /**

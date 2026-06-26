@@ -213,12 +213,16 @@ if ($showform) {
     );
 }
 
-// Display schools table.
+// Display schools table (paginated).
 $schools = $schoolmanager->get_all_schools();
+$page = optional_param('page', 0, PARAM_INT);
+$perpage = 25;
+$totalschools = count($schools);
 
 if (empty($schools)) {
     echo $OUTPUT->notification(get_string('noschools', 'local_syncqueue'), 'info');
 } else {
+    $schools = array_slice($schools, $page * $perpage, $perpage, true);
     $table = new html_table();
     $table->head = [
         get_string('schoolid', 'local_syncqueue'),
@@ -318,6 +322,7 @@ if (empty($schools)) {
     }
 
     echo html_writer::table($table);
+    echo $OUTPUT->paging_bar($totalschools, $page, $perpage, new moodle_url('/local/syncqueue/schools.php'));
 }
 
 echo $OUTPUT->footer();

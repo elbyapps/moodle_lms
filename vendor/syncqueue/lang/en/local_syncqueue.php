@@ -258,7 +258,10 @@ $string['pullsummary'] = '{$a->done} of {$a->total} updates applied, {$a->failed
 $string['backtodashboard'] = 'Back to dashboard';
 // F3: school-side catalogue browse + pull priorities (v0.4.2).
 $string['pullpriorities'] = 'Course pull priorities';
-$string['pullpriorities_help'] = 'Browse the courses available from the central server and choose which ones to prioritise pulling. Selected courses are delivered first; optionally pull only your selection.';
+$string['pullpriorities_help'] = 'Browse the category tree of courses available from the central server. Tick a category to prioritise all of its courses, or expand it to fine-tune individual courses. Selected courses are delivered first; optionally pull only your selection.';
+$string['categorycourses'] = '{$a} course(s)';
+$string['expandall'] = 'Expand all';
+$string['collapseall'] = 'Collapse all';
 $string['schoolmodeonlypage'] = 'This page is only available in school mode.';
 $string['catalogempty'] = 'No courses are available from the central server yet.';
 $string['uncategorized'] = 'Uncategorised';
