@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+@theme {
+  /* RTB Brand Colors */
+  --color-rtb-blue-25: #f5f9fd;
+  --color-rtb-blue-50: #e6f0f9;
+  --color-rtb-blue-100: #cce0f3;
+  --color-rtb-blue-200: #99c2e7;
+  --color-rtb-blue-300: #66a3db;
+  --color-rtb-blue-400: #3385cf;
+  --color-rtb-blue-500: #005198;
+  --color-rtb-blue-600: #00417a;
+  --color-rtb-blue-700: #00315b;
+  --color-rtb-blue-800: #00203d;
+  --color-rtb-blue-900: #00101e;
+  --color-rtb-blue: #005198;
+}
+
+/* Remove Moodle's default container constraints for full-width layout */
+body.local-rtbdashboard-plugin .main-inner {
+  max-width: 100% !important;
+  margin-top: 0 !important;
+  padding: 0 !important;
+}
+
+/* Hide page header content for cleaner layout */
+body.local-rtbdashboard-plugin #page-header * {
+  display: none !important;
+}
+
+body.local-rtbdashboard-plugin #page-header {
+  margin: 0;
+  padding: 0 !important;
+  margin-top: 10px;
+}

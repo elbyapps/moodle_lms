@@ -1,0 +1,180 @@
+{{!
+    @template local_elby_dashboard/signup
+
+    SDMS self-registration multi-step form.
+
+    Context variables:
+    * loginurl - URL to the login page
+
+    Example context (json):
+    {
+        "loginurl": "/login/index.php"
+    }
+}}
+<div id="sdms-signup-container">
+
+    {{! Step 1: Lookup }}
+    <div class="sdms-step sdms-step-lookup" data-step="1">
+        <h3 class="mb-3">{{#str}}sdms_lookup_heading, local_elby_dashboard{{/str}}</h3>
+
+        <div class="form-group mb-3">
+            <label for="sdms-code">{{#str}}sdms_code_label, local_elby_dashboard{{/str}}</label>
+            <input type="text" id="sdms-code" class="form-control"
+                   placeholder="{{#str}}sdms_code_placeholder, local_elby_dashboard{{/str}}"
+                   autocomplete="off">
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="sdms-usertype">{{#str}}sdms_usertype_label, local_elby_dashboard{{/str}}</label>
+            <select id="sdms-usertype" class="form-control custom-select">
+                <option value="student">{{#str}}sdms_student, local_elby_dashboard{{/str}}</option>
+                <option value="staff">{{#str}}sdms_staff, local_elby_dashboard{{/str}}</option>
+            </select>
+        </div>
+
+        <div id="sdms-lookup-error" class="alert alert-danger d-none" role="alert"></div>
+
+        <button type="button" id="sdms-lookup-btn" class="btn btn-primary w-100">
+            <i class="fa fa-search me-2"></i>{{#str}}sdms_lookup_btn, local_elby_dashboard{{/str}}
+        </button>
+
+        <a href="{{{ loginurl }}}" class="btn btn-link mt-2 p-0">
+            <i class="fa fa-arrow-left me-1"></i>{{#str}}sdms_back_to_login, local_elby_dashboard{{/str}}
+        </a>
+    </div>
+
+    {{! Step 2: Preview }}
+    <div class="sdms-step sdms-step-preview d-none" data-step="2">
+        <h3 class="mb-3">{{#str}}sdms_preview_heading, local_elby_dashboard{{/str}}</h3>
+
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3"
+                         style="width: 48px; height: 48px; min-width: 48px;">
+                        <i class="fa fa-user"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0" id="sdms-preview-name"></h5>
+                        <small class="text-muted" id="sdms-preview-sdmsid"></small>
+                    </div>
+                </div>
+
+                <div class="row g-2">
+                    <div class="col-6" id="sdms-preview-school-wrap">
+                        <small class="text-muted d-block">School</small>
+                        <span id="sdms-preview-school" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6" id="sdms-preview-gender-wrap">
+                        <small class="text-muted d-block">Gender</small>
+                        <span id="sdms-preview-gender" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6" id="sdms-preview-studylevel-wrap">
+                        <small class="text-muted d-block">Study Level</small>
+                        <span id="sdms-preview-studylevel" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6" id="sdms-preview-grade-wrap">
+                        <small class="text-muted d-block">Grade / Group</small>
+                        <span id="sdms-preview-grade" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6" id="sdms-preview-status-wrap">
+                        <small class="text-muted d-block">Status</small>
+                        <span id="sdms-preview-status" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6" id="sdms-preview-position-wrap">
+                        <small class="text-muted d-block">Position</small>
+                        <span id="sdms-preview-position" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6" id="sdms-preview-year-wrap">
+                        <small class="text-muted d-block">Academic Year</small>
+                        <span id="sdms-preview-year" class="fw-semibold"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{! Already registered section }}
+        <div id="sdms-already-registered" class="d-none">
+            <div class="alert alert-warning d-flex align-items-center" role="alert">
+                <i class="fa fa-exclamation-triangle me-2"></i>
+                <div>
+                    <strong>{{#str}}sdms_already_registered, local_elby_dashboard{{/str}}</strong><br>
+                    <small>{{#str}}sdms_already_registered_msg, local_elby_dashboard{{/str}}</small>
+                </div>
+            </div>
+            <a href="{{{ loginurl }}}" class="btn btn-primary w-100">
+                <i class="fa fa-sign-in me-2"></i>{{#str}}sdms_go_to_login, local_elby_dashboard{{/str}}
+            </a>
+        </div>
+
+        {{! Continue to register section }}
+        <div id="sdms-continue-register" class="d-none">
+            <button type="button" id="sdms-continue-btn" class="btn btn-primary w-100">
+                {{#str}}sdms_continue_btn, local_elby_dashboard{{/str}}
+            </button>
+        </div>
+
+        <button type="button" class="sdms-back-btn btn btn-link mt-2 p-0" data-target="1">
+            <i class="fa fa-arrow-left me-1"></i>{{#str}}sdms_back, local_elby_dashboard{{/str}}
+        </button>
+    </div>
+
+    {{! Step 3: Register }}
+    <div class="sdms-step sdms-step-register d-none" data-step="3">
+        <h3 class="mb-3">{{#str}}sdms_register_heading, local_elby_dashboard{{/str}}</h3>
+
+        <p class="text-muted mb-3" id="sdms-register-name"></p>
+
+        <div class="form-group mb-3">
+            <label for="sdms-username">{{#str}}username{{/str}}</label>
+            <input type="text" id="sdms-username" class="form-control" autocomplete="off">
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="sdms-password">{{#str}}password{{/str}}</label>
+            <input type="password" id="sdms-password" class="form-control" autocomplete="new-password">
+        </div>
+
+        <div class="form-group mb-3">
+            <label for="sdms-password-confirm">{{#str}}sdms_confirm_password, local_elby_dashboard{{/str}}</label>
+            <input type="password" id="sdms-password-confirm" class="form-control" autocomplete="new-password">
+        </div>
+
+        <div id="sdms-register-error" class="alert alert-danger d-none" role="alert"></div>
+
+        <button type="button" id="sdms-register-btn" class="btn btn-primary w-100">
+            <i class="fa fa-user-plus me-2"></i>{{#str}}sdms_register_btn, local_elby_dashboard{{/str}}
+        </button>
+
+        <button type="button" class="sdms-back-btn btn btn-link mt-2 p-0" data-target="2">
+            <i class="fa fa-arrow-left me-1"></i>{{#str}}sdms_back, local_elby_dashboard{{/str}}
+        </button>
+    </div>
+
+    {{! Step 4: Success }}
+    <div class="sdms-step sdms-step-success d-none" data-step="4">
+        <div class="text-center py-4">
+            <div class="mb-3">
+                <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-success text-white"
+                      style="width: 64px; height: 64px;">
+                    <i class="fa fa-check fa-2x"></i>
+                </span>
+            </div>
+            <h3>{{#str}}sdms_success_title, local_elby_dashboard{{/str}}</h3>
+            <p class="text-muted">{{#str}}sdms_success_msg, local_elby_dashboard{{/str}}</p>
+            <a href="{{{ loginurl }}}" class="btn btn-primary">
+                <i class="fa fa-sign-in me-2"></i>{{#str}}sdms_go_to_login, local_elby_dashboard{{/str}}
+            </a>
+        </div>
+    </div>
+
+    {{! Loading overlay }}
+    <div id="sdms-loading" class="d-none">
+        <div class="d-flex justify-content-center align-items-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">{{#str}}loading, local_elby_dashboard{{/str}}</span>
+            </div>
+        </div>
+    </div>
+
+</div>

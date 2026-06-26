@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/elby_dashboard/db" VERSION="20260213" COMMENT="XMLDB file for Moodle local/elby_dashboard"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="elby_schools" COMMENT="Cached school metadata from SDMS API">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="school_code" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="SDMS schoolCode identifier"/>
+        <FIELD NAME="region_code" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="SDMS regionCode encoding province/district/sector"/>
+        <FIELD NAME="school_name" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="SDMS schoolName"/>
+        <FIELD NAME="is_active" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="1=ACTIVE, 0=inactive"/>
+        <FIELD NAME="school_status" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="Public, Government Aided, etc."/>
+        <FIELD NAME="school_category" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="SDMS schoolCategory"/>
+        <FIELD NAME="academic_year" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="e.g. 2025/2026"/>
+        <FIELD NAME="gps_long" TYPE="number" LENGTH="10" NOTNULL="false" SEQUENCE="false" DECIMALS="6"/>
+        <FIELD NAME="gps_lat" TYPE="number" LENGTH="10" NOTNULL="false" SEQUENCE="false" DECIMALS="6"/>
+        <FIELD NAME="establishment_date" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Unix timestamp"/>
+        <FIELD NAME="has_tvet" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 if school has TVET level"/>
+        <FIELD NAME="sync_status" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1=synced, 0=error"/>
+        <FIELD NAME="sync_error" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="last_synced" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Unix timestamp"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="uq_school_code" UNIQUE="true" FIELDS="school_code"/>
+        <INDEX NAME="idx_region_code" UNIQUE="false" FIELDS="region_code"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_sdms_users" COMMENT="Links Moodle users to SDMS records (base table for students and teachers)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to mdl_user.id"/>
+        <FIELD NAME="sdms_id" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="studentNumber or staffId from SDMS"/>
+        <FIELD NAME="schoolid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="FK to elby_schools.id"/>
+        <FIELD NAME="user_type" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="student, teacher, admin, headmaster"/>
+        <FIELD NAME="academic_year" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="e.g. 2025/2026"/>
+        <FIELD NAME="sdms_status" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="CONTINUING, INACTIVE, etc."/>
+        <FIELD NAME="sync_status" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1=synced, 0=error"/>
+        <FIELD NAME="sync_error" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="last_synced" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Unix timestamp"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_userid" TYPE="foreign-unique" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="fk_schoolid" TYPE="foreign" FIELDS="schoolid" REFTABLE="elby_schools" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="uq_sdms_id" UNIQUE="true" FIELDS="sdms_id"/>
+        <INDEX NAME="idx_user_type" UNIQUE="false" FIELDS="user_type"/>
+        <INDEX NAME="idx_schoolid" UNIQUE="false" FIELDS="schoolid"/>
+        <INDEX NAME="idx_sdms_status" UNIQUE="false" FIELDS="sdms_status"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_students" COMMENT="Student-specific SDMS data, linked to elby_sdms_users">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sdms_userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to elby_sdms_users.id"/>
+        <FIELD NAME="program" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Combination description from SDMS"/>
+        <FIELD NAME="program_code" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="combinationCode from SDMS"/>
+        <FIELD NAME="registration_date" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Unix timestamp of SDMS registrationDate"/>
+        <FIELD NAME="gender" TYPE="char" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="MALE or FEMALE from SDMS"/>
+        <FIELD NAME="date_of_birth" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="ISO date string from SDMS e.g. 2008-07-24"/>
+        <FIELD NAME="study_level" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="TVET, OL, AL from SDMS"/>
+        <FIELD NAME="class_grade" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="Level 3, SENIOR 5, etc."/>
+        <FIELD NAME="grade_code" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="SDMS gradeCode"/>
+        <FIELD NAME="class_group_name" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="Denormalized class name e.g. L3 ELT"/>
+        <FIELD NAME="parent_guardian_name" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="parent_guardian_nid" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="Parent national ID"/>
+        <FIELD NAME="address" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="emergency_contact_person" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="emergency_contact_number" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="inactive_reason" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="sdms_modified_since" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="SDMS modifiedSince timestamp for sync optimization"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_sdms_userid" TYPE="foreign-unique" FIELDS="sdms_userid" REFTABLE="elby_sdms_users" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_program_code" UNIQUE="false" FIELDS="program_code"/>
+        <INDEX NAME="idx_gender" UNIQUE="false" FIELDS="gender"/>
+        <INDEX NAME="idx_grade_code" UNIQUE="false" FIELDS="grade_code"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_teachers" COMMENT="Teacher-specific SDMS data, linked to elby_sdms_users">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sdms_userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to elby_sdms_users.id"/>
+        <FIELD NAME="position" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="e.g. Class Teacher, Head of Department"/>
+        <FIELD NAME="gender" TYPE="char" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="MALE or FEMALE from SDMS"/>
+        <FIELD NAME="official_document_id" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="National ID from SDMS"/>
+        <FIELD NAME="mobile_phone" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="mobilePhoneNumber from SDMS"/>
+        <FIELD NAME="company_email" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="companyEmail from SDMS"/>
+        <FIELD NAME="employment_status" TYPE="char" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="employmentStatus from SDMS"/>
+        <FIELD NAME="employment_start_date" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="ISO date from SDMS"/>
+        <FIELD NAME="employment_end_date" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="ISO date from SDMS, null if still employed"/>
+        <FIELD NAME="specialities" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON-encoded specialities[] from the gateway (trade/level/subject the teacher teaches)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_sdms_userid" TYPE="foreign-unique" FIELDS="sdms_userid" REFTABLE="elby_sdms_users" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_gender" UNIQUE="false" FIELDS="gender"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_user_metrics" COMMENT="Pre-computed activity metrics per user per course per period">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to mdl_user.id"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to mdl_course.id"/>
+        <FIELD NAME="period_start" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Unix timestamp"/>
+        <FIELD NAME="period_end" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Unix timestamp"/>
+        <FIELD NAME="period_type" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="weekly" SEQUENCE="false" COMMENT="weekly (default), monthly"/>
+        <FIELD NAME="total_actions" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="active_days" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="first_access" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="last_access" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="time_spent_seconds" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="resources_viewed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="resources_unique" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="videos_started" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="videos_completed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="pages_viewed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="files_downloaded" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="forum_views" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="forum_posts" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="forum_replies" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="chat_messages" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="assignments_viewed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="assignments_submitted" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="assignments_graded" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="assignments_avg_score" TYPE="number" LENGTH="5" NOTNULL="false" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="quizzes_attempted" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="quizzes_completed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="quizzes_avg_score" TYPE="number" LENGTH="5" NOTNULL="false" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="quizzes_avg_duration" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Seconds"/>
+        <FIELD NAME="activities_completed" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="activities_total" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="course_progress" TYPE="number" LENGTH="5" NOTNULL="false" SEQUENCE="false" DECIMALS="2" COMMENT="0-100 percentage"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="fk_courseid" TYPE="foreign" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+        <KEY NAME="uq_user_course_period" TYPE="unique" FIELDS="userid, courseid, period_start, period_type"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_userid" UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="idx_courseid" UNIQUE="false" FIELDS="courseid"/>
+        <INDEX NAME="idx_period_start" UNIQUE="false" FIELDS="period_start"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_school_metrics" COMMENT="Aggregated school-level metrics for reporting">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to elby_schools.id"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="FK to mdl_course.id, 0 = school-wide aggregate"/>
+        <FIELD NAME="period_start" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Unix timestamp"/>
+        <FIELD NAME="period_end" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Unix timestamp"/>
+        <FIELD NAME="period_type" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="weekly" SEQUENCE="false" COMMENT="weekly, monthly"/>
+        <FIELD NAME="total_enrolled" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="total_active" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="total_inactive" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="new_enrollments" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="avg_actions_per_student" TYPE="number" LENGTH="10" NOTNULL="false" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="avg_active_days" TYPE="number" LENGTH="5" NOTNULL="false" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="avg_time_spent_minutes" TYPE="number" LENGTH="10" NOTNULL="false" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="total_resource_views" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="avg_resources_per_student" TYPE="number" LENGTH="10" NOTNULL="false" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="total_submissions" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="total_quiz_attempts" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="avg_assignment_score" TYPE="number" LENGTH="5" NOTNULL="false" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="avg_quiz_score" TYPE="number" LENGTH="5" NOTNULL="false" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="submission_rate" TYPE="number" LENGTH="5" NOTNULL="false" SEQUENCE="false" DECIMALS="2" COMMENT="Percentage"/>
+        <FIELD NAME="avg_course_progress" TYPE="number" LENGTH="5" NOTNULL="false" SEQUENCE="false" DECIMALS="2"/>
+        <FIELD NAME="completion_rate" TYPE="number" LENGTH="5" NOTNULL="false" SEQUENCE="false" DECIMALS="2" COMMENT="Percentage"/>
+        <FIELD NAME="high_engagement_count" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Above 70th percentile"/>
+        <FIELD NAME="medium_engagement_count" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="low_engagement_count" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Below 30th percentile"/>
+        <FIELD NAME="at_risk_count" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="No activity for 7+ days"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_schoolid" TYPE="foreign" FIELDS="schoolid" REFTABLE="elby_schools" REFFIELDS="id"/>
+        <KEY NAME="uq_school_course_period" TYPE="unique" FIELDS="schoolid, courseid, period_start, period_type"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_schoolid" UNIQUE="false" FIELDS="schoolid"/>
+        <INDEX NAME="idx_courseid" UNIQUE="false" FIELDS="courseid"/>
+        <INDEX NAME="idx_period_start" UNIQUE="false" FIELDS="period_start"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_sync_log" COMMENT="Audit log for SDMS sync operations">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sync_type" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="student, school, staff, metrics"/>
+        <FIELD NAME="entity_id" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="SDMS ID or userid"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Moodle user ID if applicable"/>
+        <FIELD NAME="operation" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="create, update, skip, error"/>
+        <FIELD NAME="request_url" TYPE="char" LENGTH="500" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="response_code" TYPE="int" LENGTH="5" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="response_time_ms" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="error_message" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="details" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="JSON for debugging"/>
+        <FIELD NAME="triggered_by" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="event, task, manual"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_sync_type" UNIQUE="false" FIELDS="sync_type"/>
+        <INDEX NAME="idx_entity_id" UNIQUE="false" FIELDS="entity_id"/>
+        <INDEX NAME="idx_userid" UNIQUE="false" FIELDS="userid"/>
+        <INDEX NAME="idx_operation" UNIQUE="false" FIELDS="operation"/>
+        <INDEX NAME="idx_timecreated" UNIQUE="false" FIELDS="timecreated"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_course_meta" COMMENT="Trade/level/owning-school metadata for courses (enrichment)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="FK to mdl_course.id"/>
+        <FIELD NAME="creator_userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="FK to mdl_user.id, resolved course creator"/>
+        <FIELD NAME="trade_code" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="combinationCode"/>
+        <FIELD NAME="trade_name" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Resolved trade name"/>
+        <FIELD NAME="level" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="Level number e.g. 3"/>
+        <FIELD NAME="module_id" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="Curriculum moduleId (non-unique; a module spans many trades)"/>
+        <FIELD NAME="module_name" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="Module label cache (subjectCode — subjectName)"/>
+        <FIELD NAME="curriculum_course_id" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="Curriculum courseId (Phase 2)"/>
+        <FIELD NAME="school_code" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="Creating teacher's school code"/>
+        <FIELD NAME="school_name" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="30" NOTNULL="false" SEQUENCE="false" COMMENT="form | manual | category | teacher_speciality | none"/>
+        <FIELD NAME="needs_review" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 when trade/level unresolved"/>
+        <FIELD NAME="last_enriched" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Unix timestamp"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_courseid" TYPE="foreign-unique" FIELDS="courseid" REFTABLE="course" REFFIELDS="id"/>
+        <KEY NAME="fk_creator_userid" TYPE="foreign" FIELDS="creator_userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_trade_code" UNIQUE="false" FIELDS="trade_code"/>
+        <INDEX NAME="idx_school_code" UNIQUE="false" FIELDS="school_code"/>
+        <INDEX NAME="idx_needs_review" UNIQUE="false" FIELDS="needs_review"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>
