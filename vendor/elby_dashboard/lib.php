@@ -416,6 +416,23 @@ function local_elby_dashboard_is_onboarded(int $userid): bool {
 }
 
 /**
+ * The school code this instance is restricted to, or null if unrestricted.
+ *
+ * A school server (TDMP proxy mode on) may only look up and cache its own
+ * students/teachers; their school code is the local_syncqueue school id. Central
+ * (proxy mode off) serves all schools and is unrestricted.
+ *
+ * @return string|null School code to restrict to, or null for no restriction.
+ */
+function local_elby_dashboard_own_school_code(): ?string {
+    if (!get_config('local_elby_dashboard', 'tdmp_proxy_mode')) {
+        return null;
+    }
+    $code = trim((string) get_config('local_syncqueue', 'schoolid'));
+    return $code !== '' ? $code : null;
+}
+
+/**
  * Login gate: force users to complete onboarding before using the site.
  *
  * Called by require_login() on every authenticated page (including for admins).

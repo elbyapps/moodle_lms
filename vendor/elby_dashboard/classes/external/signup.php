@@ -32,6 +32,7 @@ defined('MOODLE_INTERNAL') || die();
 global $CFG;
 require_once($CFG->libdir . '/externallib.php');
 require_once($CFG->dirroot . '/user/lib.php');
+require_once($CFG->dirroot . '/local/elby_dashboard/lib.php');
 
 use core_external\external_api;
 use core_external\external_function_parameters;
@@ -110,8 +111,14 @@ class signup extends external_api {
             $names = $data->names ?? '';
             $parsed = self::parse_sdms_names($names);
 
-            // Extract school code.
-            $schoolcode = $data->schoolCode ?? '';
+            // Extract school code (staff endpoint uses the "schooCode" typo).
+            $schoolcode = $data->schoolCode ?? ($data->schooCode ?? '');
+
+            // A school instance may only look up its own students/teachers.
+            $ownschool = local_elby_dashboard_own_school_code();
+            if ($ownschool !== null && $schoolcode !== '' && (string) $schoolcode !== (string) $ownschool) {
+                return self::empty_lookup_result(get_string('signup_wrong_school', 'local_elby_dashboard'));
+            }
 
             // Fetch school name via school API (student endpoint only has schoolCode).
             $schoolname = $data->schoolName ?? '';
@@ -303,6 +310,18 @@ class signup extends external_api {
             }
         } catch (\Exception $e) {
             return ['success' => false, 'error' => $e->getMessage(), 'userid' => 0, 'username' => ''];
+        }
+
+        // A school instance may only register its own students/teachers.
+        $ownschool = local_elby_dashboard_own_school_code();
+        $datacode = $data->schoolCode ?? ($data->schooCode ?? '');
+        if ($ownschool !== null && $datacode !== '' && (string) $datacode !== (string) $ownschool) {
+            return [
+                'success' => false,
+                'error' => get_string('signup_wrong_school', 'local_elby_dashboard'),
+                'userid' => 0,
+                'username' => '',
+            ];
         }
 
         // Parse names.

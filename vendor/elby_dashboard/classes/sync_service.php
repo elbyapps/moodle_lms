@@ -73,6 +73,17 @@ class sync_service {
             return false;
         }
 
+        // A school instance only caches its own students/teachers.
+        global $CFG;
+        require_once($CFG->dirroot . '/local/elby_dashboard/lib.php');
+        $ownschool = local_elby_dashboard_own_school_code();
+        $datacode = $this->extract_school_code($data, $usertype);
+        if ($ownschool !== null && !empty($datacode) && (string) $datacode !== (string) $ownschool) {
+            debugging("Refusing to link SDMS {$sdmscode}: belongs to school {$datacode}, this school is {$ownschool}",
+                DEBUG_DEVELOPER);
+            return false;
+        }
+
         // Cascade: sync school if present (non-fatal if school code is invalid).
         $schoolcode = $this->extract_school_code($data, $usertype);
         if (!empty($schoolcode)) {
@@ -264,7 +275,8 @@ class sync_service {
      * @return string|null School code, or null if not present.
      */
     private function extract_school_code(object $data, string $usertype): ?string {
-        return $data->schoolCode ?? null;
+        // Staff endpoint exposes the "schooCode" typo; students use schoolCode.
+        return $data->schoolCode ?? ($data->schooCode ?? null);
     }
 
     /**
