@@ -268,6 +268,15 @@ if ($hassiteconfig) {
         PARAM_INT
     ));
 
+    // Proxy TDMP lookups through local_syncqueue to central (school tier).
+    // Enable on school servers, which must not hold the TDMP API key.
+    $settings->add(new admin_setting_configcheckbox(
+        'local_elby_dashboard/tdmp_proxy_mode',
+        get_string('tdmp_proxy_mode', 'local_elby_dashboard'),
+        get_string('tdmp_proxy_mode_desc', 'local_elby_dashboard'),
+        0
+    ));
+
     // SDMS Signup Email Domain.
     $settings->add(new admin_setting_configtext(
         'local_elby_dashboard/sdms_signup_email_domain',

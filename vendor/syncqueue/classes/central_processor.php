@@ -70,6 +70,9 @@ class central_processor {
             case 'user':
                 return $this->process_user($schoolid, $payload);
 
+            case 'account':
+                return $this->process_account($schoolid, $payload);
+
             default:
                 return [
                     'status' => 'error',
@@ -543,12 +546,92 @@ class central_processor {
      * @return array Result.
      */
     protected function process_user(string $schoolid, array $payload): array {
-        // User creation typically flows central → school.
-        // Log for audit but don't create.
+        // Generic user events are audit-only. Real account creation/credential
+        // sync flows through the dedicated 'account' event (process_account).
         return [
             'status' => 'success',
             'message' => 'User event logged',
             'centralid' => 0,
+        ];
+    }
+
+    /**
+     * Create or update a central account from a school account push.
+     *
+     * Finds/creates the central Moodle user, applies the school's password hash
+     * (manual auth), then enriches via local_elby_dashboard's sync_service so the
+     * central record gets the full TDMP profile, national cohorts and enrolments.
+     *
+     * @param string $schoolid School identifier.
+     * @param array $payload Account payload.
+     * @return array Result with the central user ID.
+     */
+    protected function process_account(string $schoolid, array $payload): array {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/user/lib.php');
+
+        $account = $payload['account'] ?? [];
+        $sdmsid = trim((string) ($account['sdms_id'] ?? ''));
+        $usertype = (string) ($account['user_type'] ?? '');
+        if ($sdmsid === '' || $usertype === '') {
+            return ['status' => 'error', 'message' => 'Missing SDMS identity in account payload'];
+        }
+
+        // Locate the central user: prefer an existing SDMS link, then username, then email.
+        $user = null;
+        if ($DB->get_manager()->table_exists('elby_sdms_users')) {
+            $link = $DB->get_record('elby_sdms_users', ['sdms_id' => $sdmsid], 'userid');
+            if ($link) {
+                $user = $DB->get_record('user', ['id' => $link->userid, 'deleted' => 0]);
+            }
+        }
+        if (!$user && !empty($account['username'])) {
+            $user = $DB->get_record('user', ['username' => strtolower($account['username']), 'deleted' => 0]);
+        }
+        if (!$user && !empty($account['email'])) {
+            $user = $DB->get_record('user', ['email' => $account['email'], 'deleted' => 0]);
+        }
+
+        if (!$user) {
+            $new = new stdClass();
+            $new->username = !empty($account['username']) ? strtolower($account['username']) : strtolower($sdmsid);
+            $new->firstname = (string) ($account['firstname'] ?? '');
+            $new->lastname = (string) ($account['lastname'] ?? '');
+            $new->email = !empty($account['email']) ? $account['email'] : (strtolower($sdmsid) . '@rtb.ac.rw');
+            $new->idnumber = (string) ($account['idnumber'] ?? '');
+            $new->auth = 'manual';
+            $new->confirmed = 1;
+            $new->mnethostid = $CFG->mnet_localhost_id;
+            // Do not let user_create_user hash a password here; the school's hash is applied below.
+            $newid = user_create_user($new, false, false);
+            $user = $DB->get_record('user', ['id' => $newid]);
+        }
+
+        if (!$user) {
+            return ['status' => 'error', 'message' => 'Could not create central account'];
+        }
+
+        // Apply the school's bcrypt password hash so the same password works on central.
+        if (!empty($account['password']) && $account['password'] !== $user->password) {
+            $DB->set_field('user', 'password', $account['password'], ['id' => $user->id]);
+        }
+
+        // Enrich + link via elby_dashboard: pulls the full TDMP profile, applies
+        // national cohorts and auto-enrolments, and caches the identity.
+        if (class_exists('\local_elby_dashboard\sync_service')) {
+            // sync_service expects 'student' or 'staff'; school stores 'teacher'.
+            $lookuptype = ($usertype === 'teacher') ? 'staff' : $usertype;
+            try {
+                (new \local_elby_dashboard\sync_service())->link_user((int) $user->id, $sdmsid, $lookuptype);
+            } catch (\Exception $e) {
+                debugging('Account enrich failed for ' . $sdmsid . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
+            }
+        }
+
+        return [
+            'status' => 'success',
+            'message' => 'Account synced',
+            'centralid' => (int) $user->id,
         ];
     }
 

@@ -318,6 +318,36 @@ class sync_client {
     }
 
     /**
+     * Resolve a single TDMP record through the central proxy.
+     *
+     * Schools do not hold the TDMP API key; central runs the real lookup and
+     * returns the canonical record.
+     *
+     * @param string $code TDMP identifier (student/staff/school/trade code).
+     * @param string $type Lookup type: student, teacher, staff, school or trade.
+     * @return object|null Canonical record, or null if not found.
+     * @throws moodle_exception On communication failure.
+     */
+    public function tdmp_lookup(string $code, string $type): ?object {
+        $response = $this->request('GET', '/webservice/rest/server.php', [
+            'wstoken' => $this->wstoken,
+            'wsfunction' => 'local_syncqueue_tdmp_lookup',
+            'moodlewsrestformat' => 'json',
+            'schoolid' => $this->schoolid,
+            'apikey' => $this->apikey,
+            'sdms_code' => $code,
+            'user_type' => $type,
+        ]);
+
+        if (empty($response['found']) || empty($response['data'])) {
+            return null;
+        }
+
+        $data = json_decode($response['data']);
+        return is_object($data) ? $data : null;
+    }
+
+    /**
      * Make an HTTP request to the central server.
      *
      * @param string $method HTTP method.

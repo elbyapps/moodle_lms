@@ -106,6 +106,8 @@ class observer {
      */
     public static function user_enrolment_created(\core\event\user_enrolment_created $event): void {
         self::queue_event($event, 'enrol', 3);
+        // Push the account to central when enrolling into a synced course.
+        self::maybe_push_account((int) ($event->relateduserid ?? 0), (int) ($event->courseid ?? 0));
     }
 
     /**
@@ -160,6 +162,64 @@ class observer {
      */
     public static function user_updated(\core\event\user_updated $event): void {
         self::queue_event($event, 'user', 4);
+        // Propagate profile/password changes to central, but only for accounts
+        // already synced there (otherwise we'd push every local user).
+        self::maybe_push_account_update((int) ($event->objectid ?? 0));
+    }
+
+    /**
+     * Queue an account push if the user is enrolling into a synced course.
+     *
+     * @param int $userid Affected user ID.
+     * @param int $courseid Course ID the user was enrolled into.
+     */
+    protected static function maybe_push_account(int $userid, int $courseid): void {
+        if (!self::is_enabled() || !$userid || !$courseid) {
+            return;
+        }
+        try {
+            if (!self::is_synced_course($courseid)) {
+                return;
+            }
+            (new queue_manager())->add_account_push($userid);
+        } catch (\Exception $e) {
+            debugging('Syncqueue: account push failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
+     * Queue an account push for an already-synced user (e.g. password change).
+     *
+     * @param int $userid Affected user ID.
+     */
+    protected static function maybe_push_account_update(int $userid): void {
+        if (!self::is_enabled() || !$userid) {
+            return;
+        }
+        try {
+            // Only push updates for users already mapped to a central account.
+            if (!(new id_mapper())->get_central_id('user', $userid)) {
+                return;
+            }
+            (new queue_manager())->add_account_push($userid);
+        } catch (\Exception $e) {
+            debugging('Syncqueue: account update push failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+        }
+    }
+
+    /**
+     * Whether a course originated from central (and therefore syncs back).
+     *
+     * @param int $courseid Local course ID.
+     * @return bool
+     */
+    protected static function is_synced_course(int $courseid): bool {
+        global $DB;
+        if ((new id_mapper())->get_central_id('course', $courseid)) {
+            return true;
+        }
+        $idnumber = (string) $DB->get_field('course', 'idnumber', ['id' => $courseid]);
+        return $idnumber !== '' && strpos($idnumber, 'central_') === 0;
     }
 
     /**

@@ -94,6 +94,16 @@ $functions = [
         'ajax' => true,
         'capabilities' => '',
     ],
+
+    // TDMP lookup proxy - schools resolve identity through central (no key on schools).
+    'local_syncqueue_tdmp_lookup' => [
+        'classname' => 'local_syncqueue\external\tdmp_lookup',
+        'methodname' => 'execute',
+        'description' => 'Proxy a single TDMP gateway lookup on behalf of a school',
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => '',
+    ],
 ];
 
 // Define the sync service.
@@ -107,6 +117,7 @@ $services = [
             'local_syncqueue_report',
             'local_syncqueue_catalog',
             'local_syncqueue_upload_priorities',
+            'local_syncqueue_tdmp_lookup',
         ],
         'restrictedusers' => 0,
         'enabled' => 1,

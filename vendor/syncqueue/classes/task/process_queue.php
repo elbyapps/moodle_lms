@@ -78,6 +78,10 @@ class process_queue extends scheduled_task {
         }
 
         $ids = array_column($items, 'id');
+        $itemsbyid = [];
+        foreach ($items as $it) {
+            $itemsbyid[$it->id] = $it;
+        }
         $queuemanager->mark_processing($ids);
 
         mtrace("Processing " . count($items) . " items...");
@@ -96,6 +100,14 @@ class process_queue extends scheduled_task {
                     case 'success':
                         $queuemanager->mark_synced($id);
                         $synced++;
+                        // Record the school→central user mapping for account pushes
+                        // so later profile/password changes can be gated and propagated.
+                        $item = $itemsbyid[$id] ?? null;
+                        if ($item && $item->eventtype === 'account'
+                                && !empty($result['centralid']) && !empty($item->objectid)) {
+                            (new \local_syncqueue\id_mapper())->set_mapping(
+                                'user', (int) $item->objectid, (int) $result['centralid']);
+                        }
                         break;
 
                     case 'conflict':

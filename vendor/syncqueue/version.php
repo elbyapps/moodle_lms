@@ -24,8 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026062603;        // The current plugin version (Date: YYYYMMDDXX).
+$plugin->version   = 2026062604;        // The current plugin version (Date: YYYYMMDDXX).
 $plugin->requires  = 2024100700;        // Requires Moodle 5.0+.
 $plugin->component = 'local_syncqueue'; // Full name of the plugin.
 $plugin->maturity  = MATURITY_ALPHA;
-$plugin->release   = '0.4.2';           // F3: school-side course catalog browse + pull priorities.
+$plugin->release   = '0.5.0';           // TDMP lookup proxy + school→central account & password sync.

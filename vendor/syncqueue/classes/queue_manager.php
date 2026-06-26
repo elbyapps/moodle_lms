@@ -87,6 +87,80 @@ class queue_manager {
     }
 
     /**
+     * Queue a full account push (identity + credentials) for school→central sync.
+     *
+     * Only accounts linked to an SDMS identity in the local elby cache are
+     * pushed. The bcrypt password hash is carried so the central account keeps
+     * the same password (manual auth). Deduplicated by payload hash, so an
+     * unchanged account is not re-pushed but a password change is.
+     *
+     * @param int $userid Local Moodle user ID.
+     * @return int|null Queue item ID, or null if skipped (not linked / duplicate).
+     */
+    public function add_account_push(int $userid): ?int {
+        global $DB;
+
+        $user = $DB->get_record('user', ['id' => $userid],
+            'id, username, email, firstname, lastname, idnumber, password, auth, suspended, deleted');
+        if (!$user || $user->deleted) {
+            return null;
+        }
+
+        // Resolve the SDMS identity from the local cache; skip unlinked accounts.
+        if (!$DB->get_manager()->table_exists('elby_sdms_users')) {
+            return null;
+        }
+        $sdms = $DB->get_record('elby_sdms_users', ['userid' => $userid], 'sdms_id, user_type');
+        if (!$sdms || empty($sdms->sdms_id)) {
+            return null;
+        }
+
+        $payload = [
+            'account' => [
+                'sdms_id' => $sdms->sdms_id,
+                'user_type' => $sdms->user_type,
+                'username' => $user->username,
+                'email' => $user->email,
+                'firstname' => $user->firstname,
+                'lastname' => $user->lastname,
+                'idnumber' => $user->idnumber,
+                'password' => $user->password,
+                'auth' => $user->auth,
+                'suspended' => (int) $user->suspended,
+            ],
+            'school' => [
+                'id' => $this->schoolid,
+                'timestamp' => time(),
+            ],
+        ];
+        $payloadjson = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        $payloadhash = hash('sha256', $payloadjson);
+
+        if ($this->is_duplicate($payloadhash)) {
+            return null;
+        }
+
+        $now = time();
+        $record = new stdClass();
+        $record->schoolid = $this->schoolid;
+        $record->eventtype = 'account';
+        $record->eventname = 'account_push';
+        $record->objecttable = 'user';
+        $record->objectid = $userid;
+        $record->relateduserid = $userid;
+        $record->courseid = null;
+        $record->payload = $payloadjson;
+        $record->payloadhash = $payloadhash;
+        $record->priority = 2; // Ahead of enrolments (3) so the account exists first.
+        $record->status = self::STATUS_PENDING;
+        $record->attempts = 0;
+        $record->timecreated = $now;
+        $record->timemodified = $now;
+
+        return $DB->insert_record('local_syncqueue_items', $record);
+    }
+
+    /**
      * Build payload from event for synchronization.
      *
      * @param base $event The event.

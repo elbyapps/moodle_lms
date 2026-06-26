@@ -54,17 +54,29 @@ class tdmp_client {
     /** @var int HTTP request timeout in seconds. */
     private int $timeout;
 
+    /** @var bool When true, lookups are proxied through local_syncqueue to central instead of called directly. */
+    private bool $proxymode = false;
+
     /**
      * Constructor.
      *
-     * Loads configuration from Moodle admin settings.
+     * Loads configuration from Moodle admin settings. In proxy mode (school
+     * tier) no local gateway URL/key is required — lookups route through
+     * local_syncqueue to the central server, which holds the API key.
      *
-     * @throws \moodle_exception If the gateway URL or API key is not configured.
+     * @throws \moodle_exception If, in direct mode, the gateway URL or API key is not configured.
      */
     public function __construct() {
+        $this->proxymode = (bool) get_config('local_elby_dashboard', 'tdmp_proxy_mode');
+        $this->timeout = (int) (get_config('local_elby_dashboard', 'tdmp_timeout') ?: 30);
+
+        if ($this->proxymode) {
+            // Lookups are proxied to central; no local URL/key needed.
+            return;
+        }
+
         $this->baseurl = rtrim(get_config('local_elby_dashboard', 'tdmp_api_url') ?: '', '/');
         $this->apikey = trim((string) (get_config('local_elby_dashboard', 'tdmp_api_key') ?: ''));
-        $this->timeout = (int) (get_config('local_elby_dashboard', 'tdmp_timeout') ?: 30);
 
         if (empty($this->baseurl)) {
             throw new \moodle_exception('tdmsapierror', 'local_elby_dashboard', '',
@@ -77,12 +89,31 @@ class tdmp_client {
     }
 
     /**
+     * Resolve a single record through the central proxy (school tier).
+     *
+     * @param string $code TDMP identifier.
+     * @param string $type Lookup type: student, teacher, school or trade.
+     * @return object|null Canonical record, or null if not found.
+     */
+    private function proxy_lookup(string $code, string $type): ?object {
+        if (!class_exists('\local_syncqueue\sync_client')) {
+            throw new \moodle_exception('tdmsapierror', 'local_elby_dashboard', '',
+                'TDMP proxy mode is enabled but local_syncqueue is not available.');
+        }
+        $client = new \local_syncqueue\sync_client();
+        return $client->tdmp_lookup($code, $type);
+    }
+
+    /**
      * Fetch a student record by SDMS code (studentNumber).
      *
      * @param string $code The student code.
      * @return object|null Student data object, or null if not found.
      */
     public function get_student(string $code): ?object {
+        if ($this->proxymode) {
+            return $this->proxy_lookup($code, 'student');
+        }
         return $this->get_entity('/students/' . rawurlencode($code), 'student', $code);
     }
 
@@ -96,6 +127,9 @@ class tdmp_client {
      * @return object|null Teacher data object, or null if not found.
      */
     public function get_teacher(string $identifier): ?object {
+        if ($this->proxymode) {
+            return $this->proxy_lookup($identifier, 'teacher');
+        }
         return $this->get_entity('/teachers/' . rawurlencode($identifier), 'teacher', $identifier);
     }
 
@@ -106,6 +140,9 @@ class tdmp_client {
      * @return object|null School data object, or null if not found.
      */
     public function get_school(string $code): ?object {
+        if ($this->proxymode) {
+            return $this->proxy_lookup($code, 'school');
+        }
         return $this->get_entity('/schools/' . rawurlencode($code), 'school', $code);
     }
 
@@ -116,6 +153,9 @@ class tdmp_client {
      * @return object|null Trade data object, or null if not found.
      */
     public function get_trade(string $tradecode): ?object {
+        if ($this->proxymode) {
+            return $this->proxy_lookup($tradecode, 'trade');
+        }
         return $this->get_entity('/trades?tradeCode=' . rawurlencode($tradecode), 'trade', $tradecode);
     }
 
@@ -125,6 +165,10 @@ class tdmp_client {
      * @return object[] Trade records (may be empty).
      */
     public function get_trades(): array {
+        if ($this->proxymode) {
+            // Bulk trade lists are not proxied; callers degrade gracefully on an empty list.
+            return [];
+        }
         $all = [];
         $page = 1;
         $limit = 50;
@@ -156,6 +200,10 @@ class tdmp_client {
      * @return object[] Module records (may be empty).
      */
     public function get_modules(string $search, ?int $combinationid = null, int $limit = 15): array {
+        if ($this->proxymode) {
+            // Module search is not proxied; the course form degrades to a free-text field.
+            return [];
+        }
         $limit = max(1, min($limit, 200));
         $url = $this->baseurl . '/reports/modules/teachers?limit=' . $limit;
         if ($search !== '') {
