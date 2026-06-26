@@ -24,8 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026062605;        // The current plugin version (Date: YYYYMMDDXX).
+$plugin->version   = 2026062606;        // The current plugin version (Date: YYYYMMDDXX).
 $plugin->requires  = 2024100700;        // Requires Moodle 5.0+.
 $plugin->component = 'local_syncqueue'; // Full name of the plugin.
 $plugin->maturity  = MATURITY_ALPHA;
-$plugin->release   = '0.5.1';           // Observe user_password_updated for school→central password propagation.
+$plugin->release   = '0.5.2';           // Roster proxy: schools pull their own full student/teacher roster.

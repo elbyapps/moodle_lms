@@ -221,5 +221,21 @@ function xmldb_local_elby_dashboard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026062202, 'local', 'elby_dashboard');
     }
 
+    if ($oldversion < 2026062603) {
+        // Offline roster cache for school-side signup/link.
+        $table = new xmldb_table('elby_roster');
+        if (!$dbman->table_exists($table)) {
+            $xmldbfile = new xmldb_file($CFG->dirroot . '/local/elby_dashboard/db/install.xml');
+            $xmldbfile->loadXMLStructure();
+            $structure = $xmldbfile->getStructure();
+            $newtable = $structure->getTable('elby_roster');
+            if ($newtable) {
+                $dbman->create_table($newtable);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026062603, 'local', 'elby_dashboard');
+    }
+
     return true;
 }

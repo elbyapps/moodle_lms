@@ -220,6 +220,60 @@ class tdmp_client {
     }
 
     /**
+     * Fetch the full list of a school's students (paginated, schoolCode filter).
+     *
+     * @param string $schoolcode School code.
+     * @return object[] Student records (may be empty).
+     */
+    public function get_students_by_school(string $schoolcode): array {
+        if ($this->proxymode) {
+            return []; // School rosters are pulled via the syncqueue roster proxy, not here.
+        }
+        return $this->get_list('/students?schoolCode=' . rawurlencode($schoolcode), 'student');
+    }
+
+    /**
+     * Fetch the full list of a school's teachers (paginated, schoolCode filter).
+     *
+     * @param string $schoolcode School code.
+     * @return object[] Teacher records (may be empty).
+     */
+    public function get_teachers_by_school(string $schoolcode): array {
+        if ($this->proxymode) {
+            return [];
+        }
+        return $this->get_list('/teachers?schoolCode=' . rawurlencode($schoolcode), 'teacher');
+    }
+
+    /**
+     * Fetch a paginated list endpoint and flatten all pages into one array.
+     *
+     * @param string $path API path beginning with a slash (may already include a query).
+     * @param string $entitytype Entity type for logging.
+     * @return object[] All records across pages (may be empty).
+     */
+    private function get_list(string $path, string $entitytype): array {
+        $all = [];
+        $page = 1;
+        $limit = 50;
+        $sep = (strpos($path, '?') !== false) ? '&' : '?';
+        do {
+            $envelope = $this->make_request(
+                $this->baseurl . $path . $sep . 'page=' . $page . '&limit=' . $limit,
+                $entitytype, 'list:' . $page);
+            if ($envelope === null || empty($envelope->data) || !is_array($envelope->data)) {
+                break;
+            }
+            foreach ($envelope->data as $rec) {
+                $all[] = $rec;
+            }
+            $total = (int) ($envelope->meta->page->total ?? count($all));
+            $page++;
+        } while (count($all) < $total && $page <= 500);
+        return $all;
+    }
+
+    /**
      * Fetch a single entity and unwrap the gateway { data, meta } envelope.
      *
      * @param string $path API path beginning with a slash (relative to base URL).

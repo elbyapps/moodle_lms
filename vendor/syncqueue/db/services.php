@@ -104,6 +104,16 @@ $functions = [
         'ajax' => true,
         'capabilities' => '',
     ],
+
+    // TDMP roster proxy - schools pull their own full student/teacher roster.
+    'local_syncqueue_tdmp_roster' => [
+        'classname' => 'local_syncqueue\external\tdmp_roster',
+        'methodname' => 'execute',
+        'description' => 'Return the requesting school\'s full student/teacher roster from TDMP',
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => '',
+    ],
 ];
 
 // Define the sync service.
@@ -118,6 +128,7 @@ $services = [
             'local_syncqueue_catalog',
             'local_syncqueue_upload_priorities',
             'local_syncqueue_tdmp_lookup',
+            'local_syncqueue_tdmp_roster',
         ],
         'restrictedusers' => 0,
         'enabled' => 1,

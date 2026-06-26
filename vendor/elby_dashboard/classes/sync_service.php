@@ -68,7 +68,7 @@ class sync_service {
      */
     public function link_user(int $userid, string $sdmscode, string $usertype): bool {
         // Fetch from the gateway.
-        $data = $this->fetch_user_from_gateway($sdmscode, $usertype);
+        $data = $this->fetch_user($sdmscode, $usertype);
         if ($data === null) {
             return false;
         }
@@ -251,6 +251,21 @@ class sync_service {
         }
 
         return true;
+    }
+
+    /**
+     * Fetch user data offline-first: from the roster cache, else the gateway.
+     *
+     * @param string $sdmscode TDMP identifier.
+     * @param string $usertype "student" or "staff".
+     * @return object|null Record data, or null if not found.
+     */
+    private function fetch_user(string $sdmscode, string $usertype): ?object {
+        $cached = (new roster_manager())->get_record($sdmscode, $usertype);
+        if ($cached !== null) {
+            return $cached;
+        }
+        return $this->fetch_user_from_gateway($sdmscode, $usertype);
     }
 
     /**

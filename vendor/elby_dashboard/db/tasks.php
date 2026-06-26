@@ -65,4 +65,14 @@ $tasks = [
         'month'     => '*',
         'dayofweek' => '0',
     ],
+    // Daily at 3:00 AM — refresh the school's offline roster cache (school instances only).
+    [
+        'classname' => 'local_elby_dashboard\task\sync_roster',
+        'blocking'  => 0,
+        'minute'    => '0',
+        'hour'      => '3',
+        'day'       => '*',
+        'month'     => '*',
+        'dayofweek' => '*',
+    ],
 ];

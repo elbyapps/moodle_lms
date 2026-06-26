@@ -93,12 +93,13 @@ class signup extends external_api {
         }
 
         try {
-            $client = new \local_elby_dashboard\tdmp_client();
-
-            if ($usertype === 'student') {
-                $data = $client->get_student($sdmscode);
-            } else {
-                $data = $client->get_teacher($sdmscode);
+            // Offline-first: resolve from the cached roster, fall back to a live lookup.
+            $data = (new \local_elby_dashboard\roster_manager())->get_record($sdmscode, $usertype);
+            if ($data === null) {
+                $client = new \local_elby_dashboard\tdmp_client();
+                $data = ($usertype === 'student')
+                    ? $client->get_student($sdmscode)
+                    : $client->get_teacher($sdmscode);
             }
 
             if ($data === null) {
@@ -291,13 +292,14 @@ class signup extends external_api {
             return ['success' => false, 'error' => strip_tags($errmsg), 'userid' => 0, 'username' => ''];
         }
 
-        // Re-fetch from SDMS (don't trust client data).
+        // Re-fetch (don't trust client data): offline-first from the roster, else live.
         try {
-            $client = new \local_elby_dashboard\tdmp_client();
-            if ($usertype === 'student') {
-                $data = $client->get_student($sdmscode);
-            } else {
-                $data = $client->get_teacher($sdmscode);
+            $data = (new \local_elby_dashboard\roster_manager())->get_record($sdmscode, $usertype);
+            if ($data === null) {
+                $client = new \local_elby_dashboard\tdmp_client();
+                $data = ($usertype === 'student')
+                    ? $client->get_student($sdmscode)
+                    : $client->get_teacher($sdmscode);
             }
 
             if ($data === null) {

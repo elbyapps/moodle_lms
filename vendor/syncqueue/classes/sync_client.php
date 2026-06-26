@@ -348,6 +348,28 @@ class sync_client {
     }
 
     /**
+     * Pull this school's full student/teacher roster through the central proxy.
+     *
+     * @return array ['students' => object[], 'teachers' => object[]]
+     * @throws moodle_exception On communication failure.
+     */
+    public function tdmp_roster(): array {
+        $response = $this->request('GET', '/webservice/rest/server.php', [
+            'wstoken' => $this->wstoken,
+            'wsfunction' => 'local_syncqueue_tdmp_roster',
+            'moodlewsrestformat' => 'json',
+            'schoolid' => $this->schoolid,
+            'apikey' => $this->apikey,
+        ]);
+        $students = json_decode($response['students'] ?? '[]');
+        $teachers = json_decode($response['teachers'] ?? '[]');
+        return [
+            'students' => is_array($students) ? $students : [],
+            'teachers' => is_array($teachers) ? $teachers : [],
+        ];
+    }
+
+    /**
      * Make an HTTP request to the central server.
      *
      * @param string $method HTTP method.

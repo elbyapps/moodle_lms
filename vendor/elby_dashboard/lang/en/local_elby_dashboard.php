@@ -159,6 +159,7 @@ $string['tdmp_timeout_desc'] = 'HTTP request timeout in seconds. Default: 30';
 $string['tdmp_proxy_mode'] = 'Proxy TDMP lookups through central';
 $string['tdmp_proxy_mode_desc'] = 'Enable on school servers. TDMP lookups are routed through local_syncqueue to the central server (which holds the API key) instead of being called directly. When enabled, the local gateway URL and API key are not required.';
 $string['signup_wrong_school'] = 'This SDMS code belongs to a different school. You can only register at your own school.';
+$string['task_sync_roster'] = 'Sync school roster (offline cache)';
 $string['tdmsapierror'] = 'TDMP gateway error';
 $string['auto_course_enrich_enabled'] = 'Enrich courses with trade, level & school';
 $string['auto_course_enrich_enabled_desc'] = 'When enabled, courses are tagged with their trade and level, and the creating teacher\'s school, into elby_course_meta. Teacher creators must pick a trade and level on the course form; courses are also enriched on create/update and when a teacher links their account.';

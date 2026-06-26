@@ -268,5 +268,33 @@
         <INDEX NAME="idx_needs_review" UNIQUE="false" FIELDS="needs_review"/>
       </INDEXES>
     </TABLE>
+
+    <TABLE NAME="elby_roster" COMMENT="Offline roster cache of a school's own students/teachers from TDMP (not necessarily linked to Moodle accounts yet)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sdms_id" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="studentNumber or staff identifier"/>
+        <FIELD NAME="user_type" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="" SEQUENCE="false" COMMENT="student or teacher"/>
+        <FIELD NAME="school_code" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="" SEQUENCE="false"/>
+        <FIELD NAME="names" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="gender" TYPE="char" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="program" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="program_code" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="study_level" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="class_grade" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="academic_year" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="registrationStatus or employmentStatus"/>
+        <FIELD NAME="position" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="teacher position"/>
+        <FIELD NAME="payload" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Raw TDMP record JSON for offline link"/>
+        <FIELD NAME="timecached" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="uq_sdms_id" UNIQUE="true" FIELDS="sdms_id"/>
+        <INDEX NAME="idx_school_type" UNIQUE="false" FIELDS="school_code, user_type"/>
+      </INDEXES>
+    </TABLE>
   </TABLES>
 </XMLDB>
