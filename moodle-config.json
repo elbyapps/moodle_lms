@@ -189,6 +189,12 @@
       "source": "vendor",
       "path": "vendor/filter_buku_oembed",
       "destination": "filter/buku_oembed"
+    },
+    {
+      "name": "moodle-local_scormdisplayname",
+      "source": "vendor",
+      "path": "vendor/scormdisplayname",
+      "destination": "local/scormdisplayname"
     }
   ],
   "destination_folder": "moodle_app"
