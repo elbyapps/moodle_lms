@@ -1,0 +1,1071 @@
+- generic [ref=e1]:
+  - status
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - link "moodle" [ref=e6] [cursor=pointer]:
+          - /url: http://localhost:8080
+          - generic [ref=e7]: moodle
+        - generic [ref=e8]:
+          - list [ref=e9]:
+            - listitem [ref=e10]:
+              - link "Home" [ref=e11] [cursor=pointer]:
+                - /url: http://localhost:8080/?redirect=0
+            - listitem [ref=e12]:
+              - link "Dashboard" [ref=e13] [cursor=pointer]:
+                - /url: http://localhost:8080/my/
+            - listitem [ref=e14]:
+              - link "My courses" [ref=e15] [cursor=pointer]:
+                - /url: http://localhost:8080/my/courses.php
+            - listitem [ref=e16]:
+              - link "Site administration" [ref=e17] [cursor=pointer]:
+                - /url: http://localhost:8080/admin/search.php
+            - listitem [ref=e18]:
+              - link "Admin Dashboard" [ref=e19] [cursor=pointer]:
+                - /url: http://localhost:8080/local/elby_dashboard/index.php
+          - generic [ref=e20]:
+            - button "User menu" [ref=e27] [cursor=pointer]:
+              - generic [ref=e28]:
+                - text: Ntwari Jean Yves
+                - img "Ntwari Jean Yves" [ref=e31]: NJ
+              - text: 
+            - generic [ref=e33]:
+              - generic [ref=e34]: Edit mode
+              - checkbox "Edit mode" [ref=e36]
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - button "Open block drawer" [ref=e40] [cursor=pointer]:
+          - generic [ref=e41]: Open block drawer
+          - generic [ref=e43]: 
+          - text: 
+        - banner [ref=e44]:
+          - generic [ref=e45]:
+            - navigation "Breadcrumb" [ref=e48]:
+              - list [ref=e49]:
+                - listitem [ref=e50]:
+                  - link "Courses" [ref=e51] [cursor=pointer]:
+                    - /url: http://localhost:8080/course/index.php
+                - listitem [ref=e52]:
+                  - text: /
+                  - link "Category 1" [ref=e53] [cursor=pointer]:
+                    - /url: http://localhost:8080/course/index.php?categoryid=1
+                - listitem [ref=e54]:
+                  - text: /
+                  - link "Manage courses and categories" [ref=e55] [cursor=pointer]:
+                    - /url: http://localhost:8080/course/management.php
+                - listitem [ref=e56]: / Add a new course
+            - heading "Category 1" [level=1] [ref=e62]
+        - navigation [ref=e64]:
+          - menubar [ref=e65]:
+            - menuitem "Category" [ref=e66] [cursor=pointer]
+            - menuitem "Settings" [ref=e67] [cursor=pointer]
+            - menuitem "Recycle bin" [ref=e68] [cursor=pointer]
+            - menuitem "Upload courses" [ref=e69] [cursor=pointer]
+            - menuitem "More " [ref=e70] [cursor=pointer]
+        - main [ref=e74]:
+          - heading "Add a new course" [level=2] [ref=e76]
+          - generic [ref=e77]:
+            - button "Expand all" [ref=e79] [cursor=pointer]:
+              - generic [ref=e80]: Expand all
+            - group "General" [ref=e81]:
+              - generic [ref=e82]: General
+              - generic [ref=e84]:
+                - button "General" [expanded] [ref=e85] [cursor=pointer]:
+                  - generic "Collapse" [ref=e86]:
+                    - generic [ref=e87]: 
+                  - text:  
+                  - generic [ref=e88]: General
+                - heading [level=3] [ref=e89]: General
+              - generic [ref=e90]:
+                - generic [ref=e91]:
+                  - generic [ref=e92]:
+                    - generic [ref=e93]: Course full name
+                    - generic [ref=e94]:
+                      - generic [ref=e96]: 
+                      - button "Help" [ref=e97] [cursor=pointer]:
+                        - img "Help with Course full name" [ref=e98]: 
+                  - textbox "Course full name" [ref=e100]
+                - generic [ref=e101]:
+                  - generic [ref=e102]:
+                    - generic [ref=e103]: Course short name
+                    - generic [ref=e104]:
+                      - generic [ref=e106]: 
+                      - button "Help" [ref=e107] [cursor=pointer]:
+                        - img "Help with Course short name" [ref=e108]: 
+                  - textbox "Course short name" [ref=e110]
+                - generic [ref=e111]:
+                  - generic [ref=e112]:
+                    - generic [ref=e113]: Course category
+                    - generic [ref=e114]:
+                      - generic [ref=e116]: 
+                      - button "Help" [ref=e117] [cursor=pointer]:
+                        - img "Help with Course category" [ref=e118]: 
+                  - generic [ref=e119]:
+                    - generic [ref=e120]: "Selected items:"
+                    - status [ref=e121]
+                    - listbox "Selected items:" [ref=e122]:
+                      - option "Category 1" [selected] [ref=e123] [cursor=pointer]: × Category 1
+                    - generic [ref=e124]:
+                      - combobox "Course category" [ref=e125]
+                      - generic [ref=e126] [cursor=pointer]: ▼
+                - generic [ref=e127]:
+                  - generic [ref=e128]:
+                    - generic [ref=e129]: Course visibility
+                    - button "Help" [ref=e131] [cursor=pointer]:
+                      - img "Help with Course visibility" [ref=e132]: 
+                  - combobox "Course visibility" [ref=e134]:
+                    - option "Hide"
+                    - option "Show" [selected]
+                - generic [ref=e135]:
+                  - generic [ref=e136]:
+                    - paragraph [ref=e137]: Course start date
+                    - button "Help" [ref=e139] [cursor=pointer]:
+                      - img "Help with Course start date" [ref=e140]: 
+                  - group "Course start date" [ref=e142]:
+                    - generic [ref=e143]: Course start date
+                    - generic [ref=e144]:
+                      - generic [ref=e145]:
+                        - generic [ref=e146]: Day
+                        - combobox "Day" [ref=e148]:
+                          - option "1"
+                          - option "2"
+                          - option "3"
+                          - option "4"
+                          - option "5"
+                          - option "6"
+                          - option "7"
+                          - option "8"
+                          - option "9"
+                          - option "10"
+                          - option "11"
+                          - option "12"
+                          - option "13"
+                          - option "14"
+                          - option "15"
+                          - option "16"
+                          - option "17"
+                          - option "18"
+                          - option "19"
+                          - option "20"
+                          - option "21"
+                          - option "22"
+                          - option "23"
+                          - option "24"
+                          - option "25"
+                          - option "26"
+                          - option "27" [selected]
+                          - option "28"
+                          - option "29"
+                          - option "30"
+                          - option "31"
+                      - generic [ref=e149]:
+                        - generic [ref=e150]: Month
+                        - combobox "Month" [ref=e152]:
+                          - option "January"
+                          - option "February"
+                          - option "March"
+                          - option "April"
+                          - option "May"
+                          - option "June" [selected]
+                          - option "July"
+                          - option "August"
+                          - option "September"
+                          - option "October"
+                          - option "November"
+                          - option "December"
+                      - generic [ref=e153]:
+                        - generic [ref=e154]: Year
+                        - combobox "Year" [ref=e156]:
+                          - option "1900"
+                          - option "1901"
+                          - option "1902"
+                          - option "1903"
+                          - option "1904"
+                          - option "1905"
+                          - option "1906"
+                          - option "1907"
+                          - option "1908"
+                          - option "1909"
+                          - option "1910"
+                          - option "1911"
+                          - option "1912"
+                          - option "1913"
+                          - option "1914"
+                          - option "1915"
+                          - option "1916"
+                          - option "1917"
+                          - option "1918"
+                          - option "1919"
+                          - option "1920"
+                          - option "1921"
+                          - option "1922"
+                          - option "1923"
+                          - option "1924"
+                          - option "1925"
+                          - option "1926"
+                          - option "1927"
+                          - option "1928"
+                          - option "1929"
+                          - option "1930"
+                          - option "1931"
+                          - option "1932"
+                          - option "1933"
+                          - option "1934"
+                          - option "1935"
+                          - option "1936"
+                          - option "1937"
+                          - option "1938"
+                          - option "1939"
+                          - option "1940"
+                          - option "1941"
+                          - option "1942"
+                          - option "1943"
+                          - option "1944"
+                          - option "1945"
+                          - option "1946"
+                          - option "1947"
+                          - option "1948"
+                          - option "1949"
+                          - option "1950"
+                          - option "1951"
+                          - option "1952"
+                          - option "1953"
+                          - option "1954"
+                          - option "1955"
+                          - option "1956"
+                          - option "1957"
+                          - option "1958"
+                          - option "1959"
+                          - option "1960"
+                          - option "1961"
+                          - option "1962"
+                          - option "1963"
+                          - option "1964"
+                          - option "1965"
+                          - option "1966"
+                          - option "1967"
+                          - option "1968"
+                          - option "1969"
+                          - option "1970"
+                          - option "1971"
+                          - option "1972"
+                          - option "1973"
+                          - option "1974"
+                          - option "1975"
+                          - option "1976"
+                          - option "1977"
+                          - option "1978"
+                          - option "1979"
+                          - option "1980"
+                          - option "1981"
+                          - option "1982"
+                          - option "1983"
+                          - option "1984"
+                          - option "1985"
+                          - option "1986"
+                          - option "1987"
+                          - option "1988"
+                          - option "1989"
+                          - option "1990"
+                          - option "1991"
+                          - option "1992"
+                          - option "1993"
+                          - option "1994"
+                          - option "1995"
+                          - option "1996"
+                          - option "1997"
+                          - option "1998"
+                          - option "1999"
+                          - option "2000"
+                          - option "2001"
+                          - option "2002"
+                          - option "2003"
+                          - option "2004"
+                          - option "2005"
+                          - option "2006"
+                          - option "2007"
+                          - option "2008"
+                          - option "2009"
+                          - option "2010"
+                          - option "2011"
+                          - option "2012"
+                          - option "2013"
+                          - option "2014"
+                          - option "2015"
+                          - option "2016"
+                          - option "2017"
+                          - option "2018"
+                          - option "2019"
+                          - option "2020"
+                          - option "2021"
+                          - option "2022"
+                          - option "2023"
+                          - option "2024"
+                          - option "2025"
+                          - option "2026" [selected]
+                          - option "2027"
+                          - option "2028"
+                          - option "2029"
+                          - option "2030"
+                          - option "2031"
+                          - option "2032"
+                          - option "2033"
+                          - option "2034"
+                          - option "2035"
+                          - option "2036"
+                          - option "2037"
+                          - option "2038"
+                          - option "2039"
+                          - option "2040"
+                          - option "2041"
+                          - option "2042"
+                          - option "2043"
+                          - option "2044"
+                          - option "2045"
+                          - option "2046"
+                          - option "2047"
+                          - option "2048"
+                          - option "2049"
+                          - option "2050"
+                      - generic [ref=e157]:
+                        - generic [ref=e158]: Hour
+                        - combobox "Hour" [ref=e160]:
+                          - option "00" [selected]
+                          - option "01"
+                          - option "02"
+                          - option "03"
+                          - option "04"
+                          - option "05"
+                          - option "06"
+                          - option "07"
+                          - option "08"
+                          - option "09"
+                          - option "10"
+                          - option "11"
+                          - option "12"
+                          - option "13"
+                          - option "14"
+                          - option "15"
+                          - option "16"
+                          - option "17"
+                          - option "18"
+                          - option "19"
+                          - option "20"
+                          - option "21"
+                          - option "22"
+                          - option "23"
+                      - generic [ref=e161]:
+                        - generic [ref=e162]: Minute
+                        - combobox "Minute" [ref=e164]:
+                          - option "00" [selected]
+                          - option "01"
+                          - option "02"
+                          - option "03"
+                          - option "04"
+                          - option "05"
+                          - option "06"
+                          - option "07"
+                          - option "08"
+                          - option "09"
+                          - option "10"
+                          - option "11"
+                          - option "12"
+                          - option "13"
+                          - option "14"
+                          - option "15"
+                          - option "16"
+                          - option "17"
+                          - option "18"
+                          - option "19"
+                          - option "20"
+                          - option "21"
+                          - option "22"
+                          - option "23"
+                          - option "24"
+                          - option "25"
+                          - option "26"
+                          - option "27"
+                          - option "28"
+                          - option "29"
+                          - option "30"
+                          - option "31"
+                          - option "32"
+                          - option "33"
+                          - option "34"
+                          - option "35"
+                          - option "36"
+                          - option "37"
+                          - option "38"
+                          - option "39"
+                          - option "40"
+                          - option "41"
+                          - option "42"
+                          - option "43"
+                          - option "44"
+                          - option "45"
+                          - option "46"
+                          - option "47"
+                          - option "48"
+                          - option "49"
+                          - option "50"
+                          - option "51"
+                          - option "52"
+                          - option "53"
+                          - option "54"
+                          - option "55"
+                          - option "56"
+                          - option "57"
+                          - option "58"
+                          - option "59"
+                      - button "Date picker" [ref=e167] [cursor=pointer]:
+                        - generic [ref=e168]: 
+                - generic [ref=e169]:
+                  - generic [ref=e170]:
+                    - paragraph [ref=e171]: Course end date
+                    - button "Help" [ref=e173] [cursor=pointer]:
+                      - img "Help with Course end date" [ref=e174]: 
+                  - group "Course end date" [ref=e176]:
+                    - generic [ref=e177]: Course end date
+                    - generic [ref=e178]:
+                      - generic [ref=e179]:
+                        - checkbox "Enable" [checked] [ref=e180]
+                        - text: Enable
+                      - generic [ref=e181]:
+                        - generic [ref=e182]: Day
+                        - combobox "Day" [ref=e184]:
+                          - option "1"
+                          - option "2"
+                          - option "3"
+                          - option "4"
+                          - option "5"
+                          - option "6"
+                          - option "7"
+                          - option "8"
+                          - option "9"
+                          - option "10"
+                          - option "11"
+                          - option "12"
+                          - option "13"
+                          - option "14"
+                          - option "15"
+                          - option "16"
+                          - option "17"
+                          - option "18"
+                          - option "19"
+                          - option "20"
+                          - option "21"
+                          - option "22"
+                          - option "23"
+                          - option "24"
+                          - option "25"
+                          - option "26"
+                          - option "27" [selected]
+                          - option "28"
+                          - option "29"
+                          - option "30"
+                          - option "31"
+                      - generic [ref=e185]:
+                        - generic [ref=e186]: Month
+                        - combobox "Month" [ref=e188]:
+                          - option "January"
+                          - option "February"
+                          - option "March"
+                          - option "April"
+                          - option "May"
+                          - option "June" [selected]
+                          - option "July"
+                          - option "August"
+                          - option "September"
+                          - option "October"
+                          - option "November"
+                          - option "December"
+                      - generic [ref=e189]:
+                        - generic [ref=e190]: Year
+                        - combobox "Year" [ref=e192]:
+                          - option "1900"
+                          - option "1901"
+                          - option "1902"
+                          - option "1903"
+                          - option "1904"
+                          - option "1905"
+                          - option "1906"
+                          - option "1907"
+                          - option "1908"
+                          - option "1909"
+                          - option "1910"
+                          - option "1911"
+                          - option "1912"
+                          - option "1913"
+                          - option "1914"
+                          - option "1915"
+                          - option "1916"
+                          - option "1917"
+                          - option "1918"
+                          - option "1919"
+                          - option "1920"
+                          - option "1921"
+                          - option "1922"
+                          - option "1923"
+                          - option "1924"
+                          - option "1925"
+                          - option "1926"
+                          - option "1927"
+                          - option "1928"
+                          - option "1929"
+                          - option "1930"
+                          - option "1931"
+                          - option "1932"
+                          - option "1933"
+                          - option "1934"
+                          - option "1935"
+                          - option "1936"
+                          - option "1937"
+                          - option "1938"
+                          - option "1939"
+                          - option "1940"
+                          - option "1941"
+                          - option "1942"
+                          - option "1943"
+                          - option "1944"
+                          - option "1945"
+                          - option "1946"
+                          - option "1947"
+                          - option "1948"
+                          - option "1949"
+                          - option "1950"
+                          - option "1951"
+                          - option "1952"
+                          - option "1953"
+                          - option "1954"
+                          - option "1955"
+                          - option "1956"
+                          - option "1957"
+                          - option "1958"
+                          - option "1959"
+                          - option "1960"
+                          - option "1961"
+                          - option "1962"
+                          - option "1963"
+                          - option "1964"
+                          - option "1965"
+                          - option "1966"
+                          - option "1967"
+                          - option "1968"
+                          - option "1969"
+                          - option "1970"
+                          - option "1971"
+                          - option "1972"
+                          - option "1973"
+                          - option "1974"
+                          - option "1975"
+                          - option "1976"
+                          - option "1977"
+                          - option "1978"
+                          - option "1979"
+                          - option "1980"
+                          - option "1981"
+                          - option "1982"
+                          - option "1983"
+                          - option "1984"
+                          - option "1985"
+                          - option "1986"
+                          - option "1987"
+                          - option "1988"
+                          - option "1989"
+                          - option "1990"
+                          - option "1991"
+                          - option "1992"
+                          - option "1993"
+                          - option "1994"
+                          - option "1995"
+                          - option "1996"
+                          - option "1997"
+                          - option "1998"
+                          - option "1999"
+                          - option "2000"
+                          - option "2001"
+                          - option "2002"
+                          - option "2003"
+                          - option "2004"
+                          - option "2005"
+                          - option "2006"
+                          - option "2007"
+                          - option "2008"
+                          - option "2009"
+                          - option "2010"
+                          - option "2011"
+                          - option "2012"
+                          - option "2013"
+                          - option "2014"
+                          - option "2015"
+                          - option "2016"
+                          - option "2017"
+                          - option "2018"
+                          - option "2019"
+                          - option "2020"
+                          - option "2021"
+                          - option "2022"
+                          - option "2023"
+                          - option "2024"
+                          - option "2025"
+                          - option "2026"
+                          - option "2027" [selected]
+                          - option "2028"
+                          - option "2029"
+                          - option "2030"
+                          - option "2031"
+                          - option "2032"
+                          - option "2033"
+                          - option "2034"
+                          - option "2035"
+                          - option "2036"
+                          - option "2037"
+                          - option "2038"
+                          - option "2039"
+                          - option "2040"
+                          - option "2041"
+                          - option "2042"
+                          - option "2043"
+                          - option "2044"
+                          - option "2045"
+                          - option "2046"
+                          - option "2047"
+                          - option "2048"
+                          - option "2049"
+                          - option "2050"
+                      - generic [ref=e193]:
+                        - generic [ref=e194]: Hour
+                        - combobox "Hour" [ref=e196]:
+                          - option "00" [selected]
+                          - option "01"
+                          - option "02"
+                          - option "03"
+                          - option "04"
+                          - option "05"
+                          - option "06"
+                          - option "07"
+                          - option "08"
+                          - option "09"
+                          - option "10"
+                          - option "11"
+                          - option "12"
+                          - option "13"
+                          - option "14"
+                          - option "15"
+                          - option "16"
+                          - option "17"
+                          - option "18"
+                          - option "19"
+                          - option "20"
+                          - option "21"
+                          - option "22"
+                          - option "23"
+                      - generic [ref=e197]:
+                        - generic [ref=e198]: Minute
+                        - combobox "Minute" [ref=e200]:
+                          - option "00" [selected]
+                          - option "01"
+                          - option "02"
+                          - option "03"
+                          - option "04"
+                          - option "05"
+                          - option "06"
+                          - option "07"
+                          - option "08"
+                          - option "09"
+                          - option "10"
+                          - option "11"
+                          - option "12"
+                          - option "13"
+                          - option "14"
+                          - option "15"
+                          - option "16"
+                          - option "17"
+                          - option "18"
+                          - option "19"
+                          - option "20"
+                          - option "21"
+                          - option "22"
+                          - option "23"
+                          - option "24"
+                          - option "25"
+                          - option "26"
+                          - option "27"
+                          - option "28"
+                          - option "29"
+                          - option "30"
+                          - option "31"
+                          - option "32"
+                          - option "33"
+                          - option "34"
+                          - option "35"
+                          - option "36"
+                          - option "37"
+                          - option "38"
+                          - option "39"
+                          - option "40"
+                          - option "41"
+                          - option "42"
+                          - option "43"
+                          - option "44"
+                          - option "45"
+                          - option "46"
+                          - option "47"
+                          - option "48"
+                          - option "49"
+                          - option "50"
+                          - option "51"
+                          - option "52"
+                          - option "53"
+                          - option "54"
+                          - option "55"
+                          - option "56"
+                          - option "57"
+                          - option "58"
+                          - option "59"
+                      - button "Date picker" [ref=e203] [cursor=pointer]:
+                        - generic [ref=e204]: 
+                - generic [ref=e205]:
+                  - generic [ref=e206]:
+                    - generic [ref=e207]: Course ID number
+                    - button "Help" [ref=e209] [cursor=pointer]:
+                      - img "Help with Course ID number" [ref=e210]: 
+                  - textbox "Course ID number" [ref=e212]
+            - group "Description" [ref=e213]:
+              - generic [ref=e214]: Description
+              - generic [ref=e216]:
+                - button "Description" [expanded] [ref=e217] [cursor=pointer]:
+                  - generic "Collapse" [ref=e218]:
+                    - generic [ref=e219]: 
+                  - text:  
+                  - generic [ref=e220]: Description
+                - heading [level=3] [ref=e221]: Description
+              - generic [ref=e222]:
+                - generic [ref=e223]:
+                  - generic [ref=e224]:
+                    - generic [ref=e225]: Course summary
+                    - button "Help" [ref=e227] [cursor=pointer]:
+                      - img "Help with Course summary" [ref=e228]: 
+                  - application [ref=e232]:
+                    - generic [ref=e233]:
+                      - generic [ref=e234]:
+                        - menubar [ref=e235]:
+                          - menuitem "Edit" [ref=e236] [cursor=pointer]:
+                            - generic [ref=e237]: Edit
+                          - menuitem "View" [ref=e238] [cursor=pointer]:
+                            - generic [ref=e239]: View
+                          - menuitem "Insert" [ref=e240] [cursor=pointer]:
+                            - generic [ref=e241]: Insert
+                          - menuitem "Format" [ref=e242] [cursor=pointer]:
+                            - generic [ref=e243]: Format
+                          - menuitem "Tools" [ref=e244] [cursor=pointer]:
+                            - generic [ref=e245]: Tools
+                          - menuitem "Table" [ref=e246] [cursor=pointer]:
+                            - generic [ref=e247]: Table
+                          - menuitem "Help" [ref=e248] [cursor=pointer]:
+                            - generic [ref=e249]: Help
+                        - group [ref=e250]:
+                          - group [ref=e251]:
+                            - toolbar "history" [ref=e252]:
+                              - button "Undo" [disabled] [ref=e253]:
+                                - img [ref=e255]
+                              - button "Redo" [disabled] [ref=e257]:
+                                - img [ref=e259]
+                            - toolbar "formatting" [ref=e261]:
+                              - button "Bold" [ref=e262] [cursor=pointer]:
+                                - img [ref=e264]
+                              - button "Italic" [ref=e266] [cursor=pointer]:
+                                - img [ref=e268]
+                            - toolbar "content" [ref=e270]:
+                              - button "Image" [ref=e271] [cursor=pointer]:
+                                - img [ref=e273]
+                              - button "Multimedia" [ref=e275] [cursor=pointer]:
+                                - img [ref=e277]
+                              - button "Record audio" [ref=e279] [cursor=pointer]:
+                                - img [ref=e281]
+                              - button "Record video" [ref=e283] [cursor=pointer]:
+                                - img [ref=e285]
+                              - button "Insert H5P content" [ref=e287] [cursor=pointer]:
+                                - img [ref=e289]
+                              - button "Link" [ref=e291] [cursor=pointer]:
+                                - img [ref=e293]
+                              - button "Unlink" [ref=e295] [cursor=pointer]:
+                                - img [ref=e297]
+                            - toolbar "view" [ref=e299]:
+                              - button "Fullscreen" [ref=e300] [cursor=pointer]:
+                                - img [ref=e302]
+                            - toolbar [ref=e304]:
+                              - button "Reveal or hide additional toolbar items" [ref=e305] [cursor=pointer]:
+                                - img [ref=e307]
+                      - iframe [ref=e311]:
+                        - generic "Rich text area. Press ALT-0 for help." [active] [ref=f1e1]:
+                          - paragraph [ref=f1e2]
+                    - generic [ref=e312]:
+                      - generic [ref=e313]:
+                        - navigation [ref=e314]:
+                          - button "p" [ref=e315]
+                        - generic [ref=e316]:
+                          - button "0 words" [ref=e317] [cursor=pointer]
+                          - link "Build with TinyMCE" [ref=e319]:
+                            - /url: https://www.tiny.cloud/powered-by-tiny?utm_campaign=poweredby&utm_source=tiny&utm_medium=referral&utm_content=v7
+                            - text: Build with
+                            - img [ref=e320]
+                      - generic "Press the Up and Down arrow keys to resize the editor." [ref=e326]:
+                        - img [ref=e327]
+                - generic [ref=e330]:
+                  - generic [ref=e331]:
+                    - paragraph [ref=e332]: Course image
+                    - button "Help" [ref=e334] [cursor=pointer]:
+                      - img "Help with Course image" [ref=e335]: 
+                  - group "Course image" [ref=e337]:
+                    - generic [ref=e338]: Course image
+                    - generic [ref=e339]:
+                      - generic [ref=e340]: "Maximum file size: Unlimited, maximum number of files: 1 "
+                      - generic [ref=e341]:
+                        - generic [ref=e342]:
+                          - generic [ref=e343]:
+                            - button "Add..." [ref=e345] [cursor=pointer]:
+                              - generic [ref=e346]: 
+                            - text:    
+                          - generic [ref=e347]:
+                            - link "Display folder with file icons" [ref=e348] [cursor=pointer]:
+                              - /url: "#"
+                              - generic [ref=e349]: 
+                            - link "Display folder with file details" [ref=e350] [cursor=pointer]:
+                              - /url: "#"
+                              - generic [ref=e351]: 
+                            - link "Display folder as file tree" [ref=e352] [cursor=pointer]:
+                              - /url: "#"
+                              - generic [ref=e353]: 
+                        - link "Files" [ref=e356] [cursor=pointer]:
+                          - /url: "#"
+                      - text: 
+                      - generic [ref=e357]:
+                        - generic:
+                          - generic [ref=e359]:
+                            - text: You can drag and drop files here to add them.
+                            - generic [ref=e361]: 
+                          - text:  
+                        - text: 
+                    - generic [ref=e362]: "Accepted file types:"
+                    - list [ref=e364]:
+                      - listitem [ref=e365]: Image files used on the web .gif .jpe .jpeg .jpg .png .svg .svgz .webp
+            - group "Course format" [ref=e366]:
+              - generic [ref=e367]: Course format
+              - generic [ref=e369]:
+                - button "Course format" [ref=e370] [cursor=pointer]:
+                  - text: 
+                  - generic "Expand" [ref=e371]:
+                    - generic [ref=e373]: 
+                    - text: 
+                  - generic [ref=e374]: Course format
+                - heading [level=3] [ref=e375]: Course format
+              - text:             
+            - group "Appearance" [ref=e376]:
+              - generic [ref=e377]: Appearance
+              - generic [ref=e379]:
+                - button "Appearance" [ref=e380] [cursor=pointer]:
+                  - text: 
+                  - generic "Expand" [ref=e381]:
+                    - generic [ref=e383]: 
+                    - text: 
+                  - generic [ref=e384]: Appearance
+                - heading [level=3] [ref=e385]: Appearance
+              - text:    
+            - group "Files and uploads" [ref=e386]:
+              - generic [ref=e387]: Files and uploads
+              - generic [ref=e389]:
+                - button "Files and uploads" [ref=e390] [cursor=pointer]:
+                  - text: 
+                  - generic "Expand" [ref=e391]:
+                    - generic [ref=e393]: 
+                    - text: 
+                  - generic [ref=e394]: Files and uploads
+                - heading [level=3] [ref=e395]: Files and uploads
+              - text: 
+            - group "Completion tracking" [ref=e396]:
+              - generic [ref=e397]: Completion tracking
+              - generic [ref=e399]:
+                - button "Completion tracking" [ref=e400] [cursor=pointer]:
+                  - text: 
+                  - generic "Expand" [ref=e401]:
+                    - generic [ref=e403]: 
+                    - text: 
+                  - generic [ref=e404]: Completion tracking
+                - heading [level=3] [ref=e405]: Completion tracking
+              - text:  
+            - group "Groups" [ref=e406]:
+              - generic [ref=e407]: Groups
+              - generic [ref=e409]:
+                - button "Groups" [ref=e410] [cursor=pointer]:
+                  - text: 
+                  - generic "Expand" [ref=e411]:
+                    - generic [ref=e413]: 
+                    - text: 
+                  - generic [ref=e414]: Groups
+                - heading [level=3] [ref=e415]: Groups
+              - text:  
+            - group "Tags" [ref=e416]:
+              - generic [ref=e417]: Tags
+              - generic [ref=e419]:
+                - button "Tags" [ref=e420] [cursor=pointer]:
+                  - text: 
+                  - generic "Expand" [ref=e421]:
+                    - generic [ref=e423]: 
+                    - text: 
+                  - generic [ref=e424]: Tags
+                - heading [level=3] [ref=e425]: Tags
+            - group "TVET classification" [ref=e426]:
+              - generic [ref=e427]: TVET classification
+              - generic [ref=e429]:
+                - button "TVET classification" [expanded] [ref=e430] [cursor=pointer]:
+                  - generic "Collapse" [ref=e431]:
+                    - generic [ref=e432]: 
+                  - text:  
+                  - generic [ref=e433]: TVET classification
+                - heading [level=3] [ref=e434]: TVET classification
+              - generic [ref=e435]:
+                - generic [ref=e436]:
+                  - generic [ref=e438]: Trade
+                  - combobox "Trade" [ref=e440]:
+                    - option "Choose..." [selected]
+                    - option "AET (528)"
+                    - option "AGR (579)"
+                    - option "ANH (562)"
+                    - option "AUT (584)"
+                    - option "Accounting (CSV_ACCOUNTING)"
+                    - option "Agri-Mechanization (531)"
+                    - option "Agriculture (CSV_AGRICULTURE)"
+                    - option "Animal Health (CSV_ANIMAL_HEALTH)"
+                    - option "Arts and Craft (426)"
+                    - option "Auto Electricity and Electronics Systems (CSV_AUTO_ELECTRICITY_AND_ELECTRONICS_SYSTEMS)"
+                    - option "Auto Engine Technology (592)"
+                    - option "Automobile Technology (CSV_AUTOMOBILE_TECHNOLOGY)"
+                    - option "Automobile Transmission and Control Systems Technology (CSV_AUTOMOBILE_TRANSMISSION_AND_CONTROL_SYST)"
+                    - option "Automobile repair and maintenance (624)"
+                    - option "BAK (623)"
+                    - option "BDC (527)"
+                    - option "Building Construction (CSV_BUILDING_CONSTRUCTION)"
+                    - option "Business Services (CSV_BUSINESS_SERVICES)"
+                    - option "CAP (502)"
+                    - option "CSA (572)"
+                    - option "CUA (504)"
+                    - option "Carpentry (CSV_CARPENTRY)"
+                    - option "Ceramics & Sculpture (CSV_CERAMICS_SCULPTURE)"
+                    - option "Computer Systems and Architecture (CSV_COMPUTER_SYSTEMS_AND_ARCHITECTURE)"
+                    - option "Construction (552)"
+                    - option "Crop Production (CSV_CROP_PRODUCTION)"
+                    - option "Culinary Arts (CSV_CULINARY_ARTS)"
+                    - option "Customs and Tax Operations (CSV_CUSTOMS_AND_TAX_OPERATIONS)"
+                    - option "Domestic Electricity (505)"
+                    - option "Domestic Plumbing (626)"
+                    - option "ELS (544)"
+                    - option "ELT (545)"
+                    - option "ETE (556)"
+                    - option "Electrical Technology (CSV_ELECTRICAL_TECHNOLOGY)"
+                    - option "Electricity (554)"
+                    - option "Electronic services (CSV_ELECTRONIC_SERVICES)"
+                    - option "Electronics and Telecommunication (CSV_ELECTRONICS_AND_TELECOMMUNICATION)"
+                    - option "FAD (576)"
+                    - option "FBO (568)"
+                    - option "FHO (567)"
+                    - option "FOP (510)"
+                    - option "FOR (511)"
+                    - option "FPA (577)"
+                    - option "FVP (622)"
+                    - option "Fashion Design (CSV_FASHION_DESIGN)"
+                    - option "Fine and Plastic Arts (CSV_FINE_AND_PLASTIC_ARTS)"
+                    - option "Food and Beverage Operations (CSV_FOOD_AND_BEVERAGE_OPERATIONS)"
+                    - option "Food and Beverage Services (CSV_FOOD_AND_BEVERAGE_SERVICES)"
+                    - option "Food processing (CSV_FOOD_PROCESSING)"
+                    - option "Forestry (CSV_FORESTRY)"
+                    - option "Front Office Operations (CSV_FRONT_OFFICE_OPERATIONS)"
+                    - option "Front Office and Housekeeping Operations (CSV_FRONT_OFFICE_AND_HOUSEKEEPING_OPERATIONS)"
+                    - option "Graphics arts (CSV_GRAPHICS_ARTS)"
+                    - option "Hairdressing (536)"
+                    - option "Hairdressing-Aesthetics (513)"
+                    - option "Hydropower Energy (CSV_HYDROPOWER_ENERGY)"
+                    - option "IND (551)"
+                    - option "Industrial Electricity (CSV_INDUSTRIAL_ELECTRICITY)"
+                    - option "Interior Design (CSV_INTERIOR_DESIGN)"
+                    - option "LSV (543)"
+                    - option "LTW (621)"
+                    - option "Land surveying (CSV_LAND_SURVEYING)"
+                    - option "Leather Craft (517)"
+                    - option "Leather Technology (CSV_LEATHER_TECHNOLOGY)"
+                    - option "Leather Works /Shoe Making (CSV_LEATHER_WORKS_SHOE_MAKING)"
+                    - option "Leather works (627)"
+                    - option "MAS (518)"
+                    - option "MAT (585)"
+                    - option "MMP (573)"
+                    - option "MPA (578)"
+                    - option "MPT (565)"
+                    - option "Manufacturing Technology (CSV_MANUFACTURING_TECHNOLOGY)"
+                    - option "Masonry (CSV_MASONRY)"
+                    - option "Mechanical Production Technology (CSV_MECHANICAL_PRODUCTION_TECHNOLOGY)"
+                    - option "Mining Technology (CSV_MINING_TECHNOLOGY)"
+                    - option "Multimedia (CSV_MULTIMEDIA)"
+                    - option "Multimedia Production (CSV_MULTIMEDIA_PRODUCTION)"
+                    - option "Music (CSV_MUSIC)"
+                    - option "Music and Performing Arts (CSV_MUSIC_AND_PERFORMING_ARTS)"
+                    - option "NET (564)"
+                    - option "NIT (574)"
+                    - option "Networking (CSV_NETWORKING)"
+                    - option "Networking and Internet Technologies (CSV_NETWORKING_AND_INTERNET_TECHNOLOGIES)"
+                    - option "Office Management (CSV_OFFICE_MANAGEMENT)"
+                    - option "PLT (529)"
+                    - option "PWO (553)"
+                    - option "Plumbing (CSV_PLUMBING)"
+                    - option "Plumbing Technology (CSV_PLUMBING_TECHNOLOGY)"
+                    - option "Public Works (CSV_PUBLIC_WORKS)"
+                    - option "REN (566)"
+                    - option "Renewable Energy (CSV_RENEWABLE_ENERGY)"
+                    - option "Road Construction (CSV_ROAD_CONSTRUCTION)"
+                    - option "SOD (541)"
+                    - option "SPE (575)"
+                    - option "Software Development (CSV_SOFTWARE_DEVELOPMENT)"
+                    - option "Software Programming and Embedded Systems (CSV_SOFTWARE_PROGRAMMING_AND_EMBEDDED_SYSTEM)"
+                    - option "Solar Energy (CSV_SOLAR_ENERGY)"
+                    - option "TAL (526)"
+                    - option "TOR (563)"
+                    - option "Tailoring (CSV_TAILORING)"
+                    - option "Telecommunication (CSV_TELECOMMUNICATION)"
+                    - option "Tourism (CSV_TOURISM)"
+                    - option "WIR (581)"
+                    - option "WLD (525)"
+                    - option "WOT (580)"
+                    - option "Water and Irrigation (CSV_WATER_AND_IRRIGATION)"
+                    - option "Welding (CSV_WELDING)"
+                    - option "Welding Sheet Metal Fabrication (530)"
+                    - option "Wood Technology (CSV_WOOD_TECHNOLOGY)"
+                - generic [ref=e441]:
+                  - generic [ref=e443]: Level
+                  - combobox "Level" [ref=e445]:
+                    - option "Choose..." [selected]
+                    - option "Level 1"
+                    - option "Level 2"
+                    - option "Level 3"
+                    - option "Level 4"
+                    - option "Level 5"
+                - generic [ref=e446]:
+                  - generic [ref=e448]: Module
+                  - generic [ref=e449]:
+                    - generic [ref=e450]: "Selected items:"
+                    - status [ref=e451]
+                    - listbox "Selected items:" [ref=e452]: Choose...
+                    - generic [ref=e453]:
+                      - combobox "Module" [active] [ref=e454]
+                      - generic [ref=e455] [cursor=pointer]: ▼
+            - generic [ref=e460]:
+              - button "Save and display" [ref=e463] [cursor=pointer]
+              - button "Cancel" [ref=e466] [cursor=pointer]
+            - generic [ref=e467]:
+              - generic [ref=e468]: 
+              - text: Required
+      - contentinfo [ref=e469]:
+        - button "Show footer" [ref=e470] [cursor=pointer]:
+          - generic [ref=e471]: "?"
+        - text:    
+  - text: ×     

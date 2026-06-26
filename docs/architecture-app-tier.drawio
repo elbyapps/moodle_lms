@@ -1,0 +1,169 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="rtb-app-tier" name="RTB eLearning — App Tier (TOR)">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1720" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===== Group boxes ===== -->
+        <mxCell id="grp_ch" value="Channels" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="250" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_acc" value="Access &amp; API edge" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fbe3e2;strokeColor=#b85450;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="310" width="250" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_data" value="Data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6ffe6;strokeColor=#82b366;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="540" width="250" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_core" value="Moodle Application Core (PHP-FPM)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fe;strokeColor=#6c8ebf;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="330" y="40" width="560" height="630" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_svc" value="Platform services (new)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6ffe6;strokeColor=#82b366;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="930" y="40" width="290" height="400" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_ext" value="Integrated systems (internal + external) — all via TDMP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1450" y="40" width="250" height="500" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_edge" value="Edge / offline — schools  §3.8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="330" y="710" width="890" height="150" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Channels ===== -->
+        <mxCell id="ch_web" value="Web portal&#10;modernized UI  §3.6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="65" y="80" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ch_pwa" value="Mobile / PWA&#10;offline packs  §3.2.2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="65" y="145" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ch_seb" value="Safe Exam Browser  §3.2.2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="65" y="210" width="200" height="46" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Access ===== -->
+        <mxCell id="acc_sso" value="IdP / SSO + MFA  §3.7" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="65" y="350" width="200" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="acc_gw" value="API Gateway&#10;secure APIs / OAuth2  §3.5 / §3.6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="65" y="420" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Data ===== -->
+        <mxCell id="data" value="DB · Object storage · Search index · Vector store" style="shape=cylinder3;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="1">
+          <mxGeometry x="70" y="575" width="200" height="75" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Core modules ===== -->
+        <mxCell id="m_lib" value="Digital Resource Library&#10;+ Content Bank  §3.2.1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="360" y="85" width="250" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="m_badge" value="Badges &amp; Certification  §3.1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="360" y="153" width="250" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="m_fb" value="Feedback, Categorization &amp; Surveys  §3.3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="360" y="215" width="250" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="m_wf" value="Content Approval Workflow&#10;draft → review → approve → publish  §3.4" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="360" y="283" width="250" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="m_collab" value="Collaboration: forums / annotations  §3.2.2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="360" y="351" width="250" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="m_rbac" value="Access Mgmt / RBAC&#10;onboarding · offboarding  §3.7" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="625" y="85" width="250" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="m_arch" value="Archiving  §3.6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="625" y="153" width="250" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="m_ws" value="Web Services / REST + LTI&#10;analytics events  §3.5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="625" y="215" width="250" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="m_search_c" value="Global Search connector  §3.2.1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="625" y="283" width="250" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="m_off" value="Offline packager (service worker)  §3.2.2 / §3.8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#eaf1fb;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="625" y="351" width="250" height="48" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Platform services ===== -->
+        <mxCell id="svc_search" value="Search engine (OpenSearch)&#10;full-text PDF / DOCX / EPUB  §3.2.1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="955" y="85" width="240" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="svc_ai" value="AI / RAG service&#10;chatbot · recommendations&#10;at-risk early-warning · analytics&#10;§3.2.2 / §3.3 / §3.5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="955" y="165" width="240" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="svc_vec" value="Vector DB (embeddings)  §3.2.2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="955" y="270" width="240" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="svc_media" value="Media transcoding / streaming  §3.2.2" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="955" y="345" width="240" height="54" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Integration hub (TDMP) + integrated systems ===== -->
+        <mxCell id="tdmp" value="TDMP&#10;integration hub&#10;(all internal + external&#10;integrations route here)&#10;§3.6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd966;strokeColor=#d6b656;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1255" y="195" width="150" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="ex_sdms" value="SDMS" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="82" width="190" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="ex_curr" value="Curriculum mgmt  §3.6" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="140" width="190" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="ex_eped" value="E-pedagogy  §3.6" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="198" width="190" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="ex_proc" value="Proctoring  §3.5" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="256" width="190" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="ex_plag" value="Anti-plagiarism  §3.5" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="314" width="190" height="44" as="geometry" />
+        </mxCell>
+        <mxCell id="ex_third" value="National ed / 3rd-party systems  §3.5" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1470" y="372" width="190" height="54" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Edge / offline ===== -->
+        <mxCell id="ed_sync" value="Content Sync service&#10;(syncqueue)  §3.8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b3;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="360" y="755" width="190" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ed_cdn" value="CDN  §3.8" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="600" y="755" width="170" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ed_school" value="School edge servers&#10;offline LMS + local content  §3.8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b3;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="820" y="755" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ed_fleet" value="Fleet mgmt /&#10;health monitor  §3.8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b3;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="755" width="150" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Edges ===== -->
+        <mxCell id="e_ch_acc" value="login / requests" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="grp_ch" target="grp_acc"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_acc_core" value="authenticated" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.55;entryDx=0;entryDy=0;" edge="1" parent="1" source="grp_acc" target="grp_core"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_core_data" value="read / write" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.85;exitDx=0;exitDy=0;entryX=1;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="grp_core" target="data"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e_search" value="index / query" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.45;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="m_search_c" target="svc_search"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_ai" value="RAG / inference" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="m_ws" target="svc_ai"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_aivec" value="embeddings" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="svc_ai" target="svc_vec"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_media" value="transcode" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.75;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="m_lib" target="svc_media"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="905" y="372" /></Array></mxGeometry></mxCell>
+
+        <mxCell id="e_gw_tdmp" value="secure APIs — all integrations" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="acc_gw" target="tdmp"><mxGeometry x="0.4" relative="1" as="geometry"><Array as="points"><mxPoint x="300" y="450" /><mxPoint x="300" y="690" /><mxPoint x="1330" y="690" /></Array></mxGeometry></mxCell>
+        <mxCell id="e_tdmp_sdms" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.15;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="tdmp" target="ex_sdms"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_tdmp_curr" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.32;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="tdmp" target="ex_curr"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_tdmp_eped" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="tdmp" target="ex_eped"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_tdmp_proc" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.68;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="tdmp" target="ex_proc"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_tdmp_plag" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="tdmp" target="ex_plag"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_tdmp_third" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.98;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="tdmp" target="ex_third"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_core_gw" value="web services" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.4;exitDx=0;exitDy=0;entryX=1;entryY=0.1;entryDx=0;entryDy=0;" edge="1" parent="1" source="m_ws" target="acc_gw"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e_core_sync" value="publish content" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.4;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="grp_core" target="ed_sync"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_sync_cdn" value="distribute" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ed_sync" target="ed_cdn"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_cdn_school" value="cache to schools" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ed_cdn" target="ed_school"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_fleet_school" value="manage / monitor" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="ed_fleet" target="ed_school"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <!-- ===== Legend ===== -->
+        <mxCell id="legend" value="§n = TOR section.   Blue = Moodle core modules (plugins).   Green = new platform services.   Red = access/API edge.   Amber = external integrations.   Orange = edge/offline (schools).&#10;Notes: §3.3 categorization &amp; §3.5 early-warning/analytics run on the AI service; ALL internal + external integrations (SDMS, curriculum, e-pedagogy, proctoring, anti-plagiarism, 3rd-party) route through TDMP via the API gateway — TDMP is the single integration hub (§3.6); offline (§3.2.2/§3.8) = PWA packs + school edge servers fed by the CDN." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;align=left;verticalAlign=top;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="250" height="160" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

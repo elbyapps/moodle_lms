@@ -277,6 +277,17 @@ if ($hassiteconfig) {
         0
     ));
 
+    // Manual "sync roster now" action (school instances).
+    $settings->add(new admin_setting_description(
+        'local_elby_dashboard/roster_sync_now',
+        get_string('roster_sync_now', 'local_elby_dashboard'),
+        html_writer::link(
+            new moodle_url('/local/elby_dashboard/sync_roster.php', ['sesskey' => sesskey()]),
+            get_string('roster_sync_now_btn', 'local_elby_dashboard'),
+            ['class' => 'btn btn-secondary']
+        )
+    ));
+
     // SDMS Signup Email Domain.
     $settings->add(new admin_setting_configtext(
         'local_elby_dashboard/sdms_signup_email_domain',

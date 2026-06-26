@@ -1,0 +1,41 @@
+- generic [ref=e1]:
+  - status
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#maincontent"
+  - generic [ref=e5]:
+    - link "RTB" [ref=e7] [cursor=pointer]:
+      - /url: https://test.elearning.rtb.gov.rw
+      - img "RTB" [ref=e8]
+    - generic [ref=e9]:
+      - heading "Welcome Back" [level=1] [ref=e10]
+      - paragraph [ref=e11]: Sign in to continue to your account.
+    - main [ref=e13]:
+      - generic [ref=e15]:
+        - alert [ref=e16]: Invalid login, please try again
+        - generic [ref=e17]:
+          - generic [ref=e18]:
+            - generic [ref=e19]: Username
+            - textbox "Username" [active] [ref=e20]
+          - generic [ref=e21]:
+            - generic [ref=e22]: Password
+            - generic [ref=e23]:
+              - textbox "Password" [ref=e24]
+              - text: 
+          - button "Log in" [ref=e26] [cursor=pointer]
+          - link "Lost password?" [ref=e28] [cursor=pointer]:
+            - /url: https://test.elearning.rtb.gov.rw/login/forgot_password.php
+        - generic [ref=e29]:
+          - link "RTB Microsoft 365" [ref=e30] [cursor=pointer]:
+            - /url: https://test.elearning.rtb.gov.rw/auth/oidc/?source=loginpage
+          - link "RTB SSO" [ref=e31] [cursor=pointer]:
+            - /url: https://test.elearning.rtb.gov.rw/auth/oauth2/login.php?id=2&sesskey=TeOlV8T6wi
+    - generic [ref=e32]:
+      - paragraph [ref=e33]: Don't have an account?
+      - link " Sign up with SDMS" [ref=e34] [cursor=pointer]:
+        - /url: https://test.elearning.rtb.gov.rw/local/elby_dashboard/signup.php
+        - generic [ref=e35]: 
+        - text: Sign up with SDMS
+    - link " Back to Home" [ref=e37] [cursor=pointer]:
+      - /url: https://test.elearning.rtb.gov.rw
+      - generic [ref=e38]: 
+      - text: Back to Home

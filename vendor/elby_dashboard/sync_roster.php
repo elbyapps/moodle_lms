@@ -15,17 +15,30 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information for local_elby_dashboard.
+ * Admin action: refresh the school's offline roster cache on demand.
  *
  * @package    local_elby_dashboard
  * @copyright  2025 Rwanda TVET Board
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+require_once(__DIR__ . '/../../config.php');
 
-$plugin->component = 'local_elby_dashboard';
-$plugin->version = 2026062604;           // The current plugin version (Date: YYYYMMDDXX).
-$plugin->requires = 2025041400;          // Requires Moodle 5.0 (Build: 20250414).
-$plugin->maturity = MATURITY_ALPHA;      // Code maturity level.
-$plugin->release = '1.0.0';              // Human-readable version name.
+require_login();
+$context = context_system::instance();
+require_capability('moodle/site:config', $context);
+require_sesskey();
+
+$returnurl = new moodle_url('/admin/settings.php', ['section' => 'local_elby_dashboard']);
+
+try {
+    $result = (new \local_elby_dashboard\roster_manager())->sync_roster();
+    redirect(
+        $returnurl,
+        get_string('roster_synced', 'local_elby_dashboard', (object) $result),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
+} catch (\Throwable $e) {
+    redirect($returnurl, $e->getMessage(), null, \core\output\notification::NOTIFY_ERROR);
+}

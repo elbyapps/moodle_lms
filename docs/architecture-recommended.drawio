@@ -1,0 +1,149 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="rtb-elearning-recommended" name="RTB eLearning — Recommended">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1420" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===== Group boxes ===== -->
+        <mxCell id="grp_clients" value="Clients" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="210" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_platform" value="Platform (new)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0e6ff;strokeColor=#9673a6;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="40" y="320" width="210" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_app" value="App tier — 2 nodes (scale-out)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f0fe;strokeColor=#6c8ebf;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="300" y="40" width="380" height="350" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_data" value="Database — HA (new replica)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6ffe6;strokeColor=#82b366;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="720" y="40" width="360" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_cache" value="Cache / sessions — split (new)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6ffe6;strokeColor=#82b366;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="720" y="250" width="360" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_obj" value="Files — moodledata via objectfs (new)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="720" y="430" width="360" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="grp_backup" value="Backups — 3-2-1 (new)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalAlign=top;fontStyle=1;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="250" width="260" height="290" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Clients ===== -->
+        <mxCell id="browser" value="Browser" style="shape=mxgraph.networks.pc;html=1;fillColor=#ffffff;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="70" y="80" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="mobile" value="Mobile app" style="shape=mxgraph.networks.mobile;html=1;fillColor=#ffffff;strokeColor=#666666;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="165" y="80" width="35" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Proxy / LB ===== -->
+        <mxCell id="proxy" value="Reverse proxy&#10;TLS + load balance" style="shape=mxgraph.networks.load_balancer;html=1;fillColor=#f8cecc;strokeColor=#b85450;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="110" y="210" width="60" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Platform ===== -->
+        <mxCell id="metrics" value="Metrics + dashboards" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5f0;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="65" y="362" width="160" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="alerts" value="Alerting" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5f0;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="65" y="420" width="160" height="42" as="geometry" />
+        </mxCell>
+        <mxCell id="secrets" value="Secrets&#10;(Vault / Docker secrets)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5f0;strokeColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="65" y="474" width="160" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ===== External ===== -->
+        <mxCell id="sdms" value="SDMS API (REB)" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d6b656;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="80" y="590" width="120" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ===== App tier ===== -->
+        <mxCell id="cron" value="cron&#10;single node" style="shape=cube;html=1;whiteSpace=wrap;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="500" y="90" width="130" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="nginx1" value="nginx · n1" style="shape=cube;html=1;whiteSpace=wrap;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="330" y="90" width="120" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="php1_s1" value="" style="shape=cube;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="340" y="160" width="120" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="php1" value="PHP-FPM ×N · n1" style="shape=cube;html=1;whiteSpace=wrap;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="330" y="170" width="120" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="nginx2" value="nginx · n2" style="shape=cube;html=1;whiteSpace=wrap;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="330" y="260" width="120" height="48" as="geometry" />
+        </mxCell>
+        <mxCell id="php2_s1" value="" style="shape=cube;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1">
+          <mxGeometry x="340" y="320" width="120" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="php2" value="PHP-FPM ×N · n2" style="shape=cube;html=1;whiteSpace=wrap;boundedLbl=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#dae8fc;strokeColor=#6c8ebf;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="330" y="330" width="120" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Database ===== -->
+        <mxCell id="db_primary" value="MariaDB&#10;primary" style="shape=cylinder3;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="760" y="90" width="120" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="db_replica" value="MariaDB&#10;replica" style="shape=cylinder3;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="930" y="90" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Cache ===== -->
+        <mxCell id="redis_sess" value="Session Redis&#10;noeviction" style="shape=cylinder3;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="760" y="300" width="150" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="redis_cache" value="Cache Redis&#10;allkeys-lru" style="shape=cylinder3;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#d5e8d4;strokeColor=#82b366;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="920" y="300" width="150" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Object storage ===== -->
+        <mxCell id="s3" value="S3 / Garage (replicated)" style="shape=cloud;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="800" y="465" width="200" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Backups ===== -->
+        <mxCell id="backup" value="Nightly&#10;DB + files" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d79b00;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="295" width="170" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="offsite" value="Offsite copy&#10;(2nd site)" style="shape=cloud;html=1;fillColor=#ffffff;strokeColor=#d79b00;verticalLabelPosition=bottom;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="420" width="170" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ===== Edges ===== -->
+        <mxCell id="e_browser" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="browser" target="proxy"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_mobile" value="HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="mobile" target="proxy"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_p_n1" value="LB" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="proxy" target="nginx1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_p_n2" value="LB" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="proxy" target="nginx2"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_n1_php1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="nginx1" target="php1"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_n2_php2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;" edge="1" parent="1" source="nginx2" target="php2"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e_php1_db" value=":3306" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.2;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="php1" target="grp_data"><mxGeometry x="0.6" relative="1" as="geometry"><mxPoint y="-10" as="offset" /></mxGeometry></mxCell>
+        <mxCell id="e_php1_cache" value="sessions + cache" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.55;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="php1" target="grp_cache"><mxGeometry x="0.55" relative="1" as="geometry"><mxPoint y="-10" as="offset" /></mxGeometry></mxCell>
+        <mxCell id="e_php1_obj" value="objectfs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="php1" target="grp_obj"><mxGeometry x="0.6" relative="1" as="geometry"><mxPoint y="-10" as="offset" /></mxGeometry></mxCell>
+        <mxCell id="e_php2_db" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#a9bcd6;exitX=1;exitY=0.2;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" parent="1" source="php2" target="grp_data"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_php2_cache" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#a9bcd6;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" parent="1" source="php2" target="grp_cache"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_php2_obj" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#a9bcd6;exitX=1;exitY=0.85;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;" edge="1" parent="1" source="php2" target="grp_obj"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e_cron_db" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cron" target="grp_data"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_cron_obj" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;exitX=1;exitY=0.8;exitDx=0;exitDy=0;entryX=0.4;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="cron" target="grp_obj"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="690" y="120" /><mxPoint x="690" y="420" /></Array></mxGeometry></mxCell>
+
+        <mxCell id="e_repl" value="replication" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="db_primary" target="db_replica"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e_db_backup" value="DB dump" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;" edge="1" parent="1" source="db_replica" target="backup"><mxGeometry x="0.3" relative="1" as="geometry"><mxPoint y="-10" as="offset" /></mxGeometry></mxCell>
+        <mxCell id="e_s3_backup" value="files" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.8;entryDx=0;entryDy=0;" edge="1" parent="1" source="s3" target="backup"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_backup_offsite" value="rclone (3-2-1)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=11;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="backup" target="offsite"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="e_metrics_app" value="scrape /metrics" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.85;entryDx=0;entryDy=0;" edge="1" parent="1" source="metrics" target="grp_app"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="270" y="385" /><mxPoint x="270" y="338" /></Array></mxGeometry></mxCell>
+        <mxCell id="e_metrics_alert" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="metrics" target="alerts"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="e_secrets_app" value="inject" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.95;entryDx=0;entryDy=0;" edge="1" parent="1" source="secrets" target="grp_app"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="285" y="499" /><mxPoint x="285" y="372" /></Array></mxGeometry></mxCell>
+
+        <mxCell id="e_app_sdms" value="SDMS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;dashed=1;fontSize=11;labelBackgroundColor=#ffffff;exitX=0;exitY=0.95;exitDx=0;exitDy=0;entryX=1;entryY=0.4;entryDx=0;entryDy=0;" edge="1" parent="1" source="grp_app" target="sdms"><mxGeometry x="0.7" relative="1" as="geometry"><Array as="points"><mxPoint x="265" y="372" /><mxPoint x="265" y="608" /></Array></mxGeometry></mxCell>
+
+        <!-- ===== Notes ===== -->
+        <mxCell id="notes" value="What changed vs current (addresses review findings):&#10;• 2 app nodes behind LB + DB replica → removes single-host / DB SPOF (F-3)&#10;• Redis split: sessions=noeviction, cache=allkeys-lru → no session eviction (F-2)&#10;• moodledata → S3/objectfs (shared) → enables multi-node scale-out (F-4)&#10;• Backups: nightly DB+files, offsite 3-2-1, tested restore (F-1)&#10;• Metrics + alerting on Redis mem / disk / DB / health (F-6)&#10;• Secrets in Vault / Docker secrets, not plaintext .env (F-5)&#10;• cron stays single-node (Moodle requires one scheduler)&#10;— solid: always-on   - - - dashed: control / backup / integration" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#999999;align=left;verticalAlign=top;fontSize=11;spacing=6;" vertex="1" parent="1">
+          <mxGeometry x="300" y="410" width="400" height="240" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,65 @@
+- generic [active] [ref=e1]:
+  - status
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - link "moodle" [ref=e6] [cursor=pointer]:
+          - /url: http://localhost:8080
+          - generic [ref=e7]: moodle
+        - generic [ref=e8]:
+          - list [ref=e9]:
+            - listitem [ref=e10]:
+              - link "Home" [ref=e11] [cursor=pointer]:
+                - /url: http://localhost:8080/?redirect=0
+            - listitem [ref=e12]:
+              - link "Dashboard" [ref=e13] [cursor=pointer]:
+                - /url: http://localhost:8080/my/
+            - listitem [ref=e14]:
+              - link "My courses" [ref=e15] [cursor=pointer]:
+                - /url: http://localhost:8080/my/courses.php
+            - listitem [ref=e16]:
+              - link "Site administration" [ref=e17] [cursor=pointer]:
+                - /url: http://localhost:8080/admin/search.php
+            - listitem [ref=e18]:
+              - link "Elby Dashboard" [ref=e19] [cursor=pointer]:
+                - /url: http://localhost:8080/local/elby_dashboard/index.php
+          - generic [ref=e20]:
+            - button "User menu" [ref=e27] [cursor=pointer]:
+              - generic [ref=e28]:
+                - text: Admin User
+                - img "Admin User" [ref=e31]: AU
+              - text: 
+            - generic [ref=e33]:
+              - generic [ref=e34]: Edit mode
+              - checkbox "Edit mode" [ref=e36]
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - button "Open block drawer" [ref=e40] [cursor=pointer]:
+          - generic [ref=e41]: Open block drawer
+          - generic [ref=e43]: 
+          - text: 
+        - banner [ref=e44]:
+          - heading "Complete your account setup" [level=1] [ref=e51]
+        - main [ref=e55]:
+          - generic [ref=e57]:
+            - paragraph [ref=e58]: Student — Enter your SDMS code to find and link your record.
+            - generic [ref=e59]:
+              - generic [ref=e60]:
+                - generic [ref=e61]: SDMS code
+                - textbox "SDMS code" [ref=e62]
+              - button "Look up" [ref=e63] [cursor=pointer]
+            - button "Choose a different role" [ref=e65] [cursor=pointer]
+      - contentinfo [ref=e66]:
+        - button "Show footer" [ref=e67] [cursor=pointer]:
+          - generic [ref=e68]: "?"
+        - text:    
+        - generic [ref=e70]:
+          - link "Purge all caches" [ref=e72] [cursor=pointer]:
+            - /url: http://localhost:8080/admin/purgecaches.php?confirm=1&sesskey=E9KZwAoiTF&returnurl=%2Flocal%2Felby_dashboard%2Fonboard.php
+          - generic [ref=e73]:
+            - generic [ref=e74]:
+              - text: "Reactive instances:"
+              - generic [ref=e75]: This page has no reactive instances.
+            - img "Loading" [ref=e78]: 

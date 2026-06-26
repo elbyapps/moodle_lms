@@ -1,0 +1,50 @@
+- generic [active] [ref=e1]:
+  - status
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - link "moodle" [ref=e6] [cursor=pointer]:
+          - /url: http://localhost:8080
+          - generic [ref=e7]: moodle
+        - generic [ref=e8]:
+          - list [ref=e9]:
+            - listitem [ref=e10]:
+              - link "Home" [ref=e11] [cursor=pointer]:
+                - /url: http://localhost:8080/?redirect=0
+            - listitem [ref=e12]:
+              - link "Dashboard" [ref=e13] [cursor=pointer]:
+                - /url: http://localhost:8080/my/
+            - listitem [ref=e14]:
+              - link "My courses" [ref=e15] [cursor=pointer]:
+                - /url: http://localhost:8080/my/courses.php
+            - listitem [ref=e16]:
+              - link "Admin Dashboard" [ref=e17] [cursor=pointer]:
+                - /url: http://localhost:8080/local/elby_dashboard/index.php
+          - button "User menu" [ref=e25] [cursor=pointer]:
+            - generic [ref=e26]:
+              - text: Eve Tester
+              - img "Eve Tester" [ref=e29]: ET
+            - text: 
+    - generic [ref=e30]:
+      - generic [ref=e31]:
+        - button "Open block drawer" [ref=e33] [cursor=pointer]:
+          - generic [ref=e34]: Open block drawer
+          - generic [ref=e36]: 
+          - text: 
+        - banner [ref=e37]:
+          - heading "Complete your account setup" [level=1] [ref=e44]
+        - main [ref=e48]:
+          - generic [ref=e50]:
+            - paragraph [ref=e51]: Student — Enter your SDMS code to find and link your record.
+            - generic [ref=e52]:
+              - generic [ref=e53]:
+                - generic [ref=e54]: SDMS code
+                - textbox "SDMS code" [ref=e55]
+              - button "Look up" [ref=e56] [cursor=pointer]
+            - button "Choose a different role" [ref=e58] [cursor=pointer]
+      - contentinfo [ref=e59]:
+        - button "Show footer" [ref=e60] [cursor=pointer]:
+          - generic [ref=e61]: "?"
+        - text: 

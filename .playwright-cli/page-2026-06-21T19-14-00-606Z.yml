@@ -1,0 +1,33 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - text: Inclusion of filters from 'filter/buku_oembed/filter.php' using the 'filter_buku_oembed' class naming has been deprecated. Please rename your class to \filter_buku_oembed\text_filter and move it to 'filter/buku_oembed/classes/text_filter.php'. See MDL-82427 for more information.
+    - list [ref=e3]:
+      - listitem [ref=e4]: "line 142 of /public/filter/classes/filter_manager.php: call to debugging()"
+      - listitem [ref=e5]: "line 294 of /public/filter/classes/filter_manager.php: call to core_filters\\filter_manager->make_filter_object()"
+      - listitem [ref=e6]: "line 1865 of /public/lib/pagelib.php: call to core_filters\\filter_manager->setup_page_for_globally_available_filters()"
+      - listitem [ref=e7]: "line 108 of /public/lib/classes/output/bootstrap_renderer.php: call to moodle_page->initialise_theme_and_output()"
+      - listitem [ref=e8]: "line 391 of /public/login/index.php: call to core\\output\\bootstrap_renderer->__call()"
+  - status
+  - generic [ref=e9]:
+    - link "Skip to main content" [ref=e10] [cursor=pointer]:
+      - /url: "#maincontent"
+    - main [ref=e17]:
+      - generic [ref=e19]:
+        - heading "Log in to Moodle Dev" [level=1] [ref=e20]
+        - alert [ref=e21]: Invalid login, please try again
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - generic [ref=e24]: Username
+            - textbox "Username" [active] [ref=e25]
+          - generic [ref=e26]:
+            - generic [ref=e27]: Password
+            - textbox "Password" [ref=e28]
+          - button "Log in" [ref=e30] [cursor=pointer]
+          - link "Lost password?" [ref=e32] [cursor=pointer]:
+            - /url: http://localhost:8080/login/forgot_password.php
+        - heading "Some courses may allow guest access" [level=2] [ref=e34]
+        - button "Access as a guest" [ref=e36] [cursor=pointer]
+        - button "Cookies notice" [ref=e39] [cursor=pointer]
+    - contentinfo:
+      - button "Show footer" [ref=e40] [cursor=pointer]:
+        - generic [ref=e41]: "?"

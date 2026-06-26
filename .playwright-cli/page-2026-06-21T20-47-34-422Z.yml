@@ -1,0 +1,34 @@
+- generic [ref=e1]:
+  - status
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#maincontent"
+  - generic [ref=e3]:
+    - generic [ref=e5]:
+      - link "moodle" [ref=e7] [cursor=pointer]:
+        - /url: http://localhost:8080
+      - generic [ref=e8]:
+        - heading "Create Your Account" [level=1] [ref=e9]
+        - paragraph [ref=e10]: Sign up using your SDMS code
+      - main [ref=e12]:
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - heading "Find Your Account" [level=3] [ref=e16]
+            - generic [ref=e17]:
+              - generic [ref=e18]: SDMS Code
+              - textbox "SDMS Code" [ref=e19]:
+                - /placeholder: Enter your SDMS code
+                - text: "54120519003"
+            - generic [ref=e20]:
+              - generic [ref=e21]: I am a
+              - combobox "I am a" [ref=e22]:
+                - option "Student"
+                - option "Staff" [selected]
+            - button " Look Up" [active] [ref=e23] [cursor=pointer]:
+              - generic [ref=e24]: 
+              - text: Look Up
+            - link " Back to login" [ref=e25] [cursor=pointer]:
+              - /url: http://localhost:8080/login/index.php
+              - generic [ref=e26]: 
+              - text: Back to login
+          - text:        
+    - generic [ref=e30]: 

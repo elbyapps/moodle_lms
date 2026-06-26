@@ -1,0 +1,165 @@
+- generic [active] [ref=e1]:
+  - status
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - link "moodle" [ref=e6] [cursor=pointer]:
+          - /url: http://localhost:8080
+          - generic [ref=e7]: moodle
+        - generic [ref=e8]:
+          - list [ref=e9]:
+            - listitem [ref=e10]:
+              - link "Home" [ref=e11] [cursor=pointer]:
+                - /url: http://localhost:8080/?redirect=0
+            - listitem [ref=e12]:
+              - link "Dashboard" [ref=e13] [cursor=pointer]:
+                - /url: http://localhost:8080/my/
+            - listitem [ref=e14]:
+              - link "My courses" [ref=e15] [cursor=pointer]:
+                - /url: http://localhost:8080/my/courses.php
+            - listitem [ref=e16]:
+              - link "Site administration" [ref=e17] [cursor=pointer]:
+                - /url: http://localhost:8080/admin/search.php
+            - listitem [ref=e18]:
+              - link "Admin Dashboard" [ref=e19] [cursor=pointer]:
+                - /url: http://localhost:8080/local/elby_dashboard/index.php
+          - generic [ref=e20]:
+            - button "User menu" [ref=e27] [cursor=pointer]:
+              - generic [ref=e28]:
+                - text: Admin User
+                - img "Admin User" [ref=e31]: AU
+              - text: 
+            - generic [ref=e33]:
+              - generic [ref=e34]: Edit mode
+              - checkbox "Edit mode" [ref=e36]
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - button "Close course index" [ref=e39] [cursor=pointer]:
+          - generic [ref=e40]: 
+        - text:    
+      - navigation [ref=e42]:
+        - list [ref=e45]:
+          - listitem [ref=e46]
+          - listitem [ref=e50]
+          - listitem [ref=e54]
+          - listitem [ref=e58]
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - generic:
+          - text: 
+          - button "Open block drawer" [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]: Open block drawer
+            - generic [ref=e68]: 
+            - text: 
+        - banner [ref=e69]:
+          - generic [ref=e70]:
+            - navigation "Breadcrumb" [ref=e73]:
+              - list [ref=e74]:
+                - listitem [ref=e75]:
+                  - link "Manage badges" [ref=e76] [cursor=pointer]:
+                    - /url: http://localhost:8080/badges/index.php?type=2&id=20
+                - listitem [ref=e77]: / E2E Achievement Badge
+            - heading "E2E Certificate & Badge Test" [level=1] [ref=e83]
+        - navigation [ref=e85]:
+          - menubar [ref=e86]:
+            - menuitem "Course" [ref=e87] [cursor=pointer]
+            - menuitem "Settings" [ref=e88] [cursor=pointer]
+            - menuitem "Participants" [ref=e89] [cursor=pointer]
+            - menuitem "Grades" [ref=e90] [cursor=pointer]
+            - menuitem "Activities" [ref=e91] [cursor=pointer]
+            - menuitem "Reports" [ref=e92] [cursor=pointer]
+            - menuitem "Question banks" [ref=e93] [cursor=pointer]
+            - menuitem "Content bank" [ref=e94] [cursor=pointer]
+            - menuitem "Course completion" [ref=e95] [cursor=pointer]
+            - menuitem "Badges" [ref=e96] [cursor=pointer]
+            - menuitem "Competencies" [ref=e97] [cursor=pointer]
+            - menuitem "Filters" [ref=e98] [cursor=pointer]
+            - menuitem "LTI External tools" [ref=e99] [cursor=pointer]
+            - menuitem "Accessibility toolkit" [ref=e100] [cursor=pointer]
+            - menuitem "Course reuse" [ref=e101] [cursor=pointer]
+            - text: 
+        - main [ref=e105]:
+          - generic [ref=e108]:
+            - button "Back" [ref=e112] [cursor=pointer]
+            - generic [ref=e115]:
+              - generic [ref=e116]: Badges navigation
+              - combobox "Badges navigation" [ref=e117]:
+                - option "Overview" [selected]
+                - option "Edit details"
+                - option "Criteria"
+                - option "Message"
+                - option "Recipients (0)"
+                - option "Endorsement"
+                - option "Related badges (0)"
+                - option "Alignments (0)"
+          - heading "E2E Achievement Badge E2E Achievement Badge" [level=2] [ref=e118]:
+            - img "E2E Achievement Badge"
+            - text: E2E Achievement Badge
+          - generic [ref=e119]:
+            - text: This badge is currently available to users. Disable access to make any changes.
+            - button "Help" [ref=e120] [cursor=pointer]:
+              - img "Help with Badge status" [ref=e121]: 
+            - button "Disable access" [ref=e124] [cursor=pointer]
+          - generic [ref=e125]:
+            - heading "Badge details" [level=3] [ref=e126]
+            - generic [ref=e127]:
+              - term [ref=e128]: Name
+              - definition [ref=e129]: E2E Achievement Badge
+              - term [ref=e130]: Version
+              - definition [ref=e131]
+              - term [ref=e132]: Language
+              - definition [ref=e133]: English
+              - term [ref=e134]: Description
+              - definition [ref=e135]: Awarded for completing the E2E test course.
+              - term [ref=e136]: Created on
+              - definition [ref=e137]: Tuesday, 23 June 2026, 11:15 AM
+              - term [ref=e138]: Image
+              - definition [ref=e139]:
+                - img "E2E Achievement Badge"
+              - term [ref=e140]: Image caption
+              - definition [ref=e141]
+              - term [ref=e142]: Tags
+              - definition [ref=e143]
+            - heading "Issuer details" [level=3] [ref=e144]
+            - generic [ref=e145]:
+              - term [ref=e146]: Name
+              - definition [ref=e147]: Moodle Dev
+              - term [ref=e148]: Email
+              - definition [ref=e149]
+              - term [ref=e150]: URL
+              - definition [ref=e151]:
+                - link "http://localhost" [ref=e152] [cursor=pointer]:
+                  - /url: http://localhost
+            - heading "Badge expiry" [level=3] [ref=e153]
+            - text: This badge does not have an expiry date.
+            - heading "Criteria" [level=3] [ref=e154]
+            - text: This badge has to be awarded by the users with
+            - strong [ref=e155]: ANY
+            - text: "of the following roles:"
+            - list [ref=e156]:
+              - listitem [ref=e157]: Manager
+              - listitem [ref=e158]: Non-editing teacher
+              - listitem [ref=e159]: Teacher
+            - heading "Recipients" [level=3] [ref=e160]
+            - text: This badge has not been earned yet.
+            - button "Award badge" [ref=e163] [cursor=pointer]
+            - heading "Endorsement" [level=3] [ref=e164]
+            - text: This badge does not have an endorsement.
+            - heading "Related badges" [level=3] [ref=e165]
+            - text: This badge does not have any related badges.
+            - heading "Alignment" [level=3] [ref=e166]
+            - text: This badge does not have any external skills or standards specified.
+      - contentinfo [ref=e167]:
+        - button "Show footer" [ref=e168] [cursor=pointer]:
+          - generic [ref=e169]: "?"
+        - text:    
+        - generic [ref=e171]:
+          - link "Purge all caches" [ref=e173] [cursor=pointer]:
+            - /url: http://localhost:8080/admin/purgecaches.php?confirm=1&sesskey=4AgsqqzZI5&returnurl=%2Fbadges%2Foverview.php%3Fid%3D1
+          - generic [ref=e174]:
+            - generic [ref=e175]:
+              - text: "Reactive instances:"
+              - generic [ref=e176]: This page has no reactive instances.
+            - img "Loading" [ref=e179]: 

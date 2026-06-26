@@ -1,0 +1,230 @@
+- generic [ref=e1]:
+  - status
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - link "moodle" [ref=e6] [cursor=pointer]:
+          - /url: http://localhost:8080
+          - generic [ref=e7]: moodle
+        - generic [ref=e8]:
+          - list [ref=e9]:
+            - listitem [ref=e10]:
+              - link "Home" [ref=e11] [cursor=pointer]:
+                - /url: http://localhost:8080/?redirect=0
+            - listitem [ref=e12]:
+              - link "Dashboard" [ref=e13] [cursor=pointer]:
+                - /url: http://localhost:8080/my/
+            - listitem [ref=e14]:
+              - link "My courses" [ref=e15] [cursor=pointer]:
+                - /url: http://localhost:8080/my/courses.php
+            - listitem [ref=e16]:
+              - link "Site administration" [ref=e17] [cursor=pointer]:
+                - /url: http://localhost:8080/admin/search.php
+            - listitem [ref=e18]:
+              - link "Admin Dashboard" [ref=e19] [cursor=pointer]:
+                - /url: http://localhost:8080/local/elby_dashboard/index.php
+          - generic [ref=e20]:
+            - button "User menu" [ref=e27] [cursor=pointer]:
+              - generic [ref=e28]:
+                - text: Admin User
+                - img "Admin User" [ref=e31]: AU
+              - text: 
+            - generic [ref=e33]:
+              - generic [ref=e34]: Edit mode
+              - checkbox "Edit mode" [ref=e36]
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - button "Close course index" [ref=e39] [cursor=pointer]:
+          - generic [ref=e40]: 
+        - generic [ref=e171]:
+          - button "Course index options" [ref=e172] [cursor=pointer]:
+            - generic [ref=e173]: 
+          - text:   
+      - navigation [ref=e42]:
+        - tree [ref=e174]:
+          - treeitem "Collapse General" [selected] [ref=e175]:
+            - generic [ref=e176]:
+              - link "Collapse" [expanded] [ref=e177] [cursor=pointer]:
+                - /url: "#courseindexcollapse0"
+                - text:  
+                - generic "Collapse" [ref=e178]:
+                  - generic [ref=e179]: 
+                  - generic [ref=e180]: Collapse
+              - link "General" [ref=e181] [cursor=pointer]:
+                - /url: http://localhost:8080/course/section.php?id=88
+              - text: 
+            - group "Collapse General" [ref=e182]:
+              - group [ref=e183]:
+                - treeitem "Announcements" [ref=e184]:
+                  - link "Announcements" [ref=e186] [cursor=pointer]:
+                    - /url: http://localhost:8080/mod/forum/view.php?id=19
+                  - text: 
+          - treeitem "Collapse New section" [ref=e187]:
+            - generic [ref=e188]:
+              - link "Collapse" [expanded] [ref=e189] [cursor=pointer]:
+                - /url: "#courseindexcollapse1"
+                - text:  
+                - generic "Collapse" [ref=e190]:
+                  - generic [ref=e191]: 
+                  - generic [ref=e192]: Collapse
+              - link "New section" [ref=e193] [cursor=pointer]:
+                - /url: http://localhost:8080/course/section.php?id=89
+              - text: 
+            - group "Collapse New section" [ref=e194]:
+              - group [ref=e195]:
+                - treeitem "E2E Completion Certificate" [ref=e196]:
+                  - link "E2E Completion Certificate" [ref=e198] [cursor=pointer]:
+                    - /url: http://localhost:8080/mod/customcert/view.php?id=20
+                  - text: 
+          - treeitem "Collapse New section" [ref=e199]:
+            - generic [ref=e200]:
+              - link "Collapse" [expanded] [ref=e201] [cursor=pointer]:
+                - /url: "#courseindexcollapse2"
+                - text:  
+                - generic "Collapse" [ref=e202]:
+                  - generic [ref=e203]: 
+                  - generic [ref=e204]: Collapse
+              - link "New section" [ref=e205] [cursor=pointer]:
+                - /url: http://localhost:8080/course/section.php?id=90
+              - text: 
+            - group "Collapse New section":
+              - group
+          - treeitem "Collapse New section" [ref=e206]:
+            - generic [ref=e207]:
+              - link "Collapse" [expanded] [ref=e208] [cursor=pointer]:
+                - /url: "#courseindexcollapse3"
+                - text:  
+                - generic "Collapse" [ref=e209]:
+                  - generic [ref=e210]: 
+                  - generic [ref=e211]: Collapse
+              - link "New section" [ref=e212] [cursor=pointer]:
+                - /url: http://localhost:8080/course/section.php?id=91
+              - text: 
+            - group "Collapse New section":
+              - group
+    - generic [ref=e62]:
+      - generic [ref=e63]:
+        - generic:
+          - text: 
+          - button "Open block drawer" [ref=e65] [cursor=pointer]:
+            - generic [ref=e66]: Open block drawer
+            - generic [ref=e68]: 
+            - text: 
+        - banner [ref=e69]:
+          - generic [ref=e70]:
+            - navigation "Breadcrumb" [ref=e73]:
+              - list [ref=e74]:
+                - listitem [ref=e75]:
+                  - link "Manage badges" [ref=e76] [cursor=pointer]:
+                    - /url: http://localhost:8080/badges/index.php?type=2&id=20
+                - listitem [ref=e77]: / E2E Achievement Badge
+            - heading "E2E Certificate & Badge Test" [level=1] [ref=e83]
+        - navigation [ref=e85]:
+          - menubar [ref=e86]:
+            - menuitem "Course" [ref=e87] [cursor=pointer]
+            - menuitem "Settings" [ref=e88] [cursor=pointer]
+            - menuitem "Participants" [ref=e89] [cursor=pointer]
+            - menuitem "Grades" [ref=e90] [cursor=pointer]
+            - menuitem "Activities" [ref=e91] [cursor=pointer]
+            - menuitem "More " [ref=e92] [cursor=pointer]
+            - text: 
+        - main [ref=e96]:
+          - generic [ref=e99]:
+            - button "Back" [ref=e103] [cursor=pointer]
+            - generic [ref=e106]:
+              - generic [ref=e107]: Badges navigation
+              - combobox "Badges navigation" [ref=e108]:
+                - option "Overview" [selected]
+                - option "Edit details"
+                - option "Criteria"
+                - option "Message"
+                - option "Recipients (0)"
+                - option "Endorsement"
+                - option "Related badges (0)"
+                - option "Alignments (0)"
+          - heading "E2E Achievement Badge E2E Achievement Badge" [level=2] [ref=e109]:
+            - img "E2E Achievement Badge" [ref=e110]
+            - text: E2E Achievement Badge
+          - generic [ref=e111]:
+            - text: This badge is currently not available to users. Enable access if you want users to earn this badge.
+            - button "Help" [ref=e112] [cursor=pointer]:
+              - img "Help with Badge status" [ref=e113]: 
+            - button "Enable access" [ref=e116] [cursor=pointer]
+          - generic [ref=e117]:
+            - heading "Badge details" [level=3] [ref=e118]
+            - generic [ref=e119]:
+              - term [ref=e120]: Name
+              - definition [ref=e121]: E2E Achievement Badge
+              - term [ref=e122]: Version
+              - definition [ref=e123]
+              - term [ref=e124]: Language
+              - definition [ref=e125]: English
+              - term [ref=e126]: Description
+              - definition [ref=e127]: Awarded for completing the E2E test course.
+              - term [ref=e128]: Created on
+              - definition [ref=e129]: Tuesday, 23 June 2026, 11:15 AM
+              - term [ref=e130]: Image
+              - definition [ref=e131]:
+                - img "E2E Achievement Badge" [ref=e132]
+              - term [ref=e133]: Image caption
+              - definition [ref=e134]
+              - term [ref=e135]: Tags
+              - definition [ref=e136]
+            - heading "Issuer details" [level=3] [ref=e137]
+            - generic [ref=e138]:
+              - term [ref=e139]: Name
+              - definition [ref=e140]: Moodle Dev
+              - term [ref=e141]: Email
+              - definition [ref=e142]
+              - term [ref=e143]: URL
+              - definition [ref=e144]:
+                - link "http://localhost" [ref=e145] [cursor=pointer]:
+                  - /url: http://localhost
+            - heading "Badge expiry" [level=3] [ref=e146]
+            - text: This badge does not have an expiry date.
+            - heading "Criteria" [level=3] [ref=e147]
+            - text: This badge has to be awarded by the users with
+            - strong [ref=e148]: ANY
+            - text: "of the following roles:"
+            - list [ref=e149]:
+              - listitem [ref=e150]: Manager
+              - listitem [ref=e151]: Non-editing teacher
+              - listitem [ref=e152]: Teacher
+            - heading "Recipients" [level=3] [ref=e153]
+            - text: This badge has not been earned yet.
+            - heading "Endorsement" [level=3] [ref=e154]
+            - text: This badge does not have an endorsement.
+            - heading "Related badges" [level=3] [ref=e155]
+            - text: This badge does not have any related badges.
+            - heading "Alignment" [level=3] [ref=e156]
+            - text: This badge does not have any external skills or standards specified.
+      - contentinfo [ref=e157]:
+        - button "Show footer" [ref=e158] [cursor=pointer]:
+          - generic [ref=e159]: "?"
+        - text:    
+        - generic [ref=e161]:
+          - link "Purge all caches" [ref=e163] [cursor=pointer]:
+            - /url: http://localhost:8080/admin/purgecaches.php?confirm=1&sesskey=4AgsqqzZI5&returnurl=%2Fbadges%2Foverview.php%3Fid%3D1
+          - generic [ref=e165]:
+            - text: "Reactive instances:"
+            - generic [ref=e166]:
+              - button "ProcessMonitor" [ref=e213] [cursor=pointer]
+              - button "CourseEditor20" [ref=e214] [cursor=pointer]
+  - dialog "Confirm" [ref=e215]:
+    - generic [ref=e216]:
+      - generic [ref=e217]:
+        - heading "Confirm" [level=5] [ref=e218]
+        - button "Close" [ref=e219] [cursor=pointer]
+      - generic [ref=e220]:
+        - paragraph [ref=e221]: This will make your badge visible to users and allow them to start earning it.
+        - paragraph [ref=e222]: It is possible that some users already meet this badge's criteria and will be issued this badge immediately after you enable it.
+        - paragraph [ref=e223]:
+          - text: Once a badge has been issued it will be
+          - strong [ref=e224]: locked
+          - text: "- certain settings including the criteria and expiry settings can no longer be changed."
+        - paragraph [ref=e225]: Are you sure you want to enable access to the badge 'E2E Achievement Badge'?
+      - generic [ref=e226]:
+        - button "Cancel" [ref=e227] [cursor=pointer]
+        - button "Enable" [ref=e228] [cursor=pointer]

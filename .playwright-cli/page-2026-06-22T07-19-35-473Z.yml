@@ -1,0 +1,33 @@
+- generic [active] [ref=e1]:
+  - status
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#maincontent"
+  - generic [ref=e3]:
+    - generic [ref=e5]:
+      - link "moodle" [ref=e7] [cursor=pointer]:
+        - /url: http://localhost:8080
+      - generic [ref=e8]:
+        - heading "Welcome Back" [level=1] [ref=e9]
+        - paragraph [ref=e10]: Sign in to continue to your account.
+      - main [ref=e12]:
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - generic [ref=e17]: Username
+            - textbox "Username" [ref=e18]
+          - generic [ref=e19]:
+            - generic [ref=e20]: Password
+            - textbox "Password" [ref=e21]
+          - button "Log in" [ref=e23] [cursor=pointer]
+          - link "Lost password?" [ref=e25] [cursor=pointer]:
+            - /url: http://localhost:8080/login/forgot_password.php
+      - generic [ref=e26]:
+        - paragraph [ref=e27]: Don't have an account?
+        - link " Sign up with SDMS" [ref=e28] [cursor=pointer]:
+          - /url: http://localhost:8080/local/elby_dashboard/signup.php
+          - generic [ref=e29]: 
+          - text: Sign up with SDMS
+      - link " Back to Home" [ref=e31] [cursor=pointer]:
+        - /url: http://localhost:8080
+        - generic [ref=e32]: 
+        - text: Back to Home
+    - generic [ref=e36]: 

@@ -1,0 +1,105 @@
+- generic [active] [ref=e1]:
+  - status
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - link "RTB" [ref=e6] [cursor=pointer]:
+          - /url: https://test.elearning.rtb.gov.rw
+          - img "RTB" [ref=e7]
+        - generic [ref=e8]:
+          - list [ref=e9]:
+            - listitem [ref=e10]:
+              - link "Home" [ref=e11] [cursor=pointer]:
+                - /url: https://test.elearning.rtb.gov.rw/?redirect=0
+            - listitem [ref=e12]:
+              - link "Dashboard" [ref=e13] [cursor=pointer]:
+                - /url: https://test.elearning.rtb.gov.rw/my/
+            - listitem [ref=e14]:
+              - link "My courses" [ref=e15] [cursor=pointer]:
+                - /url: https://test.elearning.rtb.gov.rw/my/courses.php
+            - listitem [ref=e16]:
+              - link "Site administration" [ref=e17] [cursor=pointer]:
+                - /url: https://test.elearning.rtb.gov.rw/admin/search.php
+            - listitem [ref=e18]:
+              - link "Admin Dashboard" [ref=e19] [cursor=pointer]:
+                - /url: https://test.elearning.rtb.gov.rw/local/elby_dashboard/index.php
+          - generic [ref=e20]:
+            - button "User menu" [ref=e27] [cursor=pointer]:
+              - generic [ref=e28]:
+                - text: Bahati Justin
+                - img "Bahati Justin" [ref=e31]: BJ
+              - text: 
+            - generic [ref=e33]:
+              - generic [ref=e34]: Edit mode
+              - checkbox "Edit mode" [ref=e36]
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - button "Open block drawer" [ref=e40] [cursor=pointer]:
+          - generic [ref=e41]: Open block drawer
+          - generic [ref=e43]: 
+          - text: 
+        - banner [ref=e44]:
+          - generic [ref=e46]:
+            - generic [ref=e47]:
+              - heading "My courses" [level=1] [ref=e51]
+              - generic [ref=e53]: Hi, Bahati! 👋
+            - generic [ref=e57]:
+              - button "Manage courses" [ref=e59] [cursor=pointer]
+              - button "Create course" [ref=e61] [cursor=pointer]
+        - main [ref=e65]:
+          - region "Main content blocks" [ref=e67]:
+            - heading "Main content blocks" [level=2] [ref=e68]
+            - link "Skip Course overview" [ref=e69] [cursor=pointer]:
+              - /url: "#sb-3"
+            - region "Course overview" [ref=e70]:
+              - generic [ref=e71]:
+                - heading "Course overview" [level=3] [ref=e72]
+                - generic [ref=e74]:
+                  - search "Course overview controls" [ref=e75]:
+                    - generic [ref=e76]:
+                      - generic [ref=e77]:
+                        - button "Grouping drop-down menu" [ref=e78] [cursor=pointer]: All 
+                        - text: 
+                      - search [ref=e81]:
+                        - generic [ref=e82]: Search courses
+                        - textbox "Search courses" [ref=e83]:
+                          - /placeholder: Search
+                        - text: 
+                      - generic [ref=e85]:
+                        - button "Sorting drop-down menu" [ref=e86] [cursor=pointer]: Sort by course name 
+                        - text: 
+                      - generic [ref=e87]:
+                        - button "Display drop-down menu" [ref=e88] [cursor=pointer]: Card 
+                        - text: 
+                  - generic [ref=e91]:
+                    - list [ref=e94]:
+                      - listitem [ref=e96]:
+                        - link "AUTOMOBILE" [ref=e97] [cursor=pointer]:
+                          - /url: https://test.elearning.rtb.gov.rw/course/view.php?id=450
+                          - generic [ref=e99]: AUTOMOBILE
+                        - generic [ref=e102]:
+                          - link "Course name AUTOMOBILE" [ref=e103] [cursor=pointer]:
+                            - /url: https://test.elearning.rtb.gov.rw/course/view.php?id=450
+                            - generic: 
+                            - generic [ref=e104]: Course name
+                            - generic "AUTOMOBILE" [ref=e105]:
+                              - generic [ref=e106]: AUTOMOBILE
+                              - text: AUTOMOBILE
+                          - generic [ref=e107]:
+                            - generic [ref=e108]: Course category
+                            - generic [ref=e109]: Video Tutorials
+                        - generic [ref=e110]:
+                          - generic [ref=e112]:
+                            - generic [ref=e113]: "Course progress:"
+                            - text: 0% complete
+                          - button "Actions for course AUTOMOBILE" [ref=e116] [cursor=pointer]:
+                            - generic [ref=e117]: 
+                            - generic [ref=e118]: Actions for course AUTOMOBILE
+                    - generic:
+                      - generic:    
+      - contentinfo [ref=e119]:
+        - button "Show footer" [ref=e120] [cursor=pointer]:
+          - generic [ref=e121]: "?"
+        - text:    

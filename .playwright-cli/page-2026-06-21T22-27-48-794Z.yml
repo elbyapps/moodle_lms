@@ -1,0 +1,148 @@
+- generic [active] [ref=e1]:
+  - status
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#maincontent"
+  - generic [ref=e3]:
+    - banner:
+      - navigation [ref=e4]:
+        - generic [ref=e5]:
+          - link "moodle" [ref=e6] [cursor=pointer]:
+            - /url: http://localhost:8080
+            - generic [ref=e7]: moodle
+          - generic [ref=e8]:
+            - list [ref=e9]:
+              - listitem [ref=e10]:
+                - link "Home" [ref=e11] [cursor=pointer]:
+                  - /url: http://localhost:8080/
+            - link " Log in" [ref=e13] [cursor=pointer]:
+              - /url: http://localhost:8080/login/index.php
+              - generic [ref=e14]: 
+              - text: Log in
+    - generic [ref=e21]:
+      - heading "LET'S DESIGN YOUR FUTURE!" [level=1] [ref=e22]
+      - generic [ref=e23]: Our platform inspires a love of learning, encouraging creative thinking across all subjects.
+      - link "Explore Academics" [ref=e24] [cursor=pointer]:
+        - /url: /course/
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - heading "Explore Our Programs" [level=2] [ref=e35]
+        - paragraph [ref=e36]: Choose from our diverse range of courses
+      - generic [ref=e37]:
+        - link " Category 1  0 Courses  0 enrolled" [ref=e39] [cursor=pointer]:
+          - /url: http://localhost:8080/?category=1&redirect=0
+          - generic [ref=e42]: 
+          - generic [ref=e43]:
+            - heading "Category 1" [level=3] [ref=e44]
+            - generic [ref=e45]:
+              - generic [ref=e46]:
+                - generic [ref=e47]: 
+                - text: 0 Courses
+              - generic [ref=e48]:
+                - generic [ref=e49]: 
+                - text: 0 enrolled
+        - link " Seed Data  15 Courses  0 enrolled" [ref=e51] [cursor=pointer]:
+          - /url: http://localhost:8080/?category=2&redirect=0
+          - generic [ref=e54]: 
+          - generic [ref=e55]:
+            - heading "Seed Data" [level=3] [ref=e56]
+            - generic [ref=e57]:
+              - generic [ref=e58]:
+                - generic [ref=e59]: 
+                - text: 15 Courses
+              - generic [ref=e60]:
+                - generic [ref=e61]: 
+                - text: 0 enrolled
+    - generic [ref=e64]:
+      - generic [ref=e72]: 
+      - generic [ref=e74]:
+        - heading "Discover the possibilities with moodle online" [level=2] [ref=e75]
+        - link "Explore More " [ref=e76] [cursor=pointer]:
+          - /url: /course/
+          - text: Explore More
+          - generic [ref=e77]: 
+    - generic [ref=e79]:
+      - heading "Campus by the Numbers" [level=2] [ref=e81]
+      - generic [ref=e82]:
+        - generic [ref=e84]:
+          - text: 
+          - generic [ref=e85]: 0+
+          - generic [ref=e86]: Users
+        - generic [ref=e88]:
+          - text: 
+          - generic [ref=e89]: "0"
+          - generic [ref=e90]: Schools
+        - generic [ref=e92]:
+          - text: 
+          - generic [ref=e93]: 0+
+          - generic [ref=e94]: Students
+        - generic [ref=e96]:
+          - text: 
+          - generic [ref=e97]: 0+
+          - generic [ref=e98]: Teachers
+        - generic [ref=e100]:
+          - text: 
+          - generic [ref=e101]: "0"
+          - generic [ref=e102]: Courses
+    - main [ref=e103]:
+      - main [ref=e105]:
+        - link "Skip available courses" [ref=e107] [cursor=pointer]:
+          - /url: "#skipavailablecourses"
+        - generic [ref=e108]:
+          - heading "Available courses" [level=2] [ref=e109]
+          - generic [ref=e110]:
+            - heading "TVET CERTIFICATE III IN GRAPHIC ART" [level=3] [ref=e113]:
+              - link "TVET CERTIFICATE III IN GRAPHIC ART" [ref=e114] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=16
+            - heading "TVET CERTIFICATE III IN FORESTRY" [level=3] [ref=e117]:
+              - link "TVET CERTIFICATE III IN FORESTRY" [ref=e118] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=15
+            - heading "TVET CERTIFICATE III IN FOOD PROCESSING" [level=3] [ref=e121]:
+              - link "TVET CERTIFICATE III IN FOOD PROCESSING" [ref=e122] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=14
+            - heading "TVET CERTIFICATE III IN FOOD AND BEVERAGE" [level=3] [ref=e125]:
+              - link "TVET CERTIFICATE III IN FOOD AND BEVERAGE" [ref=e126] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=13
+            - heading "TVET CERTIFICATE III IN ELECTRONIC SERVICES" [level=3] [ref=e129]:
+              - link "TVET CERTIFICATE III IN ELECTRONIC SERVICES" [ref=e130] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=12
+            - heading "TVET CERTIFICATE III IN ELECTRONIC SERVICES" [level=3] [ref=e133]:
+              - link "TVET CERTIFICATE III IN ELECTRONIC SERVICES" [ref=e134] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=11
+            - heading "TVET CERTIFICATE III IN CULINARY ARTS" [level=3] [ref=e137]:
+              - link "TVET CERTIFICATE III IN CULINARY ARTS" [ref=e138] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=10
+            - heading "TVET CERTIFICATE III IN CROP PRODUCTION" [level=3] [ref=e141]:
+              - link "TVET CERTIFICATE III IN CROP PRODUCTION" [ref=e142] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=9
+            - heading "TVET CERTIFICATE III IN COMPUTER SYSTEMS TECHNOLOGY" [level=3] [ref=e145]:
+              - link "TVET CERTIFICATE III IN COMPUTER SYSTEMS TECHNOLOGY" [ref=e146] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=8
+            - heading "TVET CERTIFICATE III IN COMPUTER APPLICATIONS" [level=3] [ref=e149]:
+              - link "TVET CERTIFICATE III IN COMPUTER APPLICATIONS" [ref=e150] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=7
+            - heading "TVET CERTIFICATE III COMPLEMENTARY MODULES" [level=3] [ref=e153]:
+              - link "TVET CERTIFICATE III COMPLEMENTARY MODULES" [ref=e154] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=6
+            - heading "TVET CERTIFICATE III IN CERAMICS AND SCULPTURE" [level=3] [ref=e157]:
+              - link "TVET CERTIFICATE III IN CERAMICS AND SCULPTURE" [ref=e158] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=5
+            - heading "TVET CERTIFICATE III IN CARPENTRY" [level=3] [ref=e161]:
+              - link "TVET CERTIFICATE III IN CARPENTRY" [ref=e162] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=4
+            - heading "TVET CERTIFICATE III IN AUTOELECTRICITY AND ELECTRONICS" [level=3] [ref=e165]:
+              - link "TVET CERTIFICATE III IN AUTOELECTRICITY AND ELECTRONICS" [ref=e166] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=3
+            - heading "TVET CERTIFICATE III IN ANIMAL HEALTH" [level=3] [ref=e169]:
+              - link "TVET CERTIFICATE III IN ANIMAL HEALTH" [ref=e170] [cursor=pointer]:
+                - /url: http://localhost:8080/course/view.php?id=2
+    - contentinfo [ref=e172]:
+      - generic [ref=e175]:
+        - heading "moodle" [level=4] [ref=e178]
+        - generic [ref=e179]:
+          - heading "Connect With Us" [level=5] [ref=e180]
+          - paragraph [ref=e182]: Stay connected with our community.
+      - generic [ref=e185]:
+        - paragraph [ref=e187]: © 2026 All Rights Reserved.
+        - paragraph [ref=e189]: Powered by Moodle
+      - link "Data retention summary" [ref=e191] [cursor=pointer]:
+        - /url: http://localhost:8080/admin/tool/dataprivacy/summary.php

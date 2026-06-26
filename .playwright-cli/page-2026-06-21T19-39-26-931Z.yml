@@ -1,0 +1,266 @@
+- generic [active] [ref=e1]:
+  - status
+  - generic [ref=e2]:
+    - link "Skip to main content" [ref=e3] [cursor=pointer]:
+      - /url: "#maincontent"
+    - navigation [ref=e4]:
+      - generic [ref=e5]:
+        - link "moodle" [ref=e6] [cursor=pointer]:
+          - /url: http://localhost:8080
+          - generic [ref=e7]: moodle
+        - generic [ref=e8]:
+          - list [ref=e9]:
+            - listitem [ref=e10]:
+              - link "Home" [ref=e11] [cursor=pointer]:
+                - /url: http://localhost:8080/?redirect=0
+            - listitem [ref=e12]:
+              - link "Dashboard" [ref=e13] [cursor=pointer]:
+                - /url: http://localhost:8080/my/
+            - listitem [ref=e14]:
+              - link "My courses" [ref=e15] [cursor=pointer]:
+                - /url: http://localhost:8080/my/courses.php
+            - listitem [ref=e16]:
+              - link "Site administration" [ref=e17] [cursor=pointer]:
+                - /url: http://localhost:8080/admin/search.php
+            - listitem [ref=e18]:
+              - link "Elby Dashboard" [ref=e19] [cursor=pointer]:
+                - /url: http://localhost:8080/local/elby_dashboard/index.php
+          - generic [ref=e20]:
+            - button "User menu" [ref=e27] [cursor=pointer]:
+              - generic [ref=e28]:
+                - text: Admin User
+                - img "Admin User" [ref=e31]: AU
+              - text: 
+            - generic [ref=e33]:
+              - generic [ref=e34]: Edit mode
+              - checkbox "Edit mode" [ref=e36]
+    - generic [ref=e37]:
+      - generic [ref=e38]:
+        - button "Open block drawer" [ref=e40] [cursor=pointer]:
+          - generic [ref=e41]: Open block drawer
+          - generic [ref=e43]: 
+          - text: 
+        - banner [ref=e44]:
+          - generic [ref=e47]:
+            - heading "Dashboard" [level=1] [ref=e51]
+            - generic [ref=e53]: Hi, Admin! 👋
+        - main [ref=e57]:
+          - region "Main content blocks" [ref=e59]:
+            - heading "Main content blocks" [level=2] [ref=e60]
+            - link "Skip Timeline" [ref=e61] [cursor=pointer]:
+              - /url: "#sb-4"
+            - region "Timeline" [ref=e62]:
+              - generic [ref=e63]:
+                - heading "Timeline" [level=3] [ref=e64]
+                - generic [ref=e66]:
+                  - generic [ref=e68]:
+                    - generic [ref=e70]:
+                      - button "Filter timeline by date" [ref=e71] [cursor=pointer]: Next 7 days 
+                      - text: 
+                    - generic [ref=e73]:
+                      - button "Sort timeline items" [ref=e74] [cursor=pointer]: Sort by dates 
+                      - text: 
+                    - search [ref=e78]:
+                      - generic [ref=e79]: Search by activity type or name
+                      - textbox "Search by activity type or name" [ref=e80]
+                      - text: 
+                  - generic [ref=e84]:
+                    - paragraph [ref=e89]: No in-progress courses
+                    - text: 
+            - link "Skip Calendar" [ref=e90] [cursor=pointer]:
+              - /url: "#sb-5"
+            - region "Calendar" [ref=e91]:
+              - generic [ref=e92]:
+                - heading "Calendar" [level=3] [ref=e93]
+                - generic [ref=e94]:
+                  - generic [ref=e96]:
+                    - generic [ref=e97]:
+                      - generic [ref=e98]: List of courses
+                      - combobox "List of courses" [ref=e99]:
+                        - option "All courses" [selected]
+                      - button "New event" [ref=e100] [cursor=pointer]
+                    - generic [ref=e102]:
+                      - generic:
+                        - generic:
+                          - 'link "Previous month: May" [ref=e103] [cursor=pointer]':
+                            - /url: http://localhost:8080/calendar/view.php?view=month&time=1777590000
+                            - text: ◀︎ May
+                          - heading "June 2026" [level=4] [ref=e104]
+                          - 'link "Next month: July" [ref=e105] [cursor=pointer]':
+                            - /url: http://localhost:8080/calendar/view.php?view=month&time=1782860400
+                            - text: July ▶︎
+                      - text: 
+                      - table [ref=e106]:
+                        - rowgroup [ref=e107]:
+                          - row "Monday Tuesday Wednesday Thursday Friday Saturday Sunday" [ref=e108]:
+                            - columnheader "Monday" [ref=e109]:
+                              - generic [ref=e110]: Monday
+                              - text: Mon
+                            - columnheader "Tuesday" [ref=e111]:
+                              - generic [ref=e112]: Tuesday
+                              - text: Tue
+                            - columnheader "Wednesday" [ref=e113]:
+                              - generic [ref=e114]: Wednesday
+                              - text: Wed
+                            - columnheader "Thursday" [ref=e115]:
+                              - generic [ref=e116]: Thursday
+                              - text: Thu
+                            - columnheader "Friday" [ref=e117]:
+                              - generic [ref=e118]: Friday
+                              - text: Fri
+                            - columnheader "Saturday" [ref=e119]:
+                              - generic [ref=e120]: Saturday
+                              - text: Sat
+                            - columnheader "Sunday" [ref=e121]:
+                              - generic [ref=e122]: Sunday
+                              - text: Sun
+                        - rowgroup [ref=e123]:
+                          - row "No events, Monday, 1 June No events, Tuesday, 2 June No events, Wednesday, 3 June No events, Thursday, 4 June No events, Friday, 5 June No events, Saturday, 6 June No events, Sunday, 7 June" [ref=e124]:
+                            - cell "No events, Monday, 1 June" [ref=e125] [cursor=pointer]:
+                              - generic [ref=e126]:
+                                - generic [ref=e127]: No events, Monday, 1 June
+                                - generic [ref=e130]: "1"
+                            - cell "No events, Tuesday, 2 June" [ref=e131] [cursor=pointer]:
+                              - generic [ref=e132]:
+                                - generic [ref=e133]: No events, Tuesday, 2 June
+                                - generic [ref=e136]: "2"
+                            - cell "No events, Wednesday, 3 June" [ref=e137] [cursor=pointer]:
+                              - generic [ref=e138]:
+                                - generic [ref=e139]: No events, Wednesday, 3 June
+                                - generic [ref=e142]: "3"
+                            - cell "No events, Thursday, 4 June" [ref=e143] [cursor=pointer]:
+                              - generic [ref=e144]:
+                                - generic [ref=e145]: No events, Thursday, 4 June
+                                - generic [ref=e148]: "4"
+                            - cell "No events, Friday, 5 June" [ref=e149] [cursor=pointer]:
+                              - generic [ref=e150]:
+                                - generic [ref=e151]: No events, Friday, 5 June
+                                - generic [ref=e154]: "5"
+                            - cell "No events, Saturday, 6 June" [ref=e155] [cursor=pointer]:
+                              - generic [ref=e156]:
+                                - generic [ref=e157]: No events, Saturday, 6 June
+                                - generic [ref=e160]: "6"
+                            - cell "No events, Sunday, 7 June" [ref=e161] [cursor=pointer]:
+                              - generic [ref=e162]:
+                                - generic [ref=e163]: No events, Sunday, 7 June
+                                - generic [ref=e166]: "7"
+                          - row "No events, Monday, 8 June No events, Tuesday, 9 June No events, Wednesday, 10 June No events, Thursday, 11 June No events, Friday, 12 June No events, Saturday, 13 June No events, Sunday, 14 June" [ref=e167]:
+                            - cell "No events, Monday, 8 June" [ref=e168] [cursor=pointer]:
+                              - generic [ref=e169]:
+                                - generic [ref=e170]: No events, Monday, 8 June
+                                - generic [ref=e173]: "8"
+                            - cell "No events, Tuesday, 9 June" [ref=e174] [cursor=pointer]:
+                              - generic [ref=e175]:
+                                - generic [ref=e176]: No events, Tuesday, 9 June
+                                - generic [ref=e179]: "9"
+                            - cell "No events, Wednesday, 10 June" [ref=e180] [cursor=pointer]:
+                              - generic [ref=e181]:
+                                - generic [ref=e182]: No events, Wednesday, 10 June
+                                - generic [ref=e185]: "10"
+                            - cell "No events, Thursday, 11 June" [ref=e186] [cursor=pointer]:
+                              - generic [ref=e187]:
+                                - generic [ref=e188]: No events, Thursday, 11 June
+                                - generic [ref=e191]: "11"
+                            - cell "No events, Friday, 12 June" [ref=e192] [cursor=pointer]:
+                              - generic [ref=e193]:
+                                - generic [ref=e194]: No events, Friday, 12 June
+                                - generic [ref=e197]: "12"
+                            - cell "No events, Saturday, 13 June" [ref=e198] [cursor=pointer]:
+                              - generic [ref=e199]:
+                                - generic [ref=e200]: No events, Saturday, 13 June
+                                - generic [ref=e203]: "13"
+                            - cell "No events, Sunday, 14 June" [ref=e204] [cursor=pointer]:
+                              - generic [ref=e205]:
+                                - generic [ref=e206]: No events, Sunday, 14 June
+                                - generic [ref=e209]: "14"
+                          - row "No events, Monday, 15 June No events, Tuesday, 16 June No events, Wednesday, 17 June No events, Thursday, 18 June No events, Friday, 19 June No events, Saturday, 20 June No events, Sunday, 21 June" [ref=e210]:
+                            - cell "No events, Monday, 15 June" [ref=e211] [cursor=pointer]:
+                              - generic [ref=e212]:
+                                - generic [ref=e213]: No events, Monday, 15 June
+                                - generic [ref=e216]: "15"
+                            - cell "No events, Tuesday, 16 June" [ref=e217] [cursor=pointer]:
+                              - generic [ref=e218]:
+                                - generic [ref=e219]: No events, Tuesday, 16 June
+                                - generic [ref=e222]: "16"
+                            - cell "No events, Wednesday, 17 June" [ref=e223] [cursor=pointer]:
+                              - generic [ref=e224]:
+                                - generic [ref=e225]: No events, Wednesday, 17 June
+                                - generic [ref=e228]: "17"
+                            - cell "No events, Thursday, 18 June" [ref=e229] [cursor=pointer]:
+                              - generic [ref=e230]:
+                                - generic [ref=e231]: No events, Thursday, 18 June
+                                - generic [ref=e234]: "18"
+                            - cell "No events, Friday, 19 June" [ref=e235] [cursor=pointer]:
+                              - generic [ref=e236]:
+                                - generic [ref=e237]: No events, Friday, 19 June
+                                - generic [ref=e240]: "19"
+                            - cell "No events, Saturday, 20 June" [ref=e241] [cursor=pointer]:
+                              - generic [ref=e242]:
+                                - generic [ref=e243]: No events, Saturday, 20 June
+                                - generic [ref=e246]: "20"
+                            - cell "No events, Sunday, 21 June" [ref=e247] [cursor=pointer]:
+                              - generic [ref=e248]:
+                                - generic [ref=e249]: No events, Sunday, 21 June
+                                - generic [ref=e252]: "21"
+                          - row "No events, Monday, 22 June No events, Tuesday, 23 June No events, Wednesday, 24 June No events, Thursday, 25 June No events, Friday, 26 June No events, Saturday, 27 June No events, Sunday, 28 June" [ref=e253]:
+                            - cell "No events, Monday, 22 June" [ref=e254] [cursor=pointer]:
+                              - generic [ref=e255]:
+                                - generic [ref=e256]: No events, Monday, 22 June
+                                - generic [ref=e259]: "22"
+                            - cell "No events, Tuesday, 23 June" [ref=e260] [cursor=pointer]:
+                              - generic [ref=e261]:
+                                - generic [ref=e262]: No events, Tuesday, 23 June
+                                - generic [ref=e265]: "23"
+                            - cell "No events, Wednesday, 24 June" [ref=e266] [cursor=pointer]:
+                              - generic [ref=e267]:
+                                - generic [ref=e268]: No events, Wednesday, 24 June
+                                - generic [ref=e271]: "24"
+                            - cell "No events, Thursday, 25 June" [ref=e272] [cursor=pointer]:
+                              - generic [ref=e273]:
+                                - generic [ref=e274]: No events, Thursday, 25 June
+                                - generic [ref=e277]: "25"
+                            - cell "No events, Friday, 26 June" [ref=e278] [cursor=pointer]:
+                              - generic [ref=e279]:
+                                - generic [ref=e280]: No events, Friday, 26 June
+                                - generic [ref=e283]: "26"
+                            - cell "No events, Saturday, 27 June" [ref=e284] [cursor=pointer]:
+                              - generic [ref=e285]:
+                                - generic [ref=e286]: No events, Saturday, 27 June
+                                - generic [ref=e289]: "27"
+                            - cell "No events, Sunday, 28 June" [ref=e290] [cursor=pointer]:
+                              - generic [ref=e291]:
+                                - generic [ref=e292]: No events, Sunday, 28 June
+                                - generic [ref=e295]: "28"
+                          - row "No events, Monday, 29 June No events, Tuesday, 30 June" [ref=e296]:
+                            - cell "No events, Monday, 29 June" [ref=e297] [cursor=pointer]:
+                              - generic [ref=e298]:
+                                - generic [ref=e299]: No events, Monday, 29 June
+                                - generic [ref=e302]: "29"
+                            - cell "No events, Tuesday, 30 June" [ref=e303] [cursor=pointer]:
+                              - generic [ref=e304]:
+                                - generic [ref=e305]: No events, Tuesday, 30 June
+                                - generic [ref=e308]: "30"
+                            - cell [ref=e309]
+                            - cell [ref=e310]
+                            - cell [ref=e311]
+                            - cell [ref=e312]
+                            - cell [ref=e313]
+                  - generic [ref=e315]:
+                    - generic [ref=e316]:
+                      - link "Full calendar" [ref=e317] [cursor=pointer]:
+                        - /url: http://localhost:8080/calendar/view.php?view=month&time=1782070755&course=1
+                      - text: •
+                    - link "Import or export calendars" [ref=e319] [cursor=pointer]:
+                      - /url: http://localhost:8080/calendar/managesubscriptions.php?course=1
+      - contentinfo [ref=e320]:
+        - button "Show footer" [ref=e321] [cursor=pointer]:
+          - generic [ref=e322]: "?"
+        - text:    
+        - generic [ref=e324]:
+          - link "Purge all caches" [ref=e326] [cursor=pointer]:
+            - /url: http://localhost:8080/admin/purgecaches.php?confirm=1&sesskey=Zx7F5RIUyc&returnurl=%2Fmy%2Findex.php
+          - generic [ref=e327]:
+            - generic [ref=e328]:
+              - text: "Reactive instances:"
+              - generic [ref=e329]: This page has no reactive instances.
+            - img "Loading" [ref=e332]: 

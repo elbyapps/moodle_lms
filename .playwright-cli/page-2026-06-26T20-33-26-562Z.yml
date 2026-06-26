@@ -1,0 +1,48 @@
+- generic [active] [ref=e1]:
+  - status
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#maincontent"
+  - generic [ref=e3]:
+    - generic [ref=e5]:
+      - link "moodle" [ref=e7] [cursor=pointer]:
+        - /url: http://localhost:8080
+      - generic [ref=e8]:
+        - heading "Create Your Account" [level=1] [ref=e9]
+        - paragraph [ref=e10]: Sign up using your SDMS code
+      - main [ref=e12]:
+        - generic [ref=e14]:
+          - text:  
+          - generic [ref=e31]:
+            - heading "Your Information" [level=3] [ref=e32]
+            - generic [ref=e34]:
+              - generic [ref=e35]:
+                - generic [ref=e37]: 
+                - generic [ref=e38]:
+                  - heading "Steven Kwizera" [level=5] [ref=e39]
+                  - text: 110705200131 (student)
+              - generic [ref=e40]:
+                - generic [ref=e41]:
+                  - generic [ref=e42]: School
+                  - text: GS RUGANDO / TSS
+                - generic [ref=e43]:
+                  - generic [ref=e44]: Gender
+                  - text: MALE
+                - generic [ref=e45]:
+                  - generic [ref=e46]: Study Level
+                  - text: TVET
+                - generic [ref=e47]:
+                  - generic [ref=e48]: Grade / Group
+                  - text: Level 5
+                - generic [ref=e49]:
+                  - generic [ref=e50]: Status
+                  - text: CONTINUING
+                - generic [ref=e51]:
+                  - generic [ref=e52]: Academic Year
+                  - text: 2025/2026
+            - text:  
+            - button "Continue to Register" [ref=e54] [cursor=pointer]
+            - button " Back" [ref=e55] [cursor=pointer]:
+              - generic [ref=e56]: 
+              - text: Back
+          - text:    
+    - generic [ref=e30]: 
