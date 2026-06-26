@@ -52,7 +52,8 @@ $CFG->task_concurrency_limit = [
 $CFG->cachedir = $CFG->dataroot . '/cache';
 $CFG->localcachedir = '/tmp/moodle_localcache';  // Container-local (not shared across replicas)
 $CFG->tempdir = $CFG->dataroot . '/temp';
-$CFG->cachejs = true;
+// $CFG->cachejs is set in the debug block below: false in dev (live JS/AMD
+// edits), true otherwise (aggregated + cached for prod).
 
 // Redis session handler (scales across PHP-FPM replicas without file lock contention)
 $CFG->session_handler_class = '\core\session\redis';
@@ -81,7 +82,14 @@ if ($debug === 'true' || $debug === '1') {
     @ini_set('display_errors', '1');
     $CFG->debug = (E_ALL | E_STRICT);
     $CFG->debugdisplay = 1;
+    // Serve plugin JS/templates/lang straight from disk so vendored plugin
+    // edits hot-reload without cache purges.
+    $CFG->cachejs = false;
+    $CFG->jsrev = -1;
+    $CFG->cachetemplates = false;
+    $CFG->langstringcache = false;
 } else {
+    $CFG->cachejs = true;
     @error_reporting(E_ALL | E_STRICT);
     @ini_set('display_errors', '0');
     $CFG->debug = 0;

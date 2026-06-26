@@ -168,6 +168,17 @@ class observer {
     }
 
     /**
+     * Handle a password change. Moodle fires this (not user_updated) when a
+     * password is set via update_internal_user_password(), so it's required for
+     * school→central password propagation.
+     *
+     * @param \core\event\user_password_updated $event
+     */
+    public static function user_password_updated(\core\event\user_password_updated $event): void {
+        self::maybe_push_account_update((int) ($event->relateduserid ?? 0));
+    }
+
+    /**
      * Queue an account push if the user is enrolling into a synced course.
      *
      * @param int $userid Affected user ID.

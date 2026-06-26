@@ -1,0 +1,115 @@
+{{!
+    @template theme_elby/footer
+
+    Footer partial for the Elby theme.
+
+    Context variables:
+    * footercontent - Main footer content HTML
+    * hasfootercontent - Whether footer content exists
+    * copyrighttext - Copyright text
+    * sociallinks - Array of social media links
+    * hassocialmedia - Whether social links exist
+    * footercolumn1title, footercolumn1content, etc.
+
+    Example context (json):
+    {
+        "copyrighttext": "© 2025 My Site",
+        "hassocialmedia": true,
+        "sociallinks": [
+            {"url": "https://facebook.com", "icon": "fa-facebook-f", "name": "Facebook"}
+        ]
+    }
+}}
+<footer class="elby-footer">
+    <div class="elby-footer-main">
+        <div class="container">
+            <div class="row g-4">
+                {{! Logo and Description Column }}
+                <div class="col-lg-4 col-md-6">
+                    <div class="elby-footer-brand">
+                        {{#haslogo}}
+                        <img src="{{{ logourl }}}" alt="{{{ sitename }}}" class="elby-footer-logo mb-3">
+                        {{/haslogo}}
+                        {{^haslogo}}
+                        <h4 class="elby-footer-sitename mb-3">{{{ sitename }}}</h4>
+                        {{/haslogo}}
+                        {{#hasfootercontent}}
+                        <div class="elby-footer-description">
+                            {{{ footercontent }}}
+                        </div>
+                        {{/hasfootercontent}}
+                    </div>
+
+                    {{! Social Media Links }}
+                    {{#hassocialmedia}}
+                    <div class="elby-social-links mt-4">
+                        {{#sociallinks}}
+                        <a href="{{{ url }}}" class="elby-social-link" target="_blank" rel="noopener" aria-label="{{{ name }}}">
+                            <i class="fa-brands {{{ icon }}}"></i>
+                        </a>
+                        {{/sociallinks}}
+                    </div>
+                    {{/hassocialmedia}}
+                </div>
+
+                {{! Footer Column 1 }}
+                {{#footercolumn1title}}
+                <div class="col-lg-2 col-md-6">
+                    <h5 class="elby-footer-heading">{{{ footercolumn1title }}}</h5>
+                    <div class="elby-footer-links">
+                        {{{ footercolumn1content }}}
+                    </div>
+                </div>
+                {{/footercolumn1title}}
+
+                {{! Footer Column 2 }}
+                {{#footercolumn2title}}
+                <div class="col-lg-2 col-md-6">
+                    <h5 class="elby-footer-heading">{{{ footercolumn2title }}}</h5>
+                    <div class="elby-footer-links">
+                        {{{ footercolumn2content }}}
+                    </div>
+                </div>
+                {{/footercolumn2title}}
+
+                {{! Footer Column 3 }}
+                {{#footercolumn3title}}
+                <div class="col-lg-2 col-md-6">
+                    <h5 class="elby-footer-heading">{{{ footercolumn3title }}}</h5>
+                    <div class="elby-footer-links">
+                        {{{ footercolumn3content }}}
+                    </div>
+                </div>
+                {{/footercolumn3title}}
+
+                {{! Newsletter / Contact Column }}
+                <div class="col-lg-2 col-md-6">
+                    <h5 class="elby-footer-heading">{{#str}}connect, theme_elby{{/str}}</h5>
+                    <div class="elby-footer-contact">
+                        <p class="small text-muted mb-2">
+                            {{#str}}stayconnected, theme_elby{{/str}}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{! Copyright Bar }}
+    <div class="elby-footer-bottom">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="elby-copyright mb-0">{{{ copyrighttext }}}</p>
+                </div>
+                <div class="col-md-6 text-md-end">
+                    <p class="elby-powered mb-0">
+                        {{#str}}poweredbymoodle, theme_elby{{/str}}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{{ output.standard_footer_html }}}
+</footer>

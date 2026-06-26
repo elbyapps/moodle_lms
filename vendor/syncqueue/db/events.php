@@ -113,4 +113,9 @@ $observers = [
         'callback' => '\local_syncqueue\observer::user_updated',
         'priority' => 0,
     ],
+    [
+        'eventname' => '\core\event\user_password_updated',
+        'callback' => '\local_syncqueue\observer::user_password_updated',
+        'priority' => 0,
+    ],
 ];

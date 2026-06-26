@@ -1,0 +1,1450 @@
+// ============================================================================
+// Elby Theme - Frontpage Styles (Edwiser-style Design)
+// ============================================================================
+
+// Variables
+$elby-primary: #2563eb;
+$elby-secondary: #64748b;
+$elby-accent-amber: #fbbf24;
+$elby-accent-orange: #f97316;
+$elby-accent-pink: #ec4899;
+$elby-text-dark: #1e293b;
+$elby-text-muted: #64748b;
+$elby-bg-light: #f8fafc;
+$elby-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+$elby-shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+// ============================================================================
+// BASE STYLES
+// ============================================================================
+
+.elby-frontpage {
+    background: #fff;
+    overflow-x: hidden;
+}
+
+.elby-section {
+    padding: 80px 0;
+
+    @media (max-width: 991.98px) {
+        padding: 60px 0;
+    }
+
+    @media (max-width: 575.98px) {
+        padding: 40px 0;
+    }
+}
+
+.elby-section-light {
+    background: $elby-bg-light;
+}
+
+.elby-section-title {
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: $elby-text-dark;
+    margin-bottom: 0.5rem;
+
+    @media (max-width: 767.98px) {
+        font-size: 1.75rem;
+    }
+}
+
+.elby-section-subtitle {
+    font-size: 1rem;
+    color: $elby-text-muted;
+    max-width: 600px;
+    margin: 0 auto 2rem;
+}
+
+// Buttons
+.elby-btn-primary {
+    display: inline-block;
+    background: $elby-primary;
+    color: #fff !important;
+    border: none;
+    padding: 0.875rem 2rem;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    border-radius: 8px;
+    text-decoration: none !important;
+    transition: all 0.3s ease;
+
+    &:hover {
+        background: darken($elby-primary, 8%);
+        color: #fff !important;
+        transform: translateY(-2px);
+        box-shadow: $elby-shadow-lg;
+    }
+}
+
+.elby-btn-outline {
+    display: inline-block;
+    background: transparent;
+    color: $elby-primary !important;
+    border: 2px solid $elby-primary;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    border-radius: 8px;
+    text-decoration: none !important;
+    transition: all 0.3s ease;
+
+    &:hover {
+        background: $elby-primary;
+        color: #fff !important;
+    }
+}
+
+// ============================================================================
+// HERO SECTION - Edwiser Style with Image Collage
+// ============================================================================
+
+.elby-hero {
+    position: relative;
+    min-height: 580px;
+    display: flex;
+    align-items: center;
+    padding: 100px 0 60px;
+    overflow: hidden;
+    background: #fff;
+
+    @media (max-width: 991.98px) {
+        min-height: auto;
+        padding: 80px 0 40px;
+    }
+}
+
+// Decorative Elements Container
+.elby-hero-decorations {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 1;
+}
+
+// Colored Blobs (soft circles in background)
+.elby-deco-blob {
+    position: absolute;
+    border-radius: 50%;
+
+    &.elby-deco-blob-1 {
+        width: 120px;
+        height: 120px;
+        background: rgba(#e2e8f0, 0.6);
+        top: 25%;
+        left: 3%;
+    }
+
+    &.elby-deco-blob-2 {
+        width: 80px;
+        height: 80px;
+        background: rgba($elby-accent-pink, 0.15);
+        bottom: 15%;
+        right: 8%;
+    }
+
+    &.elby-deco-blob-3 {
+        width: 200px;
+        height: 200px;
+        background: rgba($elby-accent-pink, 0.08);
+        bottom: -50px;
+        right: 25%;
+    }
+
+    &.elby-deco-blob-4 {
+        width: 60px;
+        height: 60px;
+        background: rgba(#e2e8f0, 0.5);
+        top: 60%;
+        left: 45%;
+    }
+}
+
+// Dot Grid Patterns
+.elby-deco-dots {
+    position: absolute;
+    width: 70px;
+    height: 70px;
+    background-image: radial-gradient(circle, rgba($elby-primary, 0.25) 2px, transparent 2px);
+    background-size: 10px 10px;
+
+    &.elby-deco-dots-1 {
+        top: 12%;
+        left: 5%;
+    }
+
+    &.elby-deco-dots-2 {
+        top: 8%;
+        right: 35%;
+    }
+
+    &.elby-deco-dots-3 {
+        bottom: 25%;
+        right: 5%;
+    }
+}
+
+// Small Accent Dots
+.elby-deco-dot {
+    position: absolute;
+    border-radius: 50%;
+
+    &.elby-deco-dot-1 {
+        width: 10px;
+        height: 10px;
+        background: $elby-primary;
+        top: 30%;
+        left: 12%;
+    }
+
+    &.elby-deco-dot-2 {
+        width: 8px;
+        height: 8px;
+        background: $elby-primary;
+        top: 15%;
+        right: 42%;
+    }
+
+    &.elby-deco-dot-3 {
+        width: 6px;
+        height: 6px;
+        background: rgba($elby-primary, 0.5);
+        bottom: 35%;
+        left: 48%;
+    }
+}
+
+// Navigation Arrows
+.elby-hero-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    width: 50px;
+    height: 50px;
+    border: 2px solid $elby-primary;
+    background: transparent;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: $elby-primary;
+
+    i {
+        font-size: 1rem;
+    }
+
+    &:hover {
+        background: $elby-primary;
+        color: #fff;
+    }
+
+    &.elby-hero-nav-prev {
+        left: 20px;
+
+        @media (max-width: 1399.98px) {
+            left: 10px;
+        }
+    }
+
+    &.elby-hero-nav-next {
+        right: 20px;
+
+        @media (max-width: 1399.98px) {
+            right: 10px;
+        }
+    }
+
+    @media (max-width: 991.98px) {
+        display: none;
+    }
+}
+
+// Hero Content
+.elby-hero-content {
+    position: relative;
+    z-index: 2;
+}
+
+.elby-hero-heading {
+    font-size: 2.75rem;
+    font-weight: 800;
+    color: $elby-text-dark;
+    line-height: 1.15;
+    margin-bottom: 1.25rem;
+    text-transform: uppercase;
+    letter-spacing: -0.5px;
+
+    @media (max-width: 1199.98px) {
+        font-size: 2.25rem;
+    }
+
+    @media (max-width: 767.98px) {
+        font-size: 1.875rem;
+    }
+}
+
+.elby-hero-subheading {
+    font-size: 1rem;
+    color: $elby-text-muted;
+    line-height: 1.7;
+    margin-bottom: 1.75rem;
+    max-width: 420px;
+}
+
+.elby-hero-cta {
+    margin-bottom: 1.5rem;
+}
+
+// Pagination Dots
+.elby-hero-pagination {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.elby-hero-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #d1d5db;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &.active {
+        background: $elby-primary;
+    }
+
+    &:hover:not(.active) {
+        background: #9ca3af;
+    }
+}
+
+// Hero Image Collage
+.elby-hero-collage {
+    position: relative;
+    z-index: 2;
+    height: 450px;
+
+    @media (max-width: 1199.98px) {
+        height: 380px;
+    }
+}
+
+// Main Blob-Shaped Image
+.elby-hero-main-image {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 85%;
+    height: 100%;
+    z-index: 2;
+}
+
+.elby-hero-image-blob {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    // Organic blob shape using clip-path
+    clip-path: path('M 380 0 C 480 0 520 40 520 140 C 520 180 500 220 480 260 C 460 300 440 340 440 380 C 440 420 460 440 440 460 C 420 480 380 480 320 480 C 260 480 200 480 140 460 C 80 440 40 400 20 340 C 0 280 0 200 20 140 C 40 80 100 40 160 20 C 220 0 280 0 380 0');
+    // Fallback for browsers that don't support path()
+    border-radius: 60% 40% 50% 50% / 50% 60% 40% 50%;
+}
+
+.elby-hero-placeholder-blob {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba($elby-primary, 0.08) 0%, rgba($elby-accent-pink, 0.12) 100%);
+    border-radius: 60% 40% 50% 50% / 50% 60% 40% 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    i {
+        font-size: 4rem;
+        color: $elby-primary;
+        opacity: 0.25;
+    }
+}
+
+// Secondary Circular Image
+.elby-hero-secondary-image {
+    position: absolute;
+    bottom: -20px;
+    left: 5%;
+    width: 180px;
+    height: 180px;
+    z-index: 3;
+
+    @media (max-width: 1199.98px) {
+        width: 150px;
+        height: 150px;
+        bottom: 0;
+    }
+}
+
+.elby-hero-image-circle {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 5px solid #fff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.elby-hero-placeholder-circle {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, rgba($elby-primary, 0.1) 0%, rgba($elby-accent-pink, 0.15) 100%);
+    border-radius: 50%;
+    border: 5px solid #fff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    i {
+        font-size: 2.5rem;
+        color: $elby-primary;
+        opacity: 0.3;
+    }
+}
+
+// Background Decorative Shapes for Collage
+.elby-hero-shape {
+    position: absolute;
+    border-radius: 50%;
+
+    &.elby-hero-shape-1 {
+        width: 250px;
+        height: 250px;
+        background: rgba($elby-accent-pink, 0.12);
+        bottom: -30px;
+        right: -30px;
+        z-index: 1;
+    }
+
+    &.elby-hero-shape-2 {
+        width: 100px;
+        height: 100px;
+        background: rgba(#e2e8f0, 0.5);
+        top: 20%;
+        left: 15%;
+        z-index: 1;
+    }
+}
+
+// ============================================================================
+// HERO SECTION - Full-width Background Style
+// ============================================================================
+
+.elby-hero--fullwidth {
+    min-height: 600px;
+    padding: 0;
+    background: #1a1a2e;
+    width: 100vw;
+    max-width: 100vw;
+    margin-left: calc(-50vw + 50%);
+
+    @media (max-width: 991.98px) {
+        min-height: 450px;
+        padding: 0;
+    }
+
+    @media (max-width: 575.98px) {
+        min-height: 350px;
+    }
+
+    .elby-hero-fullwidth-slides {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+    }
+
+    .elby-hero-slide.elby-hero-fullwidth-slide {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        opacity: 0;
+        visibility: hidden;
+        transform: none;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+        display: flex;
+        align-items: center;
+
+        &.active {
+            position: absolute;
+            opacity: 1;
+            visibility: visible;
+            transform: none;
+        }
+
+        &.fade-out {
+            transform: none;
+        }
+    }
+
+    .elby-hero-fullwidth-overlay {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(to right, rgba(0, 0, 0, 0.65) 35%, rgba(0, 0, 0, 0.2) 100%);
+        z-index: 1;
+    }
+
+    .elby-hero-fullwidth-content {
+        max-width: 620px;
+        padding: 120px 0 80px;
+        position: relative;
+        z-index: 2;
+
+        @media (max-width: 991.98px) {
+            padding: 100px 0 60px;
+        }
+
+        @media (max-width: 575.98px) {
+            padding: 80px 0 50px;
+            max-width: 100%;
+        }
+    }
+
+    .elby-hero-heading {
+        color: #fff;
+        font-size: 3rem;
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+        line-height: 1.2;
+        margin-bottom: 1.25rem;
+
+        @media (max-width: 1199.98px) {
+            font-size: 2.5rem;
+        }
+
+        @media (max-width: 767.98px) {
+            font-size: 2rem;
+            letter-spacing: 0.1em;
+        }
+
+        @media (max-width: 575.98px) {
+            font-size: 1.5rem;
+        }
+    }
+
+    .elby-hero-subheading {
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 1rem;
+        line-height: 1.6;
+        margin-bottom: 1.75rem;
+        max-width: 500px;
+
+        @media (max-width: 575.98px) {
+            font-size: 0.9rem;
+        }
+    }
+
+    .elby-hero-cta {
+        padding: 0.75rem 2rem;
+        font-size: 1rem;
+        font-weight: 600;
+        border-radius: 6px;
+        margin-bottom: 0;
+    }
+
+    // Navigation overrides
+    .elby-hero-nav {
+        border-color: rgba(255, 255, 255, 0.5);
+        color: #fff;
+        z-index: 3;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #fff;
+        }
+    }
+
+    .elby-hero-pagination {
+        position: absolute;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 3;
+    }
+
+    .elby-hero-dot {
+        background: rgba(255, 255, 255, 0.5);
+
+        &.active {
+            background: #fff;
+        }
+    }
+}
+
+// Hero Feature Cards (Marketing Blocks)
+.elby-hero-features {
+    display: flex;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+    margin-top: 2rem;
+}
+
+.elby-hero-feature-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    background: #fff;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    flex: 1;
+    min-width: 220px;
+    max-width: 300px;
+    transition: all 0.3s ease;
+
+    &:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+    }
+}
+
+.elby-hero-feature-icon {
+    width: 55px;
+    height: 55px;
+    background: linear-gradient(135deg, $elby-primary 0%, lighten($elby-primary, 10%) 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    i {
+        font-size: 1.375rem;
+        color: #fff;
+    }
+}
+
+.elby-hero-feature-content {
+    h4 {
+        font-size: 1rem;
+        font-weight: 700;
+        color: $elby-text-dark;
+        margin-bottom: 0.375rem;
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
+    }
+
+    p {
+        font-size: 0.875rem;
+        color: $elby-text-muted;
+        margin-bottom: 0;
+        line-height: 1.5;
+    }
+}
+
+// ============================================================================
+// MARKETING BLOCKS SECTION - Edwiser Style Cards
+// ============================================================================
+
+.elby-marketing {
+    background: #fff;
+    padding: 80px 0;
+
+    @media (max-width: 991.98px) {
+        padding: 60px 0;
+    }
+}
+
+.elby-marketing-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 2.5rem 2rem;
+    text-align: center;
+    height: 100%;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &:hover {
+        transform: translateY(-10px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+    }
+}
+
+.elby-marketing-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+
+    i {
+        font-size: 3.5rem;
+        color: $elby-primary;
+        line-height: 1;
+        transition: transform 0.3s ease;
+
+        .elby-marketing-card:hover & {
+            transform: scale(1.1);
+        }
+    }
+}
+
+.elby-marketing-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: $elby-text-dark;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 1rem;
+}
+
+.elby-marketing-content {
+    font-size: 0.9375rem;
+    color: $elby-text-muted;
+    line-height: 1.7;
+    margin-bottom: 1.5rem;
+}
+
+// ============================================================================
+// ANNOUNCEMENTS SECTION - Edwiser Style
+// ============================================================================
+
+.elby-announcements {
+    position: relative;
+    padding: 80px 0;
+    background: #fff !important;
+    overflow: visible;
+
+    @media (max-width: 991.98px) {
+        padding: 60px 0;
+    }
+
+    .container {
+        position: relative;
+        z-index: 1;
+    }
+}
+
+.elby-announcements-decorations {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 200px;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+
+    @media (max-width: 991.98px) {
+        display: none;
+    }
+}
+
+.elby-announce-deco {
+    position: absolute;
+
+    &.elby-announce-deco-dot-1 {
+        width: 12px;
+        height: 12px;
+        background: $elby-primary;
+        opacity: 0.3;
+        border-radius: 50%;
+        top: 20%;
+        left: 80px;
+    }
+
+    &.elby-announce-deco-dot-2 {
+        width: 8px;
+        height: 8px;
+        background: $elby-primary;
+        opacity: 0.2;
+        border-radius: 50%;
+        top: 30%;
+        left: 60px;
+    }
+
+    &.elby-announce-deco-dots {
+        width: 50px;
+        height: 50px;
+        background-image: radial-gradient(circle, $elby-primary 2px, transparent 2px);
+        background-size: 12px 12px;
+        opacity: 0.2;
+        top: 45%;
+        left: 40px;
+    }
+
+    &.elby-announce-deco-circle {
+        width: 120px;
+        height: 120px;
+        background: rgba($elby-accent-pink, 0.12);
+        border-radius: 50%;
+        top: 25%;
+        left: 100px;
+    }
+}
+
+.elby-announcement-wrapper {
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+.elby-announcement-title {
+    font-size: 2.25rem;
+    font-weight: 700;
+    color: $elby-text-dark;
+    margin-bottom: 1.25rem;
+    line-height: 1.3;
+
+    @media (max-width: 767.98px) {
+        font-size: 1.75rem;
+    }
+}
+
+.elby-announcement-content {
+    font-size: 1rem;
+    color: $elby-text-muted;
+    line-height: 1.8;
+    margin-bottom: 2rem;
+
+    p {
+        margin-bottom: 0;
+    }
+}
+
+// ============================================================================
+// CAMPUS LIFE GALLERY
+// ============================================================================
+
+.elby-campus-life {
+    background: #fff;
+}
+
+.elby-campus-tabs {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-bottom: 2.5rem;
+    flex-wrap: wrap;
+}
+
+.elby-campus-tab {
+    background: transparent;
+    border: 2px solid #e2e8f0;
+    color: $elby-text-muted;
+    padding: 0.625rem 1.75rem;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 50px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+
+    &:hover {
+        border-color: $elby-primary;
+        color: $elby-primary;
+    }
+
+    &.active {
+        background: $elby-primary;
+        border-color: $elby-primary;
+        color: #fff;
+    }
+}
+
+.elby-campus-gallery {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.elby-campus-item {
+    position: relative;
+    flex: 1;
+    min-width: 280px;
+    max-width: 350px;
+    border-radius: 16px;
+    overflow: hidden;
+    display: none;
+
+    &.active {
+        display: block;
+    }
+}
+
+.elby-campus-image {
+    width: 100%;
+    height: 280px;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+
+    .elby-campus-item:hover & {
+        transform: scale(1.05);
+    }
+}
+
+.elby-campus-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 1.5rem;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+}
+
+.elby-campus-label {
+    color: #fff;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: $elby-primary;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+// ============================================================================
+// FEATURE SECTION - Edwiser Split Layout
+// ============================================================================
+
+.elby-feature-section {
+    background: #fff;
+    padding: 80px 0;
+
+    @media (max-width: 991.98px) {
+        padding: 60px 0;
+    }
+}
+
+.elby-feature-image-wrapper {
+    position: relative;
+    padding: 30px;
+}
+
+.elby-feature-deco {
+    position: absolute;
+    z-index: 0;
+
+    &.elby-feature-deco-dots {
+        width: 60px;
+        height: 60px;
+        background-image: radial-gradient(circle, $elby-primary 2px, transparent 2px);
+        background-size: 12px 12px;
+        opacity: 0.25;
+        top: 0;
+        left: 0;
+    }
+
+    &.elby-feature-deco-circle {
+        width: 140px;
+        height: 140px;
+        background: rgba($elby-accent-pink, 0.1);
+        border-radius: 50%;
+        top: 50px;
+        left: 60px;
+    }
+
+    &.elby-feature-deco-dot-1 {
+        width: 10px;
+        height: 10px;
+        background: $elby-primary;
+        opacity: 0.4;
+        border-radius: 50%;
+        top: 20px;
+        right: 30%;
+    }
+
+    &.elby-feature-deco-dot-2 {
+        width: 6px;
+        height: 6px;
+        background: $elby-primary;
+        opacity: 0.25;
+        border-radius: 50%;
+        bottom: 40px;
+        left: 20px;
+    }
+}
+
+.elby-feature-image {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: auto;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+}
+
+.elby-feature-placeholder {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 300px;
+    background: linear-gradient(135deg, rgba($elby-primary, 0.05) 0%, rgba($elby-accent-pink, 0.08) 100%);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    i {
+        font-size: 4rem;
+        color: $elby-primary;
+        opacity: 0.15;
+    }
+}
+
+.elby-feature-content {
+    padding-left: 2rem;
+
+    @media (max-width: 991.98px) {
+        padding-left: 0;
+        padding-top: 2rem;
+        text-align: center;
+    }
+}
+
+.elby-feature-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: $elby-text-dark;
+    margin-bottom: 1.25rem;
+    line-height: 1.3;
+
+    @media (max-width: 767.98px) {
+        font-size: 1.5rem;
+    }
+}
+
+.elby-feature-text {
+    font-size: 1rem;
+    color: $elby-text-muted;
+    line-height: 1.8;
+    margin-bottom: 1.5rem;
+
+    p {
+        margin-bottom: 0;
+    }
+}
+
+.elby-feature-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: $elby-text-dark;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    text-decoration: none;
+    transition: all 0.3s ease;
+
+    &:hover {
+        color: $elby-primary;
+        gap: 0.75rem;
+    }
+
+    i {
+        font-size: 0.875rem;
+        transition: transform 0.3s ease;
+    }
+
+    &:hover i {
+        transform: translateX(4px);
+    }
+}
+
+// ============================================================================
+// TESTIMONIALS SECTION
+// ============================================================================
+
+.elby-testimonials {
+    background: $elby-bg-light;
+}
+
+.elby-testimonial-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 2rem;
+    height: 100%;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    transition: all 0.3s ease;
+    text-align: center;
+
+    &:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+    }
+}
+
+.elby-testimonial-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+.elby-testimonial-image {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-bottom: 1rem;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.elby-testimonial-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, $elby-primary 0%, lighten($elby-primary, 15%) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 1rem;
+}
+
+.elby-testimonial-info {
+    text-align: center;
+}
+
+.elby-testimonial-name {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: $elby-primary;
+    margin-bottom: 0.25rem;
+}
+
+.elby-testimonial-role {
+    font-size: 0.875rem;
+    color: $elby-text-muted;
+    margin-bottom: 0;
+}
+
+.elby-testimonial-quote {
+    font-size: 0.9375rem;
+    color: $elby-text-muted;
+    line-height: 1.7;
+    margin: 0;
+    font-style: normal;
+}
+
+.elby-quote-icon {
+    color: $elby-primary;
+    opacity: 0.2;
+    font-size: 1.5rem;
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+// ============================================================================
+// STATISTICS SECTION
+// ============================================================================
+
+.elby-statistics {
+    background: #fff;
+    padding-top: 60px;
+    padding-bottom: 60px;
+}
+
+.elby-stats-col {
+    flex: 1 1 0;
+    min-width: 0;
+
+    @media (max-width: 767.98px) {
+        flex: 0 0 33.333%;
+    }
+}
+
+.elby-stat-item {
+    text-align: center;
+    padding: 0.5rem;
+}
+
+.elby-stat-icon {
+    display: none; // Hide icons for cleaner look like reference
+}
+
+.elby-stat-value {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: $elby-primary;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+
+    @media (max-width: 767.98px) {
+        font-size: 2rem;
+    }
+
+    @media (max-width: 575.98px) {
+        font-size: 1.75rem;
+    }
+}
+
+.elby-stat-number {
+    color: $elby-primary;
+}
+
+.elby-stat-suffix {
+    color: $elby-primary;
+}
+
+.elby-stat-label {
+    font-size: 0.9375rem;
+    color: $elby-text-muted;
+    font-weight: 500;
+}
+
+// ============================================================================
+// EVENTS SECTION
+// ============================================================================
+
+.elby-events {
+    background: $elby-bg-light;
+}
+
+.elby-event-card {
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    text-decoration: none !important;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+    border: 1px solid rgba(0, 0, 0, 0.04);
+    transition: all 0.3s ease;
+    height: 100%;
+
+    &:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+    }
+}
+
+.elby-event-image-wrapper {
+    height: 200px;
+    overflow: hidden;
+    background: linear-gradient(135deg, rgba($elby-primary, 0.1) 0%, rgba($elby-accent-pink, 0.1) 100%);
+}
+
+.elby-event-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+
+    .elby-event-card:hover & {
+        transform: scale(1.08);
+    }
+}
+
+.elby-event-content {
+    padding: 1.5rem;
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    flex: 1;
+}
+
+.elby-event-date {
+    flex-shrink: 0;
+    text-align: center;
+    color: $elby-primary;
+}
+
+.elby-event-day {
+    display: block;
+    font-size: 1.75rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.elby-event-month {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 0.25rem;
+}
+
+.elby-event-info {
+    flex: 1;
+}
+
+.elby-event-title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    color: $elby-text-dark;
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.elby-event-description {
+    font-size: 0.875rem;
+    color: $elby-text-muted;
+    margin-bottom: 0;
+    line-height: 1.6;
+}
+
+// ============================================================================
+// MAIN CONTENT
+// ============================================================================
+
+.elby-main-content {
+    background: #fff;
+    min-height: 50px;
+
+    // Hide if empty or only whitespace
+    &:empty,
+    &:has(> .container:empty) {
+        display: none;
+        padding: 0;
+    }
+}
+
+// ============================================================================
+// RESPONSIVE ADJUSTMENTS
+// ============================================================================
+
+@media (max-width: 991.98px) {
+    .elby-hero {
+        text-align: center;
+    }
+
+    .elby-hero-subheading {
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .elby-hero-pagination {
+        justify-content: center;
+    }
+
+    .elby-hero-features {
+        justify-content: center;
+    }
+
+    .elby-hero-feature-card {
+        max-width: none;
+        flex: 1 1 calc(50% - 0.75rem);
+    }
+
+    .elby-announcement-card {
+        text-align: center;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .elby-hero-feature-card {
+        flex: 1 1 100%;
+    }
+
+    .elby-campus-item {
+        min-width: 100%;
+    }
+
+    .elby-campus-image {
+        height: 220px;
+    }
+
+    .elby-event-content {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .elby-event-date {
+        display: flex;
+        gap: 0.5rem;
+        align-items: baseline;
+    }
+
+    .elby-event-month {
+        margin-top: 0;
+    }
+}
+
+// ============================================================================
+// Category Header Banner (filtered view)
+// ============================================================================
+
+.elby-category-header {
+    position: relative;
+    background: #1e293b;
+    color: #fff;
+    overflow: hidden;
+}
+
+.elby-category-header-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.4;
+    }
+}
+
+.elby-category-header-content {
+    position: relative;
+    z-index: 1;
+    padding: 3rem 0;
+}
+
+.elby-category-header .elby-categories-breadcrumb a {
+    color: rgba(255, 255, 255, 0.8);
+
+    &:hover {
+        color: #fff;
+    }
+
+    &.active {
+        color: rgba(255, 255, 255, 0.6);
+    }
+}
+
+.elby-category-header .elby-categories-breadcrumb .separator {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.elby-category-header-title {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    color: #fff;
+}
+
+.elby-category-header-desc {
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0.5rem 0 0 0;
+    line-height: 1.6;
+    max-width: 600px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+@media (max-width: 767.98px) {
+    .elby-category-header-content {
+        padding: 2rem 0;
+    }
+
+    .elby-category-header-title {
+        font-size: 1.5rem;
+    }
+}

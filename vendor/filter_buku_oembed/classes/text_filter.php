@@ -1,11 +1,13 @@
 <?php
 
+namespace filter_buku_oembed;
+
 /**
  * Filter for processing HTML content containing links to media from buku.app
  *
  * @package filter_buku_oembed
  */
-class filter_buku_oembed extends moodle_text_filter
+class text_filter extends \core_filters\text_filter
 {
     public function filter($text, array $options = [])
     {

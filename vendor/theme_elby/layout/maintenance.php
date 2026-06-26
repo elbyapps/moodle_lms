@@ -15,17 +15,14 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information for local_syncqueue.
+ * Maintenance layout - extends Boost's maintenance layout.
  *
- * @package    local_syncqueue
+ * @package    theme_elby
  * @copyright  2025 REB Rwanda
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026062605;        // The current plugin version (Date: YYYYMMDDXX).
-$plugin->requires  = 2024100700;        // Requires Moodle 5.0+.
-$plugin->component = 'local_syncqueue'; // Full name of the plugin.
-$plugin->maturity  = MATURITY_ALPHA;
-$plugin->release   = '0.5.1';           // Observe user_password_updated for school→central password propagation.
+// Use Boost's maintenance layout.
+require_once($CFG->dirroot . '/theme/boost/layout/maintenance.php');
