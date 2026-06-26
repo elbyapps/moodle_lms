@@ -180,9 +180,9 @@
     },
     {
       "name": "moodle-local_syncqueue",
-      "repository": "https://github.com/elbyapps/moodle_sync_queue.git",
-      "version": "main",
-      "destination": "local/syncqueue"
+      "destination": "local/syncqueue",
+      "source": "vendor",
+      "path": "vendor/syncqueue"
     },
     {
       "name": "moodle-filter_buku_oembed",
