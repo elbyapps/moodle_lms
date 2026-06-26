@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/syncqueue/db" VERSION="20250114" COMMENT="XMLDB file for local_syncqueue"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <!-- Main queue table for pending sync items -->
+    <TABLE NAME="local_syncqueue_items" COMMENT="Queue of items pending synchronization">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Unique school identifier"/>
+        <FIELD NAME="eventtype" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Type of event: grade, submission, quiz, forum, enrol, completion"/>
+        <FIELD NAME="eventname" TYPE="char" LENGTH="255" NOTNULL="true" COMMENT="Full Moodle event name"/>
+        <FIELD NAME="objecttable" TYPE="char" LENGTH="100" NOTNULL="false" COMMENT="Table the object belongs to"/>
+        <FIELD NAME="objectid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Local ID of the affected object"/>
+        <FIELD NAME="relateduserid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="User ID related to this event"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Course ID if applicable"/>
+        <FIELD NAME="payload" TYPE="text" NOTNULL="true" COMMENT="JSON encoded event data and context"/>
+        <FIELD NAME="payloadhash" TYPE="char" LENGTH="64" NOTNULL="true" COMMENT="SHA256 hash of payload for deduplication"/>
+        <FIELD NAME="priority" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="5" COMMENT="Sync priority 1-10, 1=highest"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" COMMENT="pending, processing, synced, failed, conflict"/>
+        <FIELD NAME="attempts" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="0" COMMENT="Number of sync attempts"/>
+        <FIELD NAME="lasterror" TYPE="text" NOTNULL="false" COMMENT="Last error message if failed"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="When the item was queued"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Last modification time"/>
+        <FIELD NAME="timesynced" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="When successfully synced"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_status_priority" UNIQUE="false" FIELDS="status, priority, timecreated" COMMENT="For queue processing"/>
+        <INDEX NAME="idx_eventtype" UNIQUE="false" FIELDS="eventtype"/>
+        <INDEX NAME="idx_objecttable_objectid" UNIQUE="false" FIELDS="objecttable, objectid"/>
+        <INDEX NAME="idx_payloadhash" UNIQUE="false" FIELDS="payloadhash" COMMENT="For deduplication"/>
+        <INDEX NAME="idx_courseid" UNIQUE="false" FIELDS="courseid"/>
+        <INDEX NAME="idx_relateduserid" UNIQUE="false" FIELDS="relateduserid"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Sync log for tracking sync history -->
+    <TABLE NAME="local_syncqueue_log" COMMENT="Log of synchronization operations">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="direction" TYPE="char" LENGTH="10" NOTNULL="true" COMMENT="upload or download"/>
+        <FIELD NAME="itemcount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="successcount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="failcount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="conflictcount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="duration" TYPE="number" LENGTH="10" DECIMALS="3" NOTNULL="false" COMMENT="Sync duration in seconds"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" COMMENT="success, partial, failed"/>
+        <FIELD NAME="details" TYPE="text" NOTNULL="false" COMMENT="JSON encoded details"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_schoolid_time" UNIQUE="false" FIELDS="schoolid, timecreated"/>
+        <INDEX NAME="idx_direction" UNIQUE="false" FIELDS="direction"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- ID mapping table for tracking local-to-central ID relationships -->
+    <TABLE NAME="local_syncqueue_idmap" COMMENT="Maps local IDs to central server IDs">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="tablename" TYPE="char" LENGTH="100" NOTNULL="true" COMMENT="Moodle table name"/>
+        <FIELD NAME="localid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID on this local instance"/>
+        <FIELD NAME="centralid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="ID on central server, null if not yet synced"/>
+        <FIELD NAME="centralhash" TYPE="char" LENGTH="64" NOTNULL="false" COMMENT="Hash of central record for conflict detection"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_lookup" UNIQUE="true" FIELDS="schoolid, tablename, localid"/>
+        <INDEX NAME="idx_central" UNIQUE="false" FIELDS="tablename, centralid"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- File queue for large files that need separate sync -->
+    <TABLE NAME="local_syncqueue_files" COMMENT="Queue for file synchronization">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="queueitemid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Related queue item"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="contenthash" TYPE="char" LENGTH="40" NOTNULL="true" COMMENT="Moodle file contenthash"/>
+        <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true"/>
+        <FIELD NAME="filesize" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="mimetype" TYPE="char" LENGTH="100" NOTNULL="false"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timesynced" TYPE="int" LENGTH="10" NOTNULL="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_queueitem" TYPE="foreign" FIELDS="queueitemid" REFTABLE="local_syncqueue_items" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_contenthash" UNIQUE="false" FIELDS="contenthash"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Registered schools (Central mode only) -->
+    <TABLE NAME="local_syncqueue_schools" COMMENT="Registered school instances (used in central mode)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Unique school identifier"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" COMMENT="School display name"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" COMMENT="School description"/>
+        <FIELD NAME="apikey" TYPE="char" LENGTH="64" NOTNULL="true" COMMENT="Hashed API key for authentication"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="active" COMMENT="active, suspended, pending"/>
+        <FIELD NAME="contactemail" TYPE="char" LENGTH="255" NOTNULL="false" COMMENT="Contact email for this school"/>
+        <FIELD NAME="lastsynced" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Last successful sync timestamp"/>
+        <FIELD NAME="lastsyncitems" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Items in last sync"/>
+        <FIELD NAME="totalsynced" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Total items synced all time"/>
+        <FIELD NAME="onlyselected" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" COMMENT="1 = only deliver courses this school selected (F3 filter)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_schoolid" UNIQUE="true" FIELDS="schoolid"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="idx_lastsynced" UNIQUE="false" FIELDS="lastsynced"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Per-school per-course pull preferences (F3): school's own priority/selection -->
+    <TABLE NAME="local_syncqueue_course_prefs" COMMENT="Per-school course pull preferences (selection + weight)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Central course id"/>
+        <FIELD NAME="selected" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1"/>
+        <FIELD NAME="weight" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Lower sorts earlier"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_school_course" UNIQUE="true" FIELDS="schoolid, courseid"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Pending updates for schools to download (Central mode only) -->
+    <TABLE NAME="local_syncqueue_updates" COMMENT="Updates pending download by schools (used in central mode)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="false" COMMENT="Target school, null means all schools"/>
+        <FIELD NAME="updatetype" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Type: course, user, enrolment, content"/>
+        <FIELD NAME="action" TYPE="char" LENGTH="20" NOTNULL="true" COMMENT="create, update, delete"/>
+        <FIELD NAME="objecttable" TYPE="char" LENGTH="100" NOTNULL="false" COMMENT="Source table"/>
+        <FIELD NAME="objectid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Central object ID"/>
+        <FIELD NAME="payload" TYPE="text" NOTNULL="true" COMMENT="JSON encoded update data"/>
+        <FIELD NAME="priority" TYPE="int" LENGTH="3" NOTNULL="true" DEFAULT="5"/>
+        <FIELD NAME="tradecode" TYPE="char" LENGTH="50" NOTNULL="false" COMMENT="Course trade/combination code (for per-school priority)"/>
+        <FIELD NAME="level" TYPE="char" LENGTH="50" NOTNULL="false" COMMENT="Course level (for per-school priority)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_schoolid_time" UNIQUE="false" FIELDS="schoolid, timecreated"/>
+        <INDEX NAME="idx_updatetype" UNIQUE="false" FIELDS="updatetype"/>
+        <INDEX NAME="idx_tradelevel" UNIQUE="false" FIELDS="tradecode, level"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Track which updates each school has downloaded -->
+    <TABLE NAME="local_syncqueue_school_updates" COMMENT="Tracks which updates each school has downloaded">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="updateid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Reference to syncqueue_updates"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="downloaded" COMMENT="downloaded, applied, failed"/>
+        <FIELD NAME="timedownloaded" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_update" TYPE="foreign" FIELDS="updateid" REFTABLE="local_syncqueue_updates" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_school_update" UNIQUE="true" FIELDS="schoolid, updateid"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Async push jobs (Central mode): one row per admin push action -->
+    <TABLE NAME="local_syncqueue_jobs" COMMENT="Async push jobs triggered from the admin UI (central mode)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="type" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="push_courses" COMMENT="Job type"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Admin who triggered the job"/>
+        <FIELD NAME="categoryid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Source category when pushing a whole category"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="queued" COMMENT="queued, running, completed, partial, failed"/>
+        <FIELD NAME="totalitems" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="doneitems" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="faileditems" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="usercount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Users queued across the job"/>
+        <FIELD NAME="enrolcount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Enrolments queued across the job"/>
+        <FIELD NAME="error" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timestarted" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="timecompleted" TYPE="int" LENGTH="10" NOTNULL="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_status_time" UNIQUE="false" FIELDS="status, timecreated"/>
+        <INDEX NAME="idx_userid" UNIQUE="false" FIELDS="userid"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Per-course items within a push job -->
+    <TABLE NAME="local_syncqueue_job_items" COMMENT="Per-course items within a push job">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="jobid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="queued" COMMENT="queued, backing_up, queuing_enrolments, applying, done, failed, skipped"/>
+        <FIELD NAME="itemtype" TYPE="char" LENGTH="30" NOTNULL="false" COMMENT="course, user, enrolment (pull jobs)"/>
+        <FIELD NAME="label" TYPE="char" LENGTH="255" NOTNULL="false" COMMENT="Display label, used by pull jobs where courseid is a remote id"/>
+        <FIELD NAME="backupfile" TYPE="char" LENGTH="255" NOTNULL="false"/>
+        <FIELD NAME="usercount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="enrolcount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="error" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timestarted" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="timecompleted" TYPE="int" LENGTH="10" NOTNULL="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_jobid" TYPE="foreign" FIELDS="jobid" REFTABLE="local_syncqueue_jobs" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_jobid_status" UNIQUE="false" FIELDS="jobid, status"/>
+        <INDEX NAME="idx_courseid_status" UNIQUE="false" FIELDS="courseid, status"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Per-school trade/level priorities (Central mode): drives download ordering -->
+    <TABLE NAME="local_syncqueue_school_trades" COMMENT="Per-school trade/level priorities for download ordering">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="tradecode" TYPE="char" LENGTH="50" NOTNULL="false"/>
+        <FIELD NAME="level" TYPE="char" LENGTH="50" NOTNULL="false"/>
+        <FIELD NAME="weight" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Lower sorts earlier within matched updates"/>
+        <FIELD NAME="source" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="auto" COMMENT="auto or manual"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_school_trade" UNIQUE="true" FIELDS="schoolid, tradecode, level"/>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>
