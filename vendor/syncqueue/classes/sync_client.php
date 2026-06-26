@@ -49,6 +49,12 @@ class sync_client {
      * @throws moodle_exception If not properly configured.
      */
     public function __construct() {
+        global $CFG;
+        // The Moodle \curl class lives in lib/filelib.php, which is not guaranteed
+        // to be loaded in cron/CLI contexts (unlike web requests). Without this,
+        // sync tasks intermittently fail with "Class curl not found".
+        require_once($CFG->libdir . '/filelib.php');
+
         $this->serverurl = get_config('local_syncqueue', 'centralserver');
         $this->wstoken = get_config('local_syncqueue', 'wstoken');
         $this->apikey = get_config('local_syncqueue', 'apikey');
