@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/reblibrary/db" VERSION="20251016" COMMENT="XMLDB file for Moodle local_reblibrary plugin - Rwanda Education Library System"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <!-- Education Structure Tables -->
+    <TABLE NAME="local_reblibrary_edu_levels" COMMENT="Main education levels (Pre-primary, Primary, Secondary)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="level_name" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="e.g., Pre-primary, Primary, Secondary"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Display sort order (drag-and-drop)"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="level_name" UNIQUE="true" FIELDS="level_name"/>
+        <INDEX NAME="sortorder" UNIQUE="false" FIELDS="sortorder"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_reblibrary_edu_sublevels" COMMENT="Sub-divisions within education levels (e.g., Nursery, Lower Primary, A Level)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sublevel_name" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="e.g., Nursery, Lower Primary, A Level"/>
+        <FIELD NAME="level_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Display sort order within parent level"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="level_id" TYPE="foreign" FIELDS="level_id" REFTABLE="local_reblibrary_edu_levels" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="sublevel_name" UNIQUE="true" FIELDS="sublevel_name"/>
+        <INDEX NAME="level_sortorder" UNIQUE="false" FIELDS="level_id, sortorder"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_reblibrary_classes" COMMENT="Specific grade or class levels (e.g., Nursery 1, P4, S6)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="class_name" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="e.g., Nursery 1, P4, S6"/>
+        <FIELD NAME="class_code" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Short unique code, e.g., N1, P4, S6"/>
+        <FIELD NAME="sublevel_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Display sort order within parent sublevel"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sublevel_id" TYPE="foreign" FIELDS="sublevel_id" REFTABLE="local_reblibrary_edu_sublevels" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="class_name" UNIQUE="true" FIELDS="class_name"/>
+        <INDEX NAME="class_code" UNIQUE="true" FIELDS="class_code"/>
+        <INDEX NAME="sublevel_sortorder" UNIQUE="false" FIELDS="sublevel_id, sortorder"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_reblibrary_sections" COMMENT="A-Level subject combinations (e.g., PCM, HEG)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="section_name" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="e.g., Physics-Chemistry-Maths, History-Economics-Geography"/>
+        <FIELD NAME="section_code" TYPE="char" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Short unique code, e.g., PCM, HEG"/>
+        <FIELD NAME="sublevel_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Links to A Level sublevel"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Display sort order within parent sublevel"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="sublevel_id" TYPE="foreign" FIELDS="sublevel_id" REFTABLE="local_reblibrary_edu_sublevels" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="section_code" UNIQUE="true" FIELDS="section_code"/>
+        <INDEX NAME="sublevel_sortorder" UNIQUE="false" FIELDS="sublevel_id, sortorder"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Resource, Author, and Category Tables -->
+    <TABLE NAME="local_reblibrary_authors" COMMENT="Author information for library resources">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="first_name" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="last_name" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="bio" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Optional biography"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="last_name" UNIQUE="false" FIELDS="last_name"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_reblibrary_resources" COMMENT="Central table for all library items/resources">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="Title of the book or resource"/>
+        <FIELD NAME="isbn" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="International Standard Book Number"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Summary or description of the resource"/>
+        <FIELD NAME="file_url" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="URL or path to the digital resource file"/>
+        <FIELD NAME="cover_image_url" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="URL to the cover image"/>
+        <FIELD NAME="author_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Links to author"/>
+        <FIELD NAME="visible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Visibility flag: 1=visible, 0=hidden"/>
+        <FIELD NAME="media_type" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="text" SEQUENCE="false" COMMENT="Media type: text, audio, or video"/>
+        <FIELD NAME="created_at" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Unix timestamp when record was created"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="author_id" TYPE="foreign" FIELDS="author_id" REFTABLE="local_reblibrary_authors" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="isbn" UNIQUE="true" FIELDS="isbn"/>
+        <INDEX NAME="title" UNIQUE="false" FIELDS="title"/>
+        <INDEX NAME="author_id" UNIQUE="false" FIELDS="author_id"/>
+        <INDEX NAME="visible" UNIQUE="false" FIELDS="visible"/>
+        <INDEX NAME="media_type" UNIQUE="false" FIELDS="media_type"/>
+        <INDEX NAME="created_at" UNIQUE="false" FIELDS="created_at"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_reblibrary_categories" COMMENT="User-defined hierarchical categories for resources">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="category_name" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="e.g., Physics, History"/>
+        <FIELD NAME="parent_category_id" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Self-references for nesting. NULL for top-level"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Optional description of the category"/>
+        <FIELD NAME="visible" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Visibility flag: 1=visible, 0=hidden"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="parent_category_id" TYPE="foreign" FIELDS="parent_category_id" REFTABLE="local_reblibrary_categories" REFFIELDS="id" COMMENT="Self-referencing for hierarchical structure"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="category_name" UNIQUE="false" FIELDS="category_name"/>
+        <INDEX NAME="visible" UNIQUE="false" FIELDS="visible"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Junction (Linking) Tables -->
+    <TABLE NAME="local_reblibrary_res_assigns" COMMENT="Links resources to classes and sections (flexible assignment system)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="resource_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="class_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="section_id" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="NULL if not applicable (e.g., for Primary classes)"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="resource_id" TYPE="foreign" FIELDS="resource_id" REFTABLE="local_reblibrary_resources" REFFIELDS="id"/>
+        <KEY NAME="class_id" TYPE="foreign" FIELDS="class_id" REFTABLE="local_reblibrary_classes" REFFIELDS="id"/>
+        <KEY NAME="section_id" TYPE="foreign" FIELDS="section_id" REFTABLE="local_reblibrary_sections" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="unique_assignment" UNIQUE="true" FIELDS="resource_id, class_id, section_id" COMMENT="Prevents duplicate assignments"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_reblibrary_res_categories" COMMENT="Many-to-many relationship between resources and categories">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="resource_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="category_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="resource_id" TYPE="foreign" FIELDS="resource_id" REFTABLE="local_reblibrary_resources" REFFIELDS="id"/>
+        <KEY NAME="category_id" TYPE="foreign" FIELDS="category_id" REFTABLE="local_reblibrary_categories" REFFIELDS="id"/>
+        <KEY NAME="resource_category" TYPE="unique" FIELDS="resource_id, category_id" COMMENT="Prevents duplicate resource-category pairs"/>
+      </KEYS>
+      <INDEXES>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_reblibrary_labels" COMMENT="Labels/tags for resources">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="label_name" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Label/tag name"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Optional description of the label"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="label_name" UNIQUE="true" FIELDS="label_name"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_reblibrary_res_labels" COMMENT="Many-to-many relationship between resources and labels">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="resource_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="label_id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="resource_id" TYPE="foreign" FIELDS="resource_id" REFTABLE="local_reblibrary_resources" REFFIELDS="id"/>
+        <KEY NAME="label_id" TYPE="foreign" FIELDS="label_id" REFTABLE="local_reblibrary_labels" REFFIELDS="id"/>
+        <KEY NAME="resource_label" TYPE="unique" FIELDS="resource_id, label_id" COMMENT="Prevents duplicate resource-label pairs"/>
+      </KEYS>
+      <INDEXES>
+      </INDEXES>
+    </TABLE>
+  </TABLES>
+</XMLDB>

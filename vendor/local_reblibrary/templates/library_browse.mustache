@@ -1,0 +1,175 @@
+<main id="library-browse-root" class="local-reblibrary-library-browse"
+      data-resources='{{{resources_json}}}'
+      data-levels='{{{levels_json}}}'
+      data-sublevels='{{{sublevels_json}}}'
+      data-classes='{{{classes_json}}}'
+      data-categories='{{{categories_json}}}'>
+	<style>
+		.skeleton-bar {
+			background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+			background-size: 200% 100%;
+			animation: skeleton-loading 1.5s ease-in-out infinite;
+			border-radius: 4px;
+		}
+		@keyframes skeleton-loading {
+			0% { background-position: 200% 0; }
+			100% { background-position: -200% 0; }
+		}
+	</style>
+	<div class="loading-skeleton" style="display: flex; height: 100vh; overflow: hidden; background: white;">
+		<!-- Sidebar Skeleton -->
+		<aside style="width: 224px; background: #f9fafb; border-right: 1px solid #e5e7eb; padding: 24px 16px 24px 0; flex-shrink: 0;">
+			<!-- Library Menu Section -->
+			<div style="margin-bottom: 32px;">
+				<div class="skeleton-bar" style="width: 80px; height: 10px; margin-bottom: 16px; margin-left: 12px;"></div>
+				<div style="padding: 0 12px;">
+					<div class="skeleton-bar" style="width: 100%; height: 36px; margin-bottom: 8px; border-radius: 4px;"></div>
+					<div class="skeleton-bar" style="width: 100%; height: 36px; margin-bottom: 8px; border-radius: 4px;"></div>
+					<div class="skeleton-bar" style="width: 100%; height: 36px; border-radius: 4px;"></div>
+				</div>
+			</div>
+
+			<!-- Admin Menu Section -->
+			<div>
+				<div class="skeleton-bar" style="width: 75px; height: 10px; margin-bottom: 16px; margin-left: 12px;"></div>
+				<div style="padding: 0 12px;">
+					<div class="skeleton-bar" style="width: 100%; height: 36px; margin-bottom: 8px; border-radius: 4px;"></div>
+					<div class="skeleton-bar" style="width: 100%; height: 36px; margin-bottom: 8px; border-radius: 4px;"></div>
+					<div class="skeleton-bar" style="width: 100%; height: 36px; margin-bottom: 8px; border-radius: 4px;"></div>
+					<div class="skeleton-bar" style="width: 100%; height: 36px; border-radius: 4px;"></div>
+				</div>
+			</div>
+		</aside>
+
+		<!-- Main Content Area -->
+		<main style="flex: 1; display: flex; flex-direction: column; background: #f9fafb; overflow: hidden;">
+			<!-- Fixed Header: Search and Filters -->
+			<div style="flex-shrink: 0; padding: 32px 32px 16px 32px; background: #f9fafb;">
+				<!-- Search Bar -->
+				<div style="margin-bottom: 24px;">
+					<div class="skeleton-bar" style="width: 100%; max-width: 512px; height: 42px; border-radius: 8px;"></div>
+				</div>
+
+				<!-- Filters -->
+				<div style="display: flex; gap: 12px; flex-wrap: wrap;">
+					<div class="skeleton-bar" style="width: 120px; height: 40px; border-radius: 9999px;"></div>
+					<div class="skeleton-bar" style="width: 140px; height: 40px; border-radius: 9999px;"></div>
+					<div class="skeleton-bar" style="width: 110px; height: 40px; border-radius: 9999px;"></div>
+					<div class="skeleton-bar" style="width: 130px; height: 40px; border-radius: 9999px;"></div>
+				</div>
+			</div>
+
+			<!-- Scrollable Content: Books Sections -->
+			<div style="flex: 1; overflow-y: auto; padding: 0 32px 32px 32px;">
+				<!-- First Class Section -->
+				<div style="margin-bottom: 32px;">
+					<!-- Section Title -->
+					<div style="margin-bottom: 12px;">
+						<div class="skeleton-bar" style="width: 160px; height: 28px; margin-bottom: 8px;"></div>
+						<div class="skeleton-bar" style="width: 240px; height: 14px;"></div>
+					</div>
+
+					<!-- Horizontal Book Cards -->
+					<div style="display: flex; gap: 12px; overflow-x: hidden; padding-bottom: 16px;">
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 90%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 70%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 85%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 75%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 95%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 65%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 80%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 70%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 90%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 80%; height: 12px;"></div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Second Class Section -->
+				<div style="margin-bottom: 32px;">
+					<!-- Section Title -->
+					<div style="margin-bottom: 12px;">
+						<div class="skeleton-bar" style="width: 140px; height: 28px; margin-bottom: 8px;"></div>
+						<div class="skeleton-bar" style="width: 220px; height: 14px;"></div>
+					</div>
+
+					<!-- Horizontal Book Cards -->
+					<div style="display: flex; gap: 12px; overflow-x: hidden; padding-bottom: 16px;">
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 85%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 75%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 90%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 70%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 95%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 65%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 80%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 70%; height: 12px;"></div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Third Class Section -->
+				<div>
+					<!-- Section Title -->
+					<div style="margin-bottom: 12px;">
+						<div class="skeleton-bar" style="width: 180px; height: 28px; margin-bottom: 8px;"></div>
+						<div class="skeleton-bar" style="width: 260px; height: 14px;"></div>
+					</div>
+
+					<!-- Horizontal Book Cards -->
+					<div style="display: flex; gap: 12px; overflow-x: hidden; padding-bottom: 16px;">
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 90%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 70%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 85%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 75%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 95%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 65%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 80%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 70%; height: 12px;"></div>
+						</div>
+						<div style="flex-shrink: 0; width: 160px;">
+							<div class="skeleton-bar" style="width: 100%; padding-bottom: 142.86%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);"></div>
+							<div class="skeleton-bar" style="width: 90%; height: 14px; margin-bottom: 6px;"></div>
+							<div class="skeleton-bar" style="width: 80%; height: 12px;"></div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</main>
+	</div>
+</main>

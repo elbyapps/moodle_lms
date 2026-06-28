@@ -1,0 +1,88 @@
+/**
+ * REB Library plugin styles.
+ *
+ * @package    local_reblibrary
+ * @copyright  2025 Rwanda Education Board
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+/* ============================================
+   PAGE-LEVEL OVERRIDES
+   ============================================ */
+
+/**
+ * Public library pages - Remove Moodle default header and adjust layout
+ */
+
+body.local-reblibrary-page *{
+	margin: 0;
+	padding: 0;
+	box-sizing: border-box;
+}
+body.local-reblibrary-page .main-inner {
+    max-width: 100% !important;
+    margin-top: 0 !important;
+    padding: 0 !important;
+}
+body.local-reblibrary-page div[role=main]{
+	padding-right: 0 !important;
+	padding-left: 0 !important;
+}
+
+body.local-reblibrary-page #page-header * {
+    display: none !important;
+}
+
+body.local-reblibrary-page #page-header {
+    margin: 0;
+    padding: 0 !important;
+    margin-top: 10px;
+}
+
+body.local-reblibrary-page #page-footer {
+    margin-top: 0 !important;
+}
+
+/**
+ * Admin pages - Remove Moodle default header and adjust layout
+ */
+body.local-reblibrary-admin-page .main-inner {
+    max-width: 100% !important;
+    margin-top: 0 !important;
+    padding: 0 !important;
+}
+
+body.local-reblibrary-admin-page #page-header * {
+    display: none !important;
+}
+
+body.local-reblibrary-admin-page #page-header {
+    margin: 0;
+    padding: 0 !important;
+    margin-top: 10px;
+}
+
+body.local-reblibrary-admin-page #page-footer {
+    margin-top: 0 !important;
+}
+
+/* ============================================
+   PLUGIN-SCOPED STYLES
+   ============================================ */
+
+/**
+ * All plugin styles are handled by Tailwind CSS in component files.
+ * This stylesheet only contains Moodle page overrides above.
+ *
+ * Component styles are defined inline using Tailwind utility classes
+ * in the following files:
+ * - amd/src/components/admin/Dashboard.tsx
+ * - amd/src/components/admin/StatsCard.tsx
+ * - amd/src/components/admin/Categories.tsx
+ * - amd/src/components/education/EdStructure.tsx
+ * - amd/src/components/education/LevelTab.tsx
+ * - amd/src/components/education/SublevelTab.tsx
+ * - amd/src/components/education/ClassTab.tsx
+ * - amd/src/components/education/SectionTab.tsx
+ * - amd/src/components/shared/Sidebar.tsx
+ */

@@ -36,3 +36,6 @@ composer.lock
 
 # Site-local compose override (not for commit)
 compose/docker-compose.local.yml
+
+# Build-time deps inside vendored plugins (compiled output is committed, not these)
+vendor/**/node_modules/

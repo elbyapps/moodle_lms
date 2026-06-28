@@ -1,0 +1,186 @@
+// ============================================================================
+// Elby Theme - Footer Styles
+// ============================================================================
+
+// Footer main
+.elby-footer {
+    background-color: $gray-900;
+    color: $gray-300;
+}
+
+.elby-footer-main {
+    padding: 4rem 0 3rem;
+
+    @media (max-width: 768px) {
+        padding: 3rem 0 2rem;
+    }
+}
+
+// Footer brand
+.elby-footer-brand {
+    margin-bottom: 1.5rem;
+}
+
+.elby-footer-logo {
+    max-height: 50px;
+    width: auto;
+    filter: brightness(0) invert(1);
+}
+
+.elby-footer-sitename {
+    color: $white;
+    font-weight: 700;
+}
+
+.elby-footer-description {
+    color: $gray-400;
+    font-size: 0.9375rem;
+    line-height: 1.7;
+
+    p {
+        margin-bottom: 0;
+    }
+}
+
+// Social links
+.elby-social-links {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.elby-social-link {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba($white, 0.1);
+    color: $white;
+    border-radius: 50%;
+    transition: $elby-transition-fast;
+    text-decoration: none;
+
+    &:hover {
+        background-color: $primary;
+        color: $white;
+        transform: translateY(-3px);
+    }
+
+    i {
+        font-size: 1rem;
+    }
+}
+
+// Footer headings
+.elby-footer-heading {
+    color: $white;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 1.5rem;
+}
+
+// Footer links
+.elby-footer-links {
+    ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    li {
+        margin-bottom: 0.75rem;
+    }
+
+    a {
+        color: $gray-400;
+        text-decoration: none;
+        transition: $elby-transition-fast;
+        font-size: 0.9375rem;
+
+        &:hover {
+            color: $white;
+            padding-left: 5px;
+        }
+    }
+
+    // Support for HTML content
+    p {
+        margin-bottom: 0.75rem;
+        color: $gray-400;
+        font-size: 0.9375rem;
+
+        a {
+            color: $gray-400;
+
+            &:hover {
+                color: $white;
+            }
+        }
+    }
+}
+
+// Footer contact
+.elby-footer-contact {
+    .small {
+        font-size: 0.875rem;
+    }
+}
+
+// Footer bottom
+.elby-footer-bottom {
+    padding: 1.5rem 0;
+    border-top: 1px solid rgba($white, 0.1);
+}
+
+.elby-copyright {
+    color: $gray-500;
+    font-size: 0.875rem;
+}
+
+.elby-powered {
+    color: $gray-500;
+    font-size: 0.875rem;
+
+    a {
+        color: $gray-400;
+        text-decoration: none;
+
+        &:hover {
+            color: $primary;
+        }
+    }
+}
+
+// Responsive adjustments
+@media (max-width: 768px) {
+    .elby-footer-main {
+        text-align: center;
+
+        .col-lg-4,
+        .col-lg-2 {
+            margin-bottom: 2rem;
+        }
+    }
+
+    .elby-social-links {
+        justify-content: center;
+    }
+
+    .elby-footer-bottom {
+        text-align: center;
+
+        .col-md-6 {
+            margin-bottom: 0.5rem;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+
+        .text-md-end {
+            text-align: center !important;
+        }
+    }
+}

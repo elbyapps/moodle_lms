@@ -1,0 +1,89 @@
+{{!
+    @template theme_elby/navbar
+
+    Navigation bar partial for the Elby theme.
+
+    Context variables:
+    * sitename - Site name
+    * logourl - Full logo URL
+    * haslogo - Whether logo exists
+    * compactlogourl - Compact logo URL
+    * primarymoremenu - Primary navigation menu
+    * usermenu - User menu HTML
+    * isloggedin - Whether user is logged in
+    * loginurl - Login page URL
+    * showsitename - Whether to show site name
+
+    Example context (json):
+    {
+        "sitename": "My Site",
+        "haslogo": true,
+        "logourl": "http://example.com/logo.png",
+        "isloggedin": false,
+        "showsitename": true
+    }
+}}
+<nav class="navbar navbar-expand-lg elby-navbar fixed-top">
+    <div class="container">
+        {{! Logo and Site Name - Left }}
+        <a class="navbar-brand elby-navbar-brand" href="{{{ config.wwwroot }}}">
+            {{#haslogo}}
+            <img src="{{{ logourl }}}" alt="{{{ sitename }}}" class="elby-logo">
+            {{/haslogo}}
+            {{^haslogo}}
+            {{#showsitename}}
+            <span class="elby-sitename">{{{ sitename }}}</span>
+            {{/showsitename}}
+            {{/haslogo}}
+        </a>
+
+        {{! Mobile Toggle }}
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#elbyNavbar"
+                aria-controls="elbyNavbar" aria-expanded="false" aria-label="{{#str}}togglenavigation, theme_elby{{/str}}">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        {{! Navigation Menu - Centered }}
+        <div class="collapse navbar-collapse" id="elbyNavbar">
+            <ul class="navbar-nav mx-auto elby-nav-center">
+                {{#primarymoremenu.moremenu}}
+                {{#nodearray}}
+                <li class="nav-item {{#haschildren}}dropdown{{/haschildren}}">
+                    {{#haschildren}}
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        {{{ text }}}
+                    </a>
+                    <ul class="dropdown-menu">
+                        {{#children}}
+                        <li><a class="dropdown-item" href="{{{ url }}}">{{{ text }}}</a></li>
+                        {{/children}}
+                    </ul>
+                    {{/haschildren}}
+                    {{^haschildren}}
+                    <a class="nav-link" href="{{{ url }}}">{{{ text }}}</a>
+                    {{/haschildren}}
+                </li>
+                {{/nodearray}}
+                {{/primarymoremenu.moremenu}}
+            </ul>
+
+            {{! Login Button - Right }}
+            <div class="elby-navbar-actions">
+                {{#isloggedin}}
+                <div class="elby-user-menu">
+                    {{{ usermenu }}}
+                </div>
+                {{{ output.edit_switch }}}
+                {{/isloggedin}}
+                {{^isloggedin}}
+                <a href="{{{ loginurl }}}" class="elby-login-btn">
+                    <i class="fa fa-user me-2"></i>{{#str}}login{{/str}}
+                </a>
+                {{/isloggedin}}
+            </div>
+        </div>
+    </div>
+</nav>
+
+{{! Navbar spacer to prevent content overlap }}
+<div class="elby-navbar-spacer"></div>

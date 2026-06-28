@@ -1,0 +1,45 @@
+<main id="elby-dashboard-root" class="local-elby-dashboard"
+      data-user='{{{user_data_json}}}'
+      data-stats='{{{stats_data_json}}}'
+      data-sidenav='{{{sidenav_config_json}}}'
+      data-theme='{{{theme_config_json}}}'
+      {{#courses_report_json}}data-courses-report='{{{courses_report_json}}}'{{/courses_report_json}}
+      {{#school_code}}data-school-code='{{school_code}}'{{/school_code}}
+      {{#schools_data_json}}data-schools='{{{schools_data_json}}}'{{/schools_data_json}}
+      {{#admin_data_json}}data-admin='{{{admin_data_json}}}'{{/admin_data_json}}
+      data-page='{{active_page}}'>
+	<div class="loading-skeleton">
+		<!-- Main Content Skeleton -->
+		<div class="skeleton-main">
+			<!-- Page Title -->
+			<div class="skeleton-bar skeleton-title"></div>
+
+			<!-- Stats Cards Grid -->
+			<div class="skeleton-stats-grid">
+				<div class="skeleton-stats-card">
+					<div class="skeleton-bar skeleton-icon"></div>
+					<div class="skeleton-bar skeleton-number"></div>
+					<div class="skeleton-bar skeleton-label"></div>
+				</div>
+				<div class="skeleton-stats-card">
+					<div class="skeleton-bar skeleton-icon"></div>
+					<div class="skeleton-bar skeleton-number"></div>
+					<div class="skeleton-bar skeleton-label"></div>
+				</div>
+				<div class="skeleton-stats-card">
+					<div class="skeleton-bar skeleton-icon"></div>
+					<div class="skeleton-bar skeleton-number"></div>
+					<div class="skeleton-bar skeleton-label"></div>
+				</div>
+				<div class="skeleton-stats-card">
+					<div class="skeleton-bar skeleton-icon"></div>
+					<div class="skeleton-bar skeleton-number"></div>
+					<div class="skeleton-bar skeleton-label"></div>
+				</div>
+			</div>
+
+			<!-- Welcome Alert -->
+			<div class="skeleton-bar skeleton-alert"></div>
+		</div>
+	</div>
+</main>

@@ -79,6 +79,12 @@ services:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
+      # Hot-reload: serve the vendored in-house plugins straight from source.
+      - ./vendor/local_elby_dashboard:/var/www/html/moodle_app/public/local/elby_dashboard
+      - ./vendor/local_reblibrary:/var/www/html/moodle_app/public/local/reblibrary
+      - ./vendor/theme_elby:/var/www/html/moodle_app/public/theme/elby
+      # Dev-only OPcache override so edited PHP under moodle_app is re-read each request.
+      - ./docker/php/dev-opcache.ini:/usr/local/etc/php/conf.d/zz-dev-opcache.ini:ro
     # In dev the DB is shipped in the same stack. Wait for mariadb to be
     # healthy before php starts so its entrypoint's PDO wait-loop doesn't
     # burn its 60s budget on a DB that's still initialising.
@@ -96,6 +102,10 @@ services:
       - ./moodle_app:/var/www/html/moodle_app
       - ./moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
+      # cron runs the plugins' scheduled tasks, so it needs the live source too.
+      - ./vendor/local_elby_dashboard:/var/www/html/moodle_app/public/local/elby_dashboard
+      - ./vendor/local_reblibrary:/var/www/html/moodle_app/public/local/reblibrary
+      - ./vendor/theme_elby:/var/www/html/moodle_app/public/theme/elby
     # Override base depends_on so we get BOTH the implicit php ordering AND
     # the mariadb-healthy gate — compose replaces depends_on when an override
     # redefines it, so we have to redeclare php here.
@@ -116,6 +126,10 @@ services:
     volumes:
       - ./moodle_app:/var/www/html/moodle_app:ro
       - ./docker/nginx/dev.conf.template:/etc/nginx/templates/default.conf.template:ro
+      # Static assets (pix, styles.css) are served by nginx from the same tree.
+      - ./vendor/local_elby_dashboard:/var/www/html/moodle_app/public/local/elby_dashboard:ro
+      - ./vendor/local_reblibrary:/var/www/html/moodle_app/public/local/reblibrary:ro
+      - ./vendor/theme_elby:/var/www/html/moodle_app/public/theme/elby:ro
     environment:
       - SDMS_URL=${SDMS_URL:-http://10.32.2.16:8082/sdms/api/REB_API/}
       - MOODLE_PORT=${MOODLE_PORT:-8080}

@@ -1,0 +1,487 @@
+{
+	"info": {
+		"_postman_id": "elby-dashboard-sdms-collection",
+		"name": "Elby Dashboard - SDMS Web Services",
+		"description": "Postman collection for testing the Elby Dashboard plugin web services.\n\n## Setup\n1. Start Moodle: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build`\n2. Create a web service token in Site admin > Server > Web services > Manage tokens\n3. Select the **Elby Dashboard Service** and copy the token\n4. Set the `wstoken` variable in this collection to your token\n\n## Recommended Testing Order\n1. lookup_sdms_user - verify SDMS API connectivity\n2. sync_school_now - populate school cache\n3. get_school_info - confirm school cache\n4. link_user - link a Moodle user to SDMS\n5. get_user_sdms_profile - confirm user cache\n6. refresh_user - confirm forced re-sync",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "wstoken",
+			"value": "YOUR_TOKEN_HERE",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "SDMS Integration",
+			"description": "SDMS user lookup, linking, caching, and school sync endpoints.",
+			"item": [
+				{
+					"name": "1. Lookup SDMS User (Student)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_lookup_sdms_user",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "sdms_code",
+									"value": "110705200131",
+									"description": "Student number in SDMS",
+									"type": "text"
+								},
+								{
+									"key": "user_type",
+									"value": "student",
+									"description": "student or staff",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Live lookup of SDMS user data with school hierarchy. No caching — calls SDMS API directly. Use this first to verify SDMS connectivity.\n\nRequires: `local/elby_dashboard:manage` capability."
+					}
+				},
+				{
+					"name": "1b. Lookup SDMS User (Staff)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_lookup_sdms_user",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "sdms_code",
+									"value": "22061916042",
+									"description": "Staff number in SDMS",
+									"type": "text"
+								},
+								{
+									"key": "user_type",
+									"value": "staff",
+									"description": "student or staff",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Live lookup of SDMS staff data with school hierarchy and specialities."
+					}
+				},
+				{
+					"name": "2. Link User to SDMS",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_link_user",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "userid",
+									"value": "2",
+									"description": "Moodle user ID to link",
+									"type": "text"
+								},
+								{
+									"key": "sdms_code",
+									"value": "110705200131",
+									"description": "SDMS student/staff number",
+									"type": "text"
+								},
+								{
+									"key": "user_type",
+									"value": "student",
+									"description": "student or staff",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Links a Moodle user to an SDMS record and caches the data.\n\nExpected response: `{ success: true, userid, sdms_code, timestamp }`\n\nRequires: `local/elby_dashboard:manage` capability."
+					}
+				},
+				{
+					"name": "3. Get User SDMS Profile (cached)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_get_user_sdms_profile",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "userid",
+									"value": "2",
+									"description": "Moodle user ID (must be linked via link_user first)",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Retrieves cached SDMS profile for a linked user. Auto-refreshes if stale (based on sdms_cache_ttl setting).\n\nExpected response: sdms_id, user_type, school_code, school_name, program/position, sync_status, last_synced.\n\nRequires: `local/elby_dashboard:view` capability."
+					}
+				},
+				{
+					"name": "4. Refresh User (force re-sync)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_refresh_user",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "userid",
+									"value": "2",
+									"description": "Moodle user ID (must be linked via link_user first)",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Force-refreshes cached SDMS data for a linked user, ignoring cache TTL.\n\nExpected response: `{ success: true, userid, timestamp }`\n\nRequires: `local/elby_dashboard:manage` capability."
+					}
+				},
+				{
+					"name": "5. Get School Info (cached)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_get_school_info",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "school_code",
+									"value": "120805",
+									"description": "SDMS school code",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Returns cached school data with full hierarchy: levels > combinations > grades > classgroups. Syncs from SDMS on cache miss or stale.\n\nRequires: `local/elby_dashboard:viewreports` capability."
+					}
+				},
+				{
+					"name": "6. Sync School Now (force)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_sync_school_now",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "school_code",
+									"value": "120805",
+									"description": "SDMS school code",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Force syncs a school from SDMS API, ignoring cache freshness.\n\nExpected response: `{ success: true, school_code, timestamp }`\n\nRequires: `local/elby_dashboard:manage` capability."
+					}
+				}
+			]
+		},
+		{
+			"name": "Completion Stats",
+			"description": "Course and category completion statistics.",
+			"item": [
+				{
+					"name": "Get Course Completion Stats",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_get_course_completion_stats",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "courseid",
+									"value": "2",
+									"description": "Moodle course ID",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Get completion statistics for a course including section and activity breakdown.\n\nReturns: courseid, total_participants, completed_participants, completion_rate, sections (with activities).\n\nRequires: `local/elby_dashboard:view` capability (in course context)."
+					}
+				},
+				{
+					"name": "Get Category Completion Stats",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_get_category_completion_stats",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "categoryid",
+									"value": "1",
+									"description": "Moodle course category ID",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Get completion statistics for all courses in a category (including subcategories).\n\nReturns: categoryid, category_name, total_courses, total_participants, completion_rate, courses (with sections and activities).\n\nRequires: `local/elby_dashboard:view` capability (in category context)."
+					}
+				}
+			]
+		},
+		{
+			"name": "Reports",
+			"description": "Course reports grouped by school code.",
+			"item": [
+				{
+					"name": "Get Course Report by School",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_get_course_report_by_school",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								},
+								{
+									"key": "courseid",
+									"value": "2",
+									"description": "Moodle course ID",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Get course report data grouped by school code with completion rates and average grades per section/unit.\n\nReturns: courseid, course_name, total_enrolled, total_schools, overview_sections, schools (with per-section stats).\n\nRequires: `local/elby_dashboard:viewreports` capability (in course context)."
+					}
+				},
+				{
+					"name": "Get All Courses Report",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "wstoken",
+									"value": "{{wstoken}}",
+									"type": "text"
+								},
+								{
+									"key": "wsfunction",
+									"value": "local_elby_dashboard_get_all_courses_report",
+									"type": "text"
+								},
+								{
+									"key": "moodlewsrestformat",
+									"value": "json",
+									"type": "text"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/webservice/rest/server.php",
+							"host": ["{{base_url}}"],
+							"path": ["webservice", "rest", "server.php"]
+						},
+						"description": "Get report data for all courses grouped by school code. No parameters needed (returns all courses with enrolled students).\n\nReturns: total_courses, courses (each with school-grouped stats).\n\nRequires: `local/elby_dashboard:viewreports` capability (system context)."
+					}
+				}
+			]
+		}
+	]
+}

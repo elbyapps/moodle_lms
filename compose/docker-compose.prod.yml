@@ -17,6 +17,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    # storage.reb.rw public DNS points at an IP that no longer routes to Garage; pin it to Garage's internal address.
+    extra_hosts:
+      - "storage.reb.rw:10.10.68.214"
     networks:
       - moodle
 
@@ -28,6 +31,9 @@ services:
       - ./config.php.docker:/var/www/html/config.php.docker:ro
     depends_on:
       - redis
+    # storage.reb.rw public DNS points at an IP that no longer routes to Garage; pin it to Garage's internal address.
+    extra_hosts:
+      - "storage.reb.rw:10.10.68.214"
     networks:
       - moodle
 

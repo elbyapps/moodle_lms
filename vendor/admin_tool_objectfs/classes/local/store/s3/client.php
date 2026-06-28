@@ -1,0 +1,999 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * S3 client.
+ *
+ * @package   tool_objectfs
+ * @author    Kenneth Hendricks <kennethhendricks@catalyst-au.net>
+ * @copyright Catalyst IT
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+namespace tool_objectfs\local\store\s3;
+
+use admin_setting;
+use coding_exception;
+use tool_objectfs\local\manager;
+use tool_objectfs\local\store\object_client_base;
+use tool_objectfs\local\store\signed_url;
+use stdClass;
+use Throwable;
+
+define('AWS_API_VERSION', '2006-03-01');
+define('AWS_CAN_READ_OBJECT', 0);
+define('AWS_CAN_WRITE_OBJECT', 1);
+define('AWS_CAN_DELETE_OBJECT', 2);
+
+/**
+ * [Description client]
+ */
+class client extends object_client_base {
+    /**
+     * @var int A predefined limit of data stored.
+     * When hit, php://temp will use a temporary file.
+     * Reference: https://github.com/catalyst/moodle-local_aws/blob/master/sdk/Aws/S3/StreamWrapper.php#L19-L25
+     */
+    const MAX_TEMP_LIMIT = 2097152;
+
+    /**
+     * @var mixed
+     */
+    protected $client;
+    /**
+     * @var mixed
+     */
+    protected $bucket;
+    /**
+     * @var mixed
+     */
+    private $signingmethod;
+
+    /** @var string Prefix for bucket keys */
+    protected $bucketkeyprefix;
+
+    /** @var string $bucketacl option to set access permission in S3 bucket */
+    private $bucketacl;
+
+    /**
+     * construct
+     * @param mixed $config
+     */
+    public function __construct($config) {
+        global $CFG;
+        $this->config = $config;
+
+        if ($this->get_availability() && !empty($config)) {
+            // Using the multipart upload methods , you can upload objects from 5 MB to 5 TB in size.
+            // See https://docs.aws.amazon.com/sdk-for-php/v3/developer-guide/s3-multipart-upload.html.
+            $this->maxupload = OBJECTFS_BYTES_IN_TERABYTE * 5;
+            $this->bucket = $config->s3_bucket;
+            $this->bucketacl = $config->s3_bucket_acl;
+            $this->expirationtime = $config->expirationtime;
+            $this->presignedminfilesize = $config->presignedminfilesize;
+            $this->enablepresignedurls = $config->enablepresignedurls;
+            $this->signingmethod = $config->signingmethod;
+            $this->bucketkeyprefix = $config->key_prefix;
+            $this->set_client($config);
+        } else {
+            parent::__construct($config);
+        }
+    }
+
+    /**
+     * We do not need to check for the autoloader as AWS SDK is integrated in to Moodle 4.4
+     *
+     * @return bool
+     */
+    public function get_availability() {
+        return true;
+    }
+
+    /**
+     * sleep
+     * @return array
+     */
+    public function __sleep() {
+        return ['bucket'];
+    }
+
+    /**
+     * wakeup
+     * @return void
+     */
+    public function __wakeup() {
+        // We dont want to store credentials in the client itself as
+        // it will be serialised, so re-retrive them now.
+        $config = manager::get_objectfs_config();
+        $this->set_client($config);
+        if ($this->is_functional()) {
+            $this->client->registerStreamWrapper();
+        }
+    }
+
+    /**
+     * Check if the client is functional.
+     * @return bool
+     */
+    protected function is_functional() {
+        return isset($this->client);
+    }
+
+    /**
+     * Check if the client configured properly.
+     *
+     * @param \stdClass $config Client config.
+     * @return bool
+     */
+    public function is_configured($config) {
+        if (empty($config->s3_bucket)) {
+            return false;
+        }
+
+        if (empty($config->s3_region)) {
+            return false;
+        }
+
+        if (empty($config->s3_usesdkcreds) && (empty($config->s3_key) || empty($config->s3_secret))) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Set the client.
+     *
+     * @param \stdClass $config Client config.
+     * @return void
+     */
+    public function set_client($config) {
+        if (!$this->is_configured($config)) {
+            $this->client = null;
+            return;
+        }
+
+        $options = [
+            'region' => $config->s3_region,
+            'version' => AWS_API_VERSION,
+        ];
+
+        if (empty($config->s3_usesdkcreds)) {
+            $options['credentials'] = ['key' => $config->s3_key, 'secret' => $config->s3_secret];
+        }
+
+        if ($config->useproxy) {
+            $options['http'] = ['proxy' => $this->get_proxy_string()];
+        }
+
+        // Support base_url config for aws api compatible endpoints.
+        if ($config->s3_base_url) {
+            $options['endpoint'] = $config->s3_base_url;
+            $options['use_path_style_endpoint'] = true;
+        }
+
+        $this->client = \Aws\S3\S3Client::factory($options);
+    }
+
+    /**
+     * Registers 's3://bucket' as a prefix for file actions.
+     * @return void
+     */
+    public function register_stream_wrapper() {
+        if ($this->get_availability() && $this->is_functional()) {
+            $this->client->registerStreamWrapper();
+        } else {
+            parent::register_stream_wrapper();
+        }
+    }
+
+    /**
+     * get_md5_from_hash
+     * @param string $contenthash
+     *
+     * @return string|bool
+     */
+    private function get_md5_from_hash($contenthash) {
+        if (!$this->is_functional()) {
+            return false;
+        }
+
+        try {
+            $key = $this->get_filepath_from_hash($contenthash);
+            $result = $this->client->headObject([
+                            'Bucket' => $this->bucket,
+                            'Key' => $this->bucketkeyprefix . $key]);
+        } catch (\Aws\S3\Exception\S3Exception $e) {
+            return false;
+        }
+
+        $md5 = trim($result['ETag'], '"'); // Strip quotation marks.
+
+        return $md5;
+    }
+
+    /**
+     * verify_object
+     * @param string $contenthash
+     * @param string $localpath
+     *
+     * @return bool
+     */
+    public function verify_object($contenthash, $localpath) {
+        // For objects uploaded to S3 storage using the multipart upload, the etag will not be the objects MD5.
+        // So we can't compare here to verify the object.
+        // For now we just check that we can retrieve any Etag to verify the object for all supported storages.
+        $retrievemd5 = $this->get_md5_from_hash($contenthash);
+        if ($retrievemd5) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Returns s3 fullpath to use with php file functions.
+     *
+     * @param  string $contenthash contenthash used as key in s3.
+     * @return string fullpath to s3 object.
+     */
+    public function get_fullpath_from_hash($contenthash) {
+        $filepath = $this->get_filepath_from_hash($contenthash);
+        return "s3://$this->bucket/" . $this->bucketkeyprefix . $filepath;
+    }
+
+    /**
+     * Deletes a file in S3 storage.
+     *
+     * @param string $fullpath full path to S3 file.
+     * @return void
+     */
+    public function delete_file($fullpath) {
+        unlink($fullpath);
+    }
+
+    /**
+     * Moves a file in S3 storage.
+     *
+     * @param string $currentpath     current full path to S3 file.
+     * @param string $destinationpath destination path.
+     * @return void
+     */
+    public function rename_file($currentpath, $destinationpath) {
+        rename($currentpath, $destinationpath);
+    }
+
+    /**
+     * S3 file streams require a seekable context to be supplied
+     * if they are to be seekable.
+     *
+     * @return mixed
+     */
+    public function get_seekable_stream_context() {
+        $context = stream_context_create([
+            's3' => [
+                'seekable' => true,
+            ],
+        ]);
+        return $context;
+    }
+
+    /**
+     * get_filepath_from_hash
+     * @param string $contenthash
+     *
+     * @return string
+     */
+    protected function get_filepath_from_hash($contenthash) {
+        $l1 = $contenthash[0] . $contenthash[1];
+        $l2 = $contenthash[2] . $contenthash[3];
+        return "$l1/$l2/$contenthash";
+    }
+
+    /**
+     * Tests connection to S3 and bucket.
+     * There is no check connection in the AWS API.
+     * We use list buckets instead and check the bucket is in the list.
+     *
+     * @return object
+     * @throws \coding_exception
+     */
+    public function test_connection() {
+        $connection = new \stdClass();
+        $connection->success = true;
+        $connection->details = '';
+
+        try {
+            if (!$this->is_functional()) {
+                $connection->success = false;
+                $connection->details = get_string('settings:notconfigured', 'tool_objectfs');
+            } else {
+                $this->client->headBucket(['Bucket' => $this->bucket]);
+            }
+        } catch (\Aws\S3\Exception\S3Exception $e) {
+            $connection->success = false;
+            $connection->details = $this->get_exception_details($e);
+        } catch (\GuzzleHttp\Exception\InvalidArgumentException $e) {
+            $connection->success = false;
+            $connection->details = $this->get_exception_details($e);
+        } catch (\Aws\Exception\CredentialsException $e) {
+            $connection->success = false;
+            $connection->details = $this->get_exception_details($e);
+        }
+
+        return $connection;
+    }
+
+    /**
+     * Tests connection to S3 and bucket.
+     * There is no check connection in the AWS API.
+     * We use list buckets instead and check the bucket is in the list.
+     *
+     * @param bool $testdelete
+     * @return object
+     * @throws \coding_exception
+     */
+    public function test_permissions($testdelete) {
+        $permissions = new \stdClass();
+        $permissions->success = true;
+        $permissions->messages = [];
+
+        if ($this->is_functional()) {
+            $permissions->success = false;
+            $permissions->messages = [];
+            return $permissions;
+        }
+
+        try {
+            $result = $this->client->putObject([
+                'Bucket' => $this->bucket,
+                'Key' => $this->bucketkeyprefix . 'permissions_check_file',
+                'Body' => 'test content']);
+        } catch (\Aws\S3\Exception\S3Exception $e) {
+            $details = $this->get_exception_details($e);
+            $permissions->messages[get_string('settings:writefailure', 'tool_objectfs') . $details] = 'notifyproblem';
+            $permissions->success = false;
+        }
+
+        try {
+            $result = $this->client->getObject([
+                'Bucket' => $this->bucket,
+                'Key' => $this->bucketkeyprefix . 'permissions_check_file']);
+        } catch (\Aws\S3\Exception\S3Exception $e) {
+            $errorcode = $e->getAwsErrorCode();
+            // Write could have failed.
+            if ($errorcode !== 'NoSuchKey') {
+                $details = $this->get_exception_details($e);
+                $permissions->messages[get_string('settings:permissionreadfailure', 'tool_objectfs') . $details] = 'notifyproblem';
+                $permissions->success = false;
+            }
+        }
+
+        if ($testdelete) {
+            try {
+                $result = $this->client->deleteObject([
+                    'Bucket' => $this->bucket,
+                    'Key' => $this->bucketkeyprefix . 'permissions_check_file',
+                ]);
+                $permissions->messages[get_string('settings:deletesuccess', 'tool_objectfs')] = 'warning';
+                $permissions->success = false;
+            } catch (\Aws\S3\Exception\S3Exception $e) {
+                $errorcode = $e->getAwsErrorCode();
+                // Something else went wrong.
+                if ($errorcode !== 'AccessDenied') {
+                    $details = $this->get_exception_details($e);
+                    $permissions->messages[get_string('settings:deleteerror', 'tool_objectfs') . $details] = 'notifyproblem';
+                    $permissions->success = false;
+                }
+            }
+        }
+
+        if ($permissions->success) {
+            $permissions->messages[get_string('settings:permissioncheckpassed', 'tool_objectfs')] = 'notifysuccess';
+        }
+
+        return $permissions;
+    }
+
+    /**
+     * get_exception_details
+     * @param \Exception $exception
+     *
+     * @return string
+     */
+    protected function get_exception_details($exception) {
+        $message = $exception->getMessage();
+
+        if (get_class($exception) !== '\Aws\S3\Exception\S3Exception') {
+            return "Not a S3 exception : $message";
+        }
+
+        $errorcode = $exception->getAwsErrorCode();
+
+        $details = ' ';
+
+        if ($message) {
+            $details .= "ERROR MSG: " . $message . "\n";
+        }
+
+        if ($errorcode) {
+            $details .= "ERROR CODE: " . $errorcode . "\n";
+        }
+
+        return $details;
+    }
+
+    /**
+     * S3 settings form.
+     *
+     * @param  \admin_settingpage  $settings
+     * @param  object              $config
+     *
+     * @return \admin_settingpage
+     * @throws \coding_exception
+     */
+    public function define_client_section($settings, $config) {
+        global $OUTPUT;
+        $acloptions = [
+            'private' => 'private',
+            'public-read' => 'public-read',
+            'public-read-write' => 'public-read-write',
+            'authenticated-read' => 'authenticated-read',
+            'aws-exec-read' => 'aws-exec-read',
+            'bucket-owner-read' => 'bucket-owner-read',
+            'bucket-owner-full-control' => 'bucket-owner-full-control',
+        ];
+
+        $settings->add(new \admin_setting_heading(
+            'tool_objectfs/aws',
+            new \lang_string('settings:aws:header', 'tool_objectfs'),
+            ''
+        ));
+
+        $settings->add(new \admin_setting_configcheckbox(
+            'tool_objectfs/s3_usesdkcreds',
+            new \lang_string('settings:aws:usesdkcreds', 'tool_objectfs'),
+            '',
+            0
+        ));
+
+        if (empty($config->s3_usesdkcreds)) {
+            $settings->add(new \admin_setting_configtext(
+                'tool_objectfs/s3_key',
+                new \lang_string('settings:aws:key', 'tool_objectfs'),
+                new \lang_string('settings:aws:key_help', 'tool_objectfs'),
+                ''
+            ));
+
+            $settings->add(new \admin_setting_configpasswordunmask(
+                'tool_objectfs/s3_secret',
+                new \lang_string('settings:aws:secret', 'tool_objectfs'),
+                new \lang_string('settings:aws:secret_help', 'tool_objectfs'),
+                ''
+            ));
+        }
+
+        $settings->add(new \admin_setting_configtext(
+            'tool_objectfs/s3_bucket',
+            new \lang_string('settings:aws:bucket', 'tool_objectfs'),
+            new \lang_string('settings:aws:bucket_help', 'tool_objectfs'),
+            ''
+        ));
+
+        $settings->add(new \admin_setting_configselect(
+            'tool_objectfs/s3_bucket_acl',
+            new \lang_string('settings:aws:bucket_acl', 'tool_objectfs'),
+            new \lang_string('settings:aws:bucket_acl_help', 'tool_objectfs'),
+            'private',
+            $acloptions
+        ));
+
+        $settings->add(new admin_settings_aws_region(
+            'tool_objectfs/s3_region',
+            new \lang_string('settings:aws:region', 'tool_objectfs'),
+            new \lang_string('settings:aws:region_help', 'tool_objectfs'),
+            ''
+        ));
+
+        $settings->add(new \admin_setting_configtext(
+            'tool_objectfs/s3_base_url',
+            new \lang_string('settings:aws:base_url', 'tool_objectfs'),
+            new \lang_string('settings:aws:base_url_help', 'tool_objectfs'),
+            ''
+        ));
+
+        $settings->add(new \admin_setting_configtext(
+            'tool_objectfs/key_prefix',
+            new \lang_string('settings:aws:key_prefix', 'tool_objectfs'),
+            new \lang_string('settings:aws:key_prefix_help', 'tool_objectfs'),
+            ''
+        ));
+
+        return $settings;
+    }
+
+    /**
+     * Upload a file from the local path to s3 bucket.
+     *
+     * @param string $localpath Path to a local file.
+     * @param string $contenthash Content hash of the file.
+     * @param string $mimetype the mimetype of the file being uploaded
+     *
+     * @throws \Exception if fails.
+     */
+    public function upload_to_s3($localpath, $contenthash, string $mimetype) {
+        $filehandle = fopen($localpath, 'rb');
+
+        if (!$filehandle) {
+            throw new \Exception('Can not open the file for reading: ' . $localpath);
+        }
+
+        try {
+            $externalpath = $this->get_filepath_from_hash($contenthash);
+            $uploader = new \Aws\S3\ObjectUploader(
+                $this->client,
+                $this->bucket,
+                $this->bucketkeyprefix . $externalpath,
+                $filehandle,
+                $this->bucketacl,
+                [
+                    'params' => [
+                        'ContentType' => $mimetype,
+                    ],
+                ]
+            );
+            $uploader->upload();
+            fclose($filehandle);
+        } catch (\Aws\Exception\MultipartUploadException $e) {
+            $params = $e->getState()->getId();
+            $this->client->abortMultipartUpload($params);
+            fclose($filehandle);
+
+            throw new \Exception($e->getMessage());
+        }
+    }
+
+    /**
+     * Does the storage support pre-signed URLs.
+     *
+     * @return bool.
+     */
+    public function support_presigned_urls() {
+        return true;
+    }
+
+    /**
+     * Generates pre-signed URL to S3 file from its hash.
+     *
+     * @param string $contenthash file content hash.
+     * @param array $headers request headers.
+     *
+     * @return signed_url
+     * @throws \Exception
+     */
+    public function generate_presigned_url($contenthash, $headers = []) {
+        if ('cf' === $this->signingmethod) {
+            return  $this->generate_presigned_url_cloudfront($contenthash, $headers);
+        }
+        return  $this->generate_presigned_url_s3($contenthash, $headers);
+    }
+
+    /**
+     * generate_presigned_url_s3
+     * @param string $contenthash
+     * @param array $headers
+     * @param bool $nicefilename
+     * @return signed_url
+     */
+    private function generate_presigned_url_s3($contenthash, array $headers = [], $nicefilename = true) {
+        $contentdisposition = manager::get_header($headers, 'Content-Disposition');
+        if ($contentdisposition !== '') {
+            $params['ResponseContentDisposition'] = $contentdisposition;
+        }
+
+        $contenttype = manager::get_header($headers, 'Content-Type');
+        if ($contenttype !== '') {
+            $params['ResponseContentType'] = $contenttype;
+        }
+
+        $key = $this->get_filepath_from_hash($contenthash);
+        $params['Bucket'] = $this->bucket;
+        $params['Key'] = $this->bucketkeyprefix . $key;
+
+        if ($nicefilename) {
+            $result = $this->get_nice_filename($headers);
+            if (!empty($result)) {
+                $params['ResponseContentDisposition'] = $result['Content-Disposition'] . '; ' . $result['filename'];
+                $params['ResponseContentType'] = $result['Content-Type'];
+            }
+        }
+
+        $command = $this->client->getCommand('GetObject', $params);
+        $expires = $this->get_expiration_time(time(), manager::get_header($headers, 'Expires'));
+        $request = $this->client->createPresignedRequest($command, $expires);
+
+        $signedurl = (string)$request->getUri();
+        return new signed_url(new \moodle_url($signedurl), $expires);
+    }
+
+    /**
+     * generate_presigned_url_cloudfront
+     * @param string $contenthash
+     * @param array $headers
+     * @param bool $nicefilename
+     * @return signed_url
+     * @throws \Exception
+     */
+    private function generate_presigned_url_cloudfront($contenthash, array $headers = [], $nicefilename = true) {
+        $key = $this->get_filepath_from_hash($contenthash);
+
+        $expires = $this->get_expiration_time(time(), manager::get_header($headers, 'Expires'));
+
+        if ($nicefilename) {
+            $result = $this->get_nice_filename($headers);
+            if (!empty($result)) {
+                $key .= '?response-content-disposition=' .
+                    rawurlencode($result['Content-Disposition'] . ';' . $result['filename']) .
+                    '&response-content-type=' . rawurlencode($result['Content-Type']);
+            } else {
+                $key .= '';
+            }
+        }
+        $resource = $this->config->cloudfrontresourcedomain . '/' . $key;
+        // This is the id of the Cloudfront key pair you generated.
+        $keypairid = $this->config->cloudfrontkeypairid;
+
+        $signingpolicy = [
+            'Statement' => [[
+                'Resource' => $resource,
+                'Condition' => [
+                    'DateLessThan' => ['AWS:EpochTime' => $expires],
+                ],
+            ]],
+        ];
+        $json = json_encode($signingpolicy, JSON_UNESCAPED_SLASHES);
+
+        // Create the private key.
+        $key = manager::parse_cloudfront_private_key($this->config->cloudfrontprivatekey);
+        if (!$key) {
+            throw new \moodle_exception(OBJECTFS_PLUGIN_NAME . ': could not load cloudfront signing key.');
+        }
+
+        // Sign the policy with the private key.
+        if (!openssl_sign($json, $signedpolicy, $key, OPENSSL_ALGO_SHA1)) {
+            throw new \moodle_exception(OBJECTFS_PLUGIN_NAME . ': signing policy failed, ' . openssl_error_string());
+        }
+
+        // Create url safe signed policy.
+        $base64signedpolicy = base64_encode($signedpolicy);
+        $signature = str_replace(['+', '=', '/'], ['-', '_', '~'], $base64signedpolicy);
+
+        // Construct the URL.
+        $params = ['Expires' => $expires, 'Signature' => $signature, 'Key-Pair-Id' => $keypairid];
+        return new signed_url(new \moodle_url($resource, $params), $expires);
+    }
+
+    /**
+     * get_nice_filename
+     * @param array $headers
+     * @return array
+     */
+    private function get_nice_filename($headers) {
+        // We are trying to deliver original filename rather than hash filename to client.
+        $originalfilename = '';
+        $result = [];
+        $contentdisposition = trim(manager::get_header($headers, 'Content-Disposition'));
+        $originalcontenttype = trim(manager::get_header($headers, 'Content-Type'));
+
+        /*
+            Need to get the filename and content-type from HEADERS array
+            Without invoking more DB hits (the header array contains it already by now).
+        */
+
+        if (!empty($contentdisposition)) {
+            $fparts = explode('; ', $contentdisposition);
+            if (!empty($fparts[1])) {
+                $originalfilename = str_replace('filename=', '', $fparts[1]); // Get the actual filename.
+                $originalfilename = str_replace('"', '', $originalfilename); // Remove the quotes.
+            }
+            if (!empty($fparts[0])) {
+                $contentdisposition = $fparts[0];
+            }
+
+            if (!empty($originalfilename)) {
+                $result['Content-Disposition'] = $contentdisposition;
+                // The filename parameter must be in ISO-8859-1, however it works in browsers if
+                // you treat the original UTF-8 string as ISO-8859-1 characters. To achieve that
+                // here, we encode the UTF-8 as if it were ISO-8859-1. This behaviour is hideous
+                // so it would be nice to use the optional filename* field (RFC 5987) but S3 still
+                // complains if we do that.
+                $jankyfilename = \core_text::convert($originalfilename, 'ISO-8859-1');
+                $result['filename'] = 'filename="' . $jankyfilename . '"';
+                $result['Content-Type'] = $originalcontenttype;
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Returns expiration timestamp for pre-signed url.
+     *
+     * @param  int   $now     Now timestamp
+     * @param  mixed $expires 'Expires' header
+     * @return int
+     */
+    public function get_expiration_time($now, $expires) {
+        if (is_string($expires)) {
+            // Convert to a valid timestamp.
+            $expires = strtotime($expires);
+        }
+        // Invalid or already expired:
+        // If it's set to 0 or strtotime() returned false,
+        // set it to default + 1 min as a healthy margin.
+        if (empty($expires)) {
+            $expires = $now + $this->expirationtime + MINSECS;
+        }
+        // Expiry too short, push it out to the next 2 minutes (will round down later):
+        // If it's already expired or expires less than 2 minutes, set it to 2
+        // minutes. This works together with rounding down later on to ensure a
+        // non zero expiry time, and a minimum expiry of 1 minute.
+        if ($expires < $now + (2 * MINSECS)) {
+            $expires = $now + (2 * MINSECS);
+        }
+        // Checks upper bound:
+        // The expiration date of a signature version 4 presigned URL must be
+        // less than one week. So if it's greater than a week set it to 1 week.
+        // Use MINSECS as a healthy margin of error.
+        if ($expires - $now > WEEKSECS - MINSECS) {
+            $expires = $now + WEEKSECS - MINSECS;
+        }
+        // Rounds (down) to nearest minute:
+        // With our new expiry time, ensure we round down to the nearest minute
+        // (#457) to ensure expiry of potentially the same file will use the
+        // same URL, and will result in less duplicate requests.
+        $expires -= ($expires % MINSECS);
+
+        return $expires;
+    }
+
+    /**
+     * Returns proxy string to use as a storage client param.
+     * String format: 'username:password@127.0.0.1:123'.
+     *
+     * @return string
+     */
+    public function get_proxy_string() {
+        global $CFG;
+        $proxy = '';
+        if (empty($CFG->proxytype) || $CFG->proxytype == 'SOCKS5') {
+            // S3 doesn't support SOCKS proxy.
+            return $proxy;
+        }
+        if (!empty($CFG->proxyhost)) {
+            $proxy = $CFG->proxyhost;
+            if (!empty($CFG->proxyport)) {
+                $proxy .= ':' . $CFG->proxyport;
+            }
+            if (!empty($CFG->proxyuser) && !empty($CFG->proxypassword)) {
+                $proxy = $CFG->proxyuser . ':' . $CFG->proxypassword . '@' . $proxy;
+            }
+        }
+        return $proxy;
+    }
+
+    /**
+     * Proxy range request.
+     *
+     * @param  \stored_file $file    The file to send
+     * @param  object       $ranges  Object with rangefrom, rangeto and length properties.
+     * @return false If couldn't get data.
+     * @throws \coding_exception
+     * @throws \file_exception
+     */
+    public function proxy_range_request(\stored_file $file, $ranges) {
+        // Do not serve files if the feature is disabled or if the file size is less than 2MB.
+        if (empty($this->config->proxyrangerequests) || $file->get_filesize() < self::MAX_TEMP_LIMIT) {
+            return false;
+        }
+
+        $response = $this->curl_range_request_to_presigned_url($file->get_contenthash(), $ranges, headers_list());
+        $httpcode = manager::get_header($response['responseheaders'], 'HTTP/1.1');
+
+        if ($response['content'] != '' && $httpcode == '206 Partial Content') {
+            header('HTTP/1.1 206 Partial Content');
+            header('Accept-Ranges: bytes');
+            header('Content-Range: ' . manager::get_header($response['responseheaders'], 'Content-Range'));
+            $contentlength = manager::get_header($response['responseheaders'], 'Content-Length');
+            if ($contentlength !== '') {
+                header('Content-Length: ' . $contentlength);
+            }
+            echo $response['content'];
+            die;
+        } else {
+            throw new \file_exception('Range request to URL ' . $response['url'] .
+                ' failed with HTTP code: ' . $httpcode . '. Details: ' . $response['content']);
+        }
+    }
+
+    /**
+     * Does the range request to Pre-Signed URL via cURL.
+     *
+     * @param  string $contenthash File content hash.
+     * @param  object $ranges      Object with rangefrom, rangeto and length properties.
+     * @param  array  $headers     Request headers.
+     * @return array               Requested data.
+     * @throws \coding_exception
+     */
+    public function curl_range_request_to_presigned_url($contenthash, $ranges, $headers) {
+        try {
+            $signedurl = $this->generate_presigned_url_s3($contenthash, $headers);
+            $url = $signedurl->url->out(false);
+        } catch (\Exception $e) {
+            throw new \coding_exception('Failed to generate pre-signed url: ' . $e->getMessage());
+        }
+        $headers = [
+            'Range: bytes=' . $ranges->rangefrom . '-' . $ranges->rangeto,
+        ];
+        $curl = new \curl();
+        $curl->setopt(['CURLOPT_HTTP_VERSION' => CURL_HTTP_VERSION_1_1]);
+        $curl->setopt(['CURLOPT_RETURNTRANSFER' => true]);
+        $curl->setopt(['CURLOPT_SSL_VERIFYPEER' => false]);
+        $curl->setopt(['CURLOPT_CONNECTTIMEOUT' => 15]);
+        $curl->setopt(['CURLOPT_TIMEOUT' => 15]);
+        $curl->setHeader($headers);
+        $content = $curl->get($url);
+        return ['responseheaders' => $curl->getResponse(), 'content' => $content, 'url' => $url];
+    }
+
+    /**
+     * Test proxy range request.
+     *
+     * @param  object  $filesystem  Filesystem to be tested.
+     * @return object
+     * @throws \coding_exception
+     */
+    public function test_range_request($filesystem) {
+        global $PAGE;
+        $output = $PAGE->get_renderer('tool_objectfs');
+        $testfiles = $output->presignedurl_tests_load_files($filesystem);
+        foreach ($testfiles as $file) {
+            if ($file->get_filename() == 'testvideo.mp4') {
+                $ranges = (object)['rangefrom' => 0, 'rangeto' => 999, 'length' => 1000];
+                $response = $this->curl_range_request_to_presigned_url(
+                    $file->get_contenthash(),
+                    $ranges,
+                    ['Expires' => time() + HOURSECS]
+                );
+                $httpcode = manager::get_header($response['responseheaders'], 'HTTP/1.1');
+                if ($response['content'] != '' && $httpcode == '206 Partial Content') {
+                    return (object)['result' => true];
+                } else {
+                    $a = (object)['url' => $response['url'], 'httpcode' => $httpcode, 'details' => $response['content']];
+                    return (object)['result' => false, 'error' => get_string('rangerequestfailed', 'tool_objectfs', $a)];
+                }
+            }
+        }
+        return (object)['result' => false, 'error' => get_string('fixturefilemissing', 'tool_objectfs')];
+    }
+
+    /**
+     * Tests setting an objects tag.
+     * @return stdClass containing 'success' and 'details' properties
+     */
+    public function test_set_object_tag(): stdClass {
+        try {
+            // First ensure a test object exists to put tags on.
+            // Note this will override the existing object if exists.
+            $key = $this->bucketkeyprefix . 'tagging_check_file';
+            $this->client->putObject([
+                'Bucket' => $this->bucket,
+                'Key' => $key,
+                'Body' => 'test content',
+            ]);
+
+            // Next try to tag it - this will throw an exception if cannot set
+            // (for example, because it does not have permissions to).
+            $this->client->putObjectTagging([
+                'Bucket' => $this->bucket,
+                'Key' => $key,
+                'Tagging' => [
+                    'TagSet' => [
+                        [
+                            'Key' => 'test',
+                            'Value' => 'test',
+                        ],
+                    ],
+                ],
+            ]);
+        } catch (Throwable $e) {
+            return (object) [
+                'success' => false,
+                'details' => $e->getMessage(),
+            ];
+        }
+
+        // Success - no exceptions thrown.
+        return (object) ['success' => true, 'details' => ''];
+    }
+
+    /**
+     * Convert key=>value to s3 tag format
+     * @param array $tags
+     * @return array tags in s3 format.
+     */
+    private function convert_tags_to_s3_format(array $tags): array {
+        foreach ($tags as $key => $value) {
+            $s3tags[] = [
+                'Key' => $key,
+                'Value' => $value,
+            ];
+        }
+        return $s3tags;
+    }
+
+    /**
+     * Set the given objects tags in the external store.
+     * @param string $contenthash file content hash
+     * @param array $tags array of key=>value pairs to set as tags.
+     */
+    public function set_object_tags(string $contenthash, array $tags) {
+        $objectkey = $this->bucketkeyprefix . $this->get_filepath_from_hash($contenthash);
+
+        // Then put onto object.
+        $this->client->putObjectTagging([
+            'Bucket' => $this->bucket,
+            'Key' => $objectkey,
+            'Tagging' => [
+                'TagSet' => $this->convert_tags_to_s3_format($tags),
+            ],
+        ]);
+    }
+
+    /**
+     * Returns given objects tags queried from the external store. Object must exist.
+     * @param string $contenthash file content has
+     * @return array array of key=>value tag pairs
+     */
+    public function get_object_tags(string $contenthash): array {
+        $objectkey = $this->bucketkeyprefix . $this->get_filepath_from_hash($contenthash);
+
+        // Query from S3.
+        $result = $this->client->getObjectTagging([
+            'Bucket' => $this->bucket,
+            'Key' => $objectkey,
+        ]);
+
+        // Ensure tags are what we expect, and AWS have not changed the format.
+        if (!array_key_exists('TagSet', $result->toArray())) {
+            throw new coding_exception("Unexpected tag format received. Result did not contain a TagSet");
+        }
+
+        // Convert from S3 format to key=>value format.
+        $tagkv = [];
+        foreach ($result->toArray()['TagSet'] as $tag) {
+            $tagkv[$tag['Key']] = $tag['Value'];
+        }
+
+        return $tagkv;
+    }
+
+    /**
+     * If the client supports object tagging feature.
+     * @return bool true if supports, else false
+     */
+    public function supports_object_tagging(): bool {
+        return true;
+    }
+}

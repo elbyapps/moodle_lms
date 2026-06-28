@@ -1,0 +1,349 @@
+/* Elby Theme - Navigation Styles */
+
+/* Navbar height token. Drives both the actual navbar height and the
+   page-wrapper top offset so they stay in sync across every layout. */
+:root {
+    --elby-navbar-height: 80px;
+}
+
+@media (max-width: 991.98px) {
+    :root {
+        --elby-navbar-height: 70px;
+    }
+}
+
+/* Push every page below the fixed-top navbar. We exclude the layouts that
+   don't render a navbar (popup, login, maintenance, embedded, print) by
+   body class. Using :not() chains keeps this compatible with older scssphp
+   versions that some Moodle releases ship with. */
+body:not(.pagelayout-popup):not(.pagelayout-login):not(.pagelayout-maintenance):not(.pagelayout-embedded):not(.pagelayout-print) #page-wrapper {
+    padding-top: var(--elby-navbar-height);
+}
+
+/* Lock the navbar to the same height so the offset above always matches
+   reality. min-height keeps wrapping content (long site name, user menu)
+   from making the navbar taller than the page offset. */
+nav.navbar.fixed-top,
+.elby-navbar.fixed-top {
+    min-height: var(--elby-navbar-height);
+}
+
+/* Header wrapper */
+.elby-header {
+    z-index: 1030;
+}
+
+/* Navbar - white background with subtle shadow */
+.elby-navbar {
+    background-color: #ffffff !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    padding: 1rem 0;
+    min-height: var(--elby-navbar-height);
+}
+
+/* Logo and Brand - Left side */
+.elby-navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    text-decoration: none !important;
+    flex-shrink: 0;
+}
+
+.elby-logo {
+    max-height: 40px;
+    width: auto;
+}
+
+.elby-sitename {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1e3a8a;
+    white-space: nowrap;
+}
+
+/* Centered Navigation container */
+.elby-nav-center {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Nav links - Dark blue color */
+.elby-navbar .nav-link {
+    color: #1e3a8a !important;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    padding: 0.5rem 1.25rem;
+    position: relative;
+    text-decoration: none !important;
+}
+
+.elby-navbar .nav-link:hover,
+.elby-navbar .nav-link:focus {
+    color: #1e40af !important;
+}
+
+/* Active state with underline */
+.elby-navbar .nav-link.active {
+    color: #1e3a8a !important;
+}
+
+.elby-navbar .nav-link.active::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 1.25rem;
+    right: 1.25rem;
+    height: 2px;
+    background-color: #1e3a8a;
+    border-radius: 1px;
+}
+
+/* Dropdown menus */
+.elby-navbar .dropdown-menu {
+    border: none;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12);
+    border-radius: 12px;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.elby-navbar .dropdown-menu .dropdown-item {
+    color: #1e3a8a;
+    border-radius: 8px;
+    padding: 0.625rem 1rem;
+    font-weight: 500;
+}
+
+.elby-navbar .dropdown-menu .dropdown-item:hover {
+    background-color: rgba(37, 99, 235, 0.08);
+    color: #2563eb;
+}
+
+/* Login button - Outline style (blue border, transparent bg) */
+.elby-login-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #1e3a8a !important;
+    background: transparent !important;
+    border: 2px solid #1e3a8a !important;
+    border-radius: 8px;
+    padding: 0.5rem 1.25rem;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    text-decoration: none !important;
+    white-space: nowrap;
+}
+
+.elby-login-btn i {
+    font-size: 0.875rem;
+}
+
+.elby-login-btn:hover {
+    background: #1e3a8a !important;
+    color: #ffffff !important;
+}
+
+/* Legacy spacer (kept for back-compat with any layout that still renders
+   <div class="elby-navbar-spacer">). The real offset comes from the
+   #page-wrapper rule above driven by --elby-navbar-height, so collapse this
+   to 0 to avoid double spacing. */
+.elby-navbar-spacer {
+    height: 0;
+}
+
+/* Navbar actions container - Right side */
+.elby-navbar-actions {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+/* Mobile navbar */
+@media (max-width: 991.98px) {
+    .elby-navbar {
+        padding: 0.75rem 0;
+    }
+
+    .elby-logo {
+        max-height: 35px;
+    }
+
+    .elby-sitename {
+        font-size: 1.125rem;
+    }
+
+    .elby-navbar .navbar-collapse {
+        background-color: #ffffff;
+        padding: 1.5rem;
+        margin-top: 1rem;
+        border-radius: 16px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+        position: absolute;
+        top: 100%;
+        left: 1rem;
+        right: 1rem;
+    }
+
+    .elby-nav-center {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+    }
+
+    .elby-navbar .nav-link {
+        padding: 0.875rem 1rem;
+        border-radius: 8px;
+    }
+
+    .elby-navbar .nav-link:hover {
+        background: rgba(37, 99, 235, 0.05);
+    }
+
+    .elby-navbar .nav-link.active::after {
+        display: none;
+    }
+
+    .elby-navbar .nav-link.active {
+        background: rgba(37, 99, 235, 0.08);
+    }
+
+    .elby-navbar-actions {
+        padding-top: 1rem;
+        border-top: 1px solid #e2e8f0;
+        margin-top: 1rem;
+        justify-content: center;
+    }
+
+    .elby-login-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .elby-navbar-spacer {
+        height: 0;
+    }
+}
+
+/* User menu adjustments (when logged in) */
+.elby-user-menu .usermenu .dropdown-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #1e3a8a;
+    text-decoration: none;
+    padding: 0.375rem 0.75rem;
+    border-radius: 8px;
+}
+
+.elby-user-menu .usermenu .dropdown-toggle:hover {
+    background: rgba(37, 99, 235, 0.05);
+}
+
+.elby-user-menu .usermenu .userpicture {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+}
+
+/* Navbar toggler (hamburger menu) styling */
+.elby-navbar .navbar-toggler {
+    border: none;
+    padding: 0.5rem;
+}
+
+.elby-navbar .navbar-toggler:focus {
+    box-shadow: none;
+}
+
+.elby-navbar .navbar-toggler .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%231e3a8a' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+}
+
+/* ============================================= */
+/* BOOST NAVBAR OVERRIDE - Apply elby styling to all pages */
+/* ============================================= */
+
+/* Main navbar container (Boost pages) - override bg-body */
+nav.navbar.fixed-top {
+    background-color: #ffffff !important;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08) !important;
+    border-bottom: none !important;
+}
+
+/* Center the primary navigation */
+nav.navbar.fixed-top .container-fluid {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+nav.navbar.fixed-top .primary-navigation {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+nav.navbar.fixed-top.bg-body {
+    --bs-bg-opacity: 1;
+    background-color: #ffffff !important;
+}
+
+/* Primary navigation links */
+.navbar.fixed-top .primary-navigation .nav-link {
+    color: #1e3a8a !important;
+    font-weight: 600;
+    font-size: 0.9375rem;
+}
+
+.navbar.fixed-top .primary-navigation .nav-link:hover,
+.navbar.fixed-top .primary-navigation .nav-link:focus {
+    color: #1e40af !important;
+}
+
+/* Active nav item */
+.navbar.fixed-top .primary-navigation .nav-link.active {
+    color: #1e3a8a !important;
+}
+
+/* Dropdown toggles in primary nav */
+.navbar.fixed-top .primary-navigation .dropdown-toggle {
+    color: #1e3a8a !important;
+}
+
+/* Navbar brand / site name */
+.navbar.fixed-top .navbar-brand {
+    color: #1e3a8a !important;
+}
+
+/* User menu dropdown */
+.navbar.fixed-top .usermenu .dropdown-toggle {
+    color: #1e3a8a !important;
+}
+
+/* Notification/message icons */
+.navbar.fixed-top .popover-region-toggle {
+    color: #1e3a8a !important;
+}
+
+/* Edit mode switch */
+.navbar.fixed-top .editmode-switch-form label {
+    color: #1e3a8a !important;
+}
+
+/* Custom menu items */
+.navbar.fixed-top .custom-menu .nav-link {
+    color: #1e3a8a !important;
+}
+
+/* Dividers */
+.navbar.fixed-top .divider {
+    background-color: #e2e8f0 !important;
+}
+
+/* Navbar toggler icon for mobile */
+.navbar.fixed-top .navbar-toggler-icon {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='%231e3a8a' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
+}

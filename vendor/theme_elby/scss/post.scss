@@ -1,0 +1,127 @@
+// ============================================================================
+// Elby Theme - Post Styles (Final Overrides)
+// ============================================================================
+// Loaded after Bootstrap and Moodle core styles.
+// Use this file for final style adjustments.
+// ============================================================================
+
+// ============================================================================
+// ACCESSIBILITY
+// ============================================================================
+
+// Enhanced focus ring for accessibility.
+*:focus-visible {
+    outline: 2px solid $primary;
+    outline-offset: 2px;
+}
+
+// Reduced motion preference.
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+// ============================================================================
+// CARD ENHANCEMENTS
+// ============================================================================
+
+.card {
+    border: none;
+    box-shadow: $box-shadow-sm;
+    transition: $elby-transition-base;
+
+    &:hover {
+        box-shadow: $elby-card-hover-shadow;
+    }
+}
+
+// ============================================================================
+// BUTTON ENHANCEMENTS
+// ============================================================================
+
+.btn {
+    font-weight: 500;
+    transition: $elby-transition-fast;
+}
+
+.btn-primary {
+    &:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba($primary, 0.35);
+    }
+}
+
+// ============================================================================
+// NAVIGATION ENHANCEMENTS
+// ============================================================================
+
+.navbar {
+    background-color: $elby-navbar-bg;
+    box-shadow: $elby-navbar-shadow;
+}
+
+// ============================================================================
+// DRAWER ENHANCEMENTS
+// ============================================================================
+
+.drawer {
+    background-color: $elby-drawer-bg;
+}
+
+// ============================================================================
+// COURSE CARD ENHANCEMENTS
+// ============================================================================
+
+.dashboard-card {
+    transition: $elby-transition-base;
+
+    &:hover {
+        transform: translateY($elby-card-hover-lift);
+    }
+}
+
+// ============================================================================
+// FORM ENHANCEMENTS
+// ============================================================================
+
+.form-control,
+.form-select {
+    &:focus {
+        border-color: $primary;
+        box-shadow: 0 0 0 0.25rem rgba($primary, 0.15);
+    }
+}
+
+// ============================================================================
+// LINK STYLING
+// ============================================================================
+
+a:not(.btn):not(.nav-link) {
+    transition: color 0.15s ease-in-out;
+}
+
+// ============================================================================
+// UTILITY CLASSES
+// ============================================================================
+
+.elby-section {
+    padding: $elby-section-padding-y 0;
+
+    @media (max-width: 768px) {
+        padding: $elby-section-padding-y-sm 0;
+    }
+}
+
+.elby-card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+        transform: translateY($elby-card-hover-lift);
+        box-shadow: $elby-card-hover-shadow;
+    }
+}

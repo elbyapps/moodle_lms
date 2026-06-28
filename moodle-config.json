@@ -7,16 +7,15 @@
        "plugins": [
               {
                      "name": "admin_tool_objectfs",
-                     "source": "git",
-                     "repository": "https://github.com/catalyst/moodle-tool_objectfs.git",
-                     "version": "MOODLE_404_STABLE",
+                     "source": "vendor",
+                     "path": "vendor/admin_tool_objectfs",
                      "destination": "admin/tool/objectfs"
               },
               {
                      "name": "tool_coursefields",
                      "source": "git",
                      "repository": "https://github.com/moodle-an-hochschulen/moodle-tool_coursefields.git",
-                     "version": "db1bd7d38dbbc016a457ec98dd533e17ba26b775",
+                     "version": "240276ee67f99c521dcdbda4ddde7ad54efc47bf",
                      "destination": "admin/tool/coursefields"
               },
               {
@@ -44,7 +43,7 @@
                      "name": "block_completion_progress",
                      "source": "git",
                      "repository": "https://github.com/jonof/moodle-block_completion_progress.git",
-                     "version": "2025041400",
+                     "version": "86d716cefc97aee04e833e84b35a7093b28f92ec",
                      "destination": "blocks/completion_progress"
               },
               {
@@ -93,14 +92,13 @@
                      "name": "local_bulkenrol",
                      "source": "git",
                      "repository": "https://github.com/moodle-an-hochschulen/moodle-local_bulkenrol.git",
-                     "version": "v5.0-r3",
+                     "version": "3ea76896eac592c1f005f18edd73b1f611d64590",
                      "destination": "local/bulkenrol"
               },
               {
                      "name": "local_elby_dashboard",
-                     "source": "git",
-                     "repository": "https://github.com/rtb-elearning/dashboard.git",
-                     "version": "main",
+                     "source": "vendor",
+                     "path": "vendor/local_elby_dashboard",
                      "destination": "local/elby_dashboard"
               },
               {
@@ -135,7 +133,7 @@
                      "name": "mod_attendance",
                      "source": "git",
                      "repository": "https://github.com/danmarsden/moodle-mod_attendance.git",
-                     "version": "d40cbe2ecad6fb960769431a7a300cce8fd36fb7",
+                     "version": "4b0be553267f853c1996288ad501722574b74750",
                      "destination": "mod/attendance"
               },
               {
@@ -149,14 +147,14 @@
                      "name": "mod_customcert",
                      "source": "git",
                      "repository": "https://github.com/mdjnelson/moodle-mod_customcert.git",
-                     "version": "7a871e9fcc8d75fa774cda893f8ae11c8f7e098f",
+                     "version": "68de0e854320c0be1d6147d4cbb8323a9d4beb6d",
                      "destination": "mod/customcert"
               },
               {
                      "name": "mod_hvp",
                      "source": "git",
                      "repository": "https://github.com/h5p/moodle-mod_hvp.git",
-                     "version": "e0255812be2c4b74dae34650da79dc945cdb6b80",
+                     "version": "a36099fe8c1ac8c5836f42653a55c563b8a05953",
                      "destination": "mod/hvp"
               },
               {
@@ -170,7 +168,7 @@
                      "name": "mod_organizer",
                      "source": "git",
                      "repository": "https://github.com/academic-moodle-cooperation/moodle-mod_organizer.git",
-                     "version": "v5.0.0",
+                     "version": "44f55eb7094f5ebaa645e954a88dccc08610c179",
                      "destination": "mod/organizer"
               },
               {
@@ -191,21 +189,19 @@
                      "name": "report_benchmark",
                      "source": "git",
                      "repository": "https://github.com/mikasmart/moodle-report_benchmark.git",
-                     "version": "v1.5.3",
+                     "version": "e7271503cf7404dfd087ee37560c1eed8d612737",
                      "destination": "report/benchmark"
               },
               {
                      "name": "theme_elby",
-                     "source": "git",
-                     "repository": "https://github.com/elbyapps/moodle_theme_elby.git",
-                     "version": "main",
+                     "source": "vendor",
+                     "path": "vendor/theme_elby",
                      "destination": "theme/elby"
               },
               {
                      "name": "local_reblibrary",
-                     "source": "git",
-                     "repository": "https://github.com/REB-ICTE/local_reblibrary.git",
-                     "version": "main",
+                     "source": "vendor",
+                     "path": "vendor/local_reblibrary",
                      "destination": "local/reblibrary"
               }
        ]

@@ -1,0 +1,122 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * tool_objectfs tasks
+ *
+ * @package   tool_objectfs
+ * @author    Kenneth Hendricks <kennethhendricks@catalyst-au.net>
+ * @copyright Catalyst IT
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+defined('MOODLE_INTERNAL') || die();
+
+$tasks = [
+    [
+        'classname' => 'tool_objectfs\task\push_objects_to_storage',
+        'blocking'  => 0,
+        'minute'    => '*',
+        'hour'      => '*',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+    ],
+    [
+        'classname' => 'tool_objectfs\task\generate_status_report',
+        'blocking'  => 0,
+        'minute'    => '17',
+        'hour'     => '*',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+    ],
+    [
+        'classname' => 'tool_objectfs\task\delete_local_objects',
+        'blocking'  => 0,
+        'minute'    => '*',
+        'hour'      => '*',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+    ],
+    [
+        'classname' => 'tool_objectfs\task\orphan_objects',
+        'blocking'  => 0,
+        'minute'    => 'R',
+        'hour'      => 'R',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+    ],
+    [
+        'classname' => 'tool_objectfs\task\delete_orphaned_object_metadata',
+        'blocking'  => 0,
+        'minute'    => 'R',
+        'hour'      => 'R',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+    ],
+    [
+        'classname' => 'tool_objectfs\task\pull_objects_from_storage',
+        'blocking'  => 0,
+        'minute'    => '*',
+        'hour'      => '*',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+    ],
+    [
+        'classname' => 'tool_objectfs\task\recover_error_objects',
+        'blocking'  => 0,
+        'minute'    => '34',
+        'hour'      => '*/12',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+    ],
+    [
+        'classname' => 'tool_objectfs\task\check_objects_location',
+        'blocking'  => 0,
+        'minute'    => 'R',
+        'hour'      => '*',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+    ],
+    [
+        'classname' => 'tool_objectfs\task\trigger_update_object_tags',
+        'blocking'  => 0,
+        'minute'    => 'R',
+        'hour'      => '*',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+        // Default disabled - intended to be manually run.
+        // Also, objectfs tagging support is default off.
+        'disabled' => true,
+    ],
+    [
+        'classname' => 'tool_objectfs\task\reconcile_filedir',
+        'blocking'  => 0,
+        'minute'    => '0',
+        'hour'      => '1',
+        'day'       => '*',
+        'dayofweek' => '*',
+        'month'     => '*',
+    ],
+];

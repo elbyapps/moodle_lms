@@ -1,0 +1,7 @@
+# Keep the Docker build context lean. Plugins are installed by build.sh from
+# moodle-config.json (git clone or vendor/ copy); none of the below is needed.
+.git
+**/node_modules
+scratch/
+exports/
+*.log

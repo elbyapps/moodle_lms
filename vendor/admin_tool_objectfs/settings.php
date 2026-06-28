@@ -1,0 +1,478 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
+/**
+ * Settings
+ *
+ * @package   tool_objectfs
+ * @author    Kenneth Hendricks <kennethhendricks@catalyst-au.net>
+ * @copyright Catalyst IT
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+use tool_objectfs\check\connection;
+use tool_objectfs\check\token_expiry;
+use tool_objectfs\check\tagging_migration_status;
+use tool_objectfs\check\tagging_sync_status;
+use tool_objectfs\local\tag\tag_manager;
+
+defined('MOODLE_INTERNAL') || die();
+
+require_once(__DIR__ . '/classes/local/manager.php');
+require_once(__DIR__ . '/lib.php');
+
+global $PAGE, $CFG;
+
+if (!$hassiteconfig) {
+    return;
+}
+
+$ADMIN->add('tools', new admin_category('tool_objectfs', get_string('pluginname', 'tool_objectfs')));
+
+$settings = new admin_settingpage('tool_objectfs_settings', get_string('pluginsettings', 'tool_objectfs'));
+$ADMIN->add('tool_objectfs', $settings);
+
+$ADMIN->add('tool_objectfs', new admin_externalpage(
+    'tool_objectfs_presignedurl_testing',
+    get_string('presignedurl_testing:page', 'tool_objectfs'),
+    new moodle_url('/admin/tool/objectfs/presignedurl_tests.php')
+));
+
+$ADMIN->add('reports', new admin_externalpage(
+    'tool_objectfs_object_status',
+    get_string('object_status:page', 'tool_objectfs'),
+    new moodle_url('/admin/tool/objectfs/object_status.php')
+));
+
+$ADMIN->add('reports', new admin_externalpage(
+    'tool_objectfs_object_location_history',
+    get_string('object_status:locationhistory', 'tool_objectfs'),
+    new moodle_url('/admin/tool/objectfs/object_location.php')
+));
+
+$ADMIN->add('tool_objectfs', new admin_externalpage(
+    'tool_objectfs_missing_files',
+    get_string('page:missingfiles', 'tool_objectfs'),
+    new moodle_url('/admin/tool/objectfs/missing_files.php')
+));
+
+if ($ADMIN->fulltree) {
+    // Check if we are actually on the Objectfs settings page, or in correct category.
+    $caturl = new moodle_url('/admin/category.php');
+    $pageurl = new moodle_url('/admin/settings.php');
+    $objectfspage = false;
+    if ($PAGE->has_set_url()) {
+        $thisurl = $PAGE->url;
+        if (
+            ($caturl->compare($thisurl, URL_MATCH_BASE) && $thisurl->get_param('category') == 'tool_objectfs') ||
+            ($pageurl->compare($thisurl, URL_MATCH_BASE) && $thisurl->get_param('section') == 'tool_objectfs_settings')
+        ) {
+            $objectfspage = true;
+        }
+    }
+
+    $warntext = '';
+    if (method_exists('file_storage', 'get_file_system')) {
+        if (!\tool_objectfs\local\manager::check_file_storage_filesystem()) {
+            $warntext  = $OUTPUT->notification(get_string('settings:clientselection:filesystemnotdefined', OBJECTFS_PLUGIN_NAME));
+        }
+    } else {
+        $warntext  = $OUTPUT->notification(get_string('settings:clientselection:fsapinotbackported', OBJECTFS_PLUGIN_NAME));
+    }
+    $config = \tool_objectfs\local\manager::get_objectfs_config();
+    $settings->add(new admin_setting_heading(
+        'tool_objectfs/generalsettings',
+        new lang_string('settings:generalheader', 'tool_objectfs'),
+        $warntext
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_objectfs/enabletasks',
+        new lang_string('settings:enabletasks', 'tool_objectfs'),
+        '',
+        ''
+    ));
+
+    $settings->add(new admin_setting_configduration(
+        'tool_objectfs/maxtaskruntime',
+        new lang_string('settings:maxtaskruntime', 'tool_objectfs'),
+        '',
+        HOURSECS,
+        MINSECS
+    ));
+
+    $options = [TOOL_OBJECTFS_DELETE_EXTERNAL_NO => new lang_string('no'),
+                TOOL_OBJECTFS_DELETE_EXTERNAL_TRASH => new lang_string('settings:relyonorphancleanup', 'tool_objectfs'),
+                TOOL_OBJECTFS_DELETE_EXTERNAL_FULL => new lang_string('settings:fulldelete', 'tool_objectfs')];
+    $settings->add(new admin_setting_configselect(
+        'tool_objectfs/deleteexternal',
+        new lang_string('settings:deleteexternal', 'tool_objectfs'),
+        new lang_string('settings:deleteexternal_help', 'tool_objectfs'),
+        TOOL_OBJECTFS_DELETE_EXTERNAL_NO,
+        $options
+    ));
+
+    $settings->add(new admin_setting_configduration(
+        'tool_objectfs/maxorphanedage',
+        new lang_string('settings:maxorphanedage', 'tool_objectfs'),
+        new lang_string('settings:maxorphanedage_help', 'tool_objectfs'),
+        0,
+        DAYSECS
+    ));
+
+    $settings->add(new admin_setting_configduration(
+        'tool_objectfs/minorphanedage',
+        new lang_string('settings:minorphanedage', 'tool_objectfs'),
+        new lang_string('settings:minorphanedage_help', 'tool_objectfs'),
+        2678400,
+        DAYSECS
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_objectfs/enablelogging',
+        new lang_string('settings:enablelogging', 'tool_objectfs'),
+        '',
+        ''
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_objectfs/useproxy',
+        new lang_string('settings:useproxy', 'tool_objectfs'),
+        new lang_string('settings:useproxy_help', 'tool_objectfs'),
+        0
+    ));
+
+    $settings->add(new admin_setting_configduration(
+        'tool_objectfs/tokenexpirywarnperiod',
+        new lang_string('settings:tokenexpirywarnperiod', 'tool_objectfs'),
+        '',
+        60 * DAYSECS,
+        DAYSECS
+    ));
+
+    $settings->add(new admin_setting_heading(
+        'tool_objectfs/filetransfersettings',
+        new lang_string('settings:filetransferheader', 'tool_objectfs'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_objectfs/sizethreshold',
+        new lang_string('settings:sizethreshold', 'tool_objectfs'),
+        '',
+        1024 * 10,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_objectfs/batchsize',
+        new lang_string('settings:batchsize', 'tool_objectfs'),
+        '',
+        10000,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configduration(
+        'tool_objectfs/minimumage',
+        new lang_string('settings:minimumage', 'tool_objectfs'),
+        '',
+        10 * MINSECS,
+        7 * DAYSECS
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_objectfs/deletelocal',
+        new lang_string('settings:deletelocal', 'tool_objectfs'),
+        new lang_string('settings:deletelocal_help', 'tool_objectfs'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configduration(
+        'tool_objectfs/consistencydelay',
+        new lang_string('settings:consistencydelay', 'tool_objectfs'),
+        '',
+        10 * MINSECS,
+        MINSECS
+    ));
+
+    $settings->add(new admin_setting_heading(
+        'tool_objectfs/storagefilesystemselection',
+        new lang_string('settings:clientselection:header', 'tool_objectfs'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configselect(
+        'tool_objectfs/filesystem',
+        new lang_string('settings:clientselection:title', 'tool_objectfs'),
+        new lang_string('settings:clientselection:title_help', 'tool_objectfs'),
+        '',
+        \tool_objectfs\local\manager::get_available_fs_list()
+    ));
+
+    $client = \tool_objectfs\local\manager::get_client($config);
+    if ($client && $client->get_availability()) {
+        $settings = $client->define_client_section($settings, $config);
+    }
+
+    $warningtext = '';
+    $signingsupport = false;
+    if (!empty($config->filesystem)) {
+        $signingsupport = (new $config->filesystem())->supports_presigned_urls();
+    }
+    if (!method_exists('file_system', 'supports_xsendfile')) {
+        $warningtext .= $OUTPUT->notification(get_string('settings:presignedurl:coresupport', 'tool_objectfs'));
+    }
+    $warningtext .= \tool_objectfs\local\manager::cloudfront_pem_exists();
+    $classexists = class_exists('admin_setting_filetypes');
+    if (!$classexists) {
+        $warningtext .= $OUTPUT->notification(get_string('settings:presignedurl:filetypesclass', 'tool_objectfs'));
+    }
+
+    if ($signingsupport) {
+        $settings->add(new admin_setting_heading(
+            'tool_objectfs/presignedurls',
+            new lang_string('settings:presignedurl:header', 'tool_objectfs'),
+            $warningtext
+        ));
+
+        if ($classexists) {
+            $connstatus = false;
+            if ($objectfspage) {
+                $testconn = $client->test_connection();
+                $connstatus = $testconn->success;
+            }
+
+            $warningtext = '';
+            $methodexists = method_exists('file_system', 'xsendfile_file');
+            if (!$methodexists) {
+                $warningtext .= $OUTPUT->notification(get_string('settings:presignedurl:xsendfilefile', 'tool_objectfs'));
+            } else if ($connstatus) {
+                // Range request tests can only work if there is a valid connection.
+                $range = $client->test_range_request(new $config->filesystem());
+                if ($range->result) {
+                    $warningtext .= $OUTPUT->notification(
+                        get_string('settings:presignedurl:testrangeok', 'tool_objectfs'),
+                        'notifysuccess'
+                    );
+                } else {
+                    $warningtext .= $OUTPUT->notification(get_string('settings:presignedurl:testrangeerror', 'tool_objectfs'));
+                    $warningtext .= $OUTPUT->notification($range->error);
+                }
+            }
+            $settings->add(new admin_setting_configcheckbox(
+                'tool_objectfs/proxyrangerequests',
+                new lang_string('settings:presignedurl:proxyrangerequests', 'tool_objectfs'),
+                new lang_string('settings:presignedurl:proxyrangerequests_help', 'tool_objectfs') . $warningtext,
+                '1'
+            ));
+
+            $settings->add(new admin_setting_configcheckbox(
+                'tool_objectfs/enablepresignedurls',
+                new lang_string('settings:presignedurl:enablepresignedurls', 'tool_objectfs'),
+                new lang_string('settings:presignedurl:enablepresignedurls_help', 'tool_objectfs'),
+                ''
+            ));
+
+            $settings->add(new admin_setting_configduration(
+                'tool_objectfs/expirationtime',
+                new lang_string('settings:presignedurl:expirationtime', 'tool_objectfs'),
+                new lang_string('settings:presignedurl:expirationtime_help', 'tool_objectfs'),
+                2 * HOURSECS,
+                HOURSECS
+            ));
+
+            $settings->add(new admin_setting_configtext(
+                'tool_objectfs/presignedminfilesize',
+                new lang_string('settings:presignedurl:presignedminfilesize', 'tool_objectfs'),
+                new lang_string('settings:presignedurl:presignedminfilesize_help', 'tool_objectfs'),
+                0,
+                PARAM_INT
+            ));
+
+            $settings->add(
+                new admin_setting_filetypes(
+                    'tool_objectfs/signingwhitelist',
+                    new lang_string('settings:presignedurl:whitelist', OBJECTFS_PLUGIN_NAME),
+                    new lang_string('settings:presignedurl:whitelist_help', OBJECTFS_PLUGIN_NAME)
+                )
+            );
+
+            $settings->add(
+                new admin_setting_configselect(
+                    'tool_objectfs/signingmethod',
+                    get_string('settings:presignedurl:enablepresignedurlschoice', OBJECTFS_PLUGIN_NAME),
+                    '',
+                    's3',
+                    ['s3' => 'S3', 'cf' => 'CloudFront']
+                )
+            );
+
+            if ('cf' === $config->signingmethod) {
+                $settings->add(
+                    new admin_setting_configtext(
+                        'tool_objectfs/cloudfrontresourcedomain',
+                        get_string('settings:presignedcloudfronturl:cloudfront_resource_domain', OBJECTFS_PLUGIN_NAME),
+                        get_string('settings:presignedcloudfronturl:cloudfront_resource_domain_help', OBJECTFS_PLUGIN_NAME),
+                        '',
+                        PARAM_TEXT
+                    )
+                );
+
+                $settings->add(
+                    new admin_setting_configtext(
+                        'tool_objectfs/cloudfrontkeypairid',
+                        get_string('settings:presignedcloudfronturl:cloudfront_key_pair_id', OBJECTFS_PLUGIN_NAME),
+                        get_string('settings:presignedcloudfronturl:cloudfront_key_pair_id_help', OBJECTFS_PLUGIN_NAME),
+                        '',
+                        PARAM_TEXT
+                    )
+                );
+
+                $settings->add(
+                    new admin_setting_configtextarea(
+                        'tool_objectfs/cloudfrontprivatekey',
+                        get_string('settings:presignedcloudfronturl:cloudfront_private_key_pem', OBJECTFS_PLUGIN_NAME),
+                        get_string('settings:presignedcloudfronturl:cloudfront_private_key_pem_help', OBJECTFS_PLUGIN_NAME),
+                        '',
+                        PARAM_TEXT
+                    )
+                );
+            }
+        }
+    }
+
+    $settings->add(new admin_setting_heading(
+        'tool_objectfs/checks',
+        new lang_string('settings:checksheader', 'tool_objectfs'),
+        ''
+    ));
+
+    // Admin_setting_check only exists in 4.5+, in lower versions fallback to a basic description.
+    if (class_exists('admin_setting_check')) {
+        $settings->add(new admin_setting_check('tool_objectfs/check_tokenexpiry', new token_expiry(), true));
+    } else {
+        $summary = (new token_expiry())->get_result()->get_summary();
+        $settings->add(new admin_setting_description(
+            'tool_objectfs/tokenexpirycheckresult',
+            get_string('checktoken_expiry', 'tool_objectfs'),
+            $summary
+        ));
+    }
+
+    $settings->add(new admin_setting_heading(
+        'tool_objectfs/testsettings',
+        new lang_string('settings:testingheader', 'tool_objectfs'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_objectfs/preferexternal',
+        new lang_string('settings:preferexternal', 'tool_objectfs'),
+        '',
+        ''
+    ));
+
+    // Tagging settings.
+    $settings->add(new admin_setting_heading(
+        'tool_objectfs/taggingsettings',
+        new lang_string('settings:taggingheader', 'tool_objectfs'),
+        get_string('settings:tagging:help', 'tool_objectfs')
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_objectfs/taggingenabled',
+        new lang_string('settings:taggingenabled', 'tool_objectfs'),
+        '',
+        0
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_objectfs/taggingenvironment',
+        new lang_string('settings:taggingenvironment', 'tool_objectfs'),
+        get_string('settings:taggingenvironment:desc', 'tool_objectfs'),
+        '',
+        PARAM_TEXT
+    ));
+
+    $settings->add(new admin_setting_description(
+        'tool_objectfs/tagsources',
+        new lang_string('settings:tagsources', 'tool_objectfs'),
+        tag_manager::get_tag_source_summary_html()
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_objectfs/maxtaggingperrun',
+        new lang_string('settings:maxtaggingperrun', 'tool_objectfs'),
+        get_string('settings:maxtaggingperrun:desc', 'tool_objectfs'),
+        1000,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_objectfs/maxtaggingiterations',
+        new lang_string('settings:maxtaggingiterations', 'tool_objectfs'),
+        get_string('settings:maxtaggingiterations:desc', 'tool_objectfs'),
+        10000,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'tool_objectfs/maxtaggingtaskstospawn',
+        new lang_string('settings:maxtaggingtaskstospawn', 'tool_objectfs'),
+        get_string('settings:maxtaggingtaskstospawn:desc', 'tool_objectfs'),
+        1,
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'tool_objectfs/overwriteobjecttags',
+        new lang_string('settings:overrideobjecttags', 'tool_objectfs'),
+        get_string('settings:overrideobjecttags:desc', 'tool_objectfs'),
+        1
+    ));
+
+    // Connection status.
+    $settings->add(new admin_setting_heading(
+        'tool_objectfs/connectionstatus',
+        new lang_string('connectionstatus', 'tool_objectfs'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_check('tool_objectfs/check_connectionstatus', new connection(), true));
+
+    // Tagging status.
+    $settings->add(new admin_setting_heading(
+        'tool_objectfs/taggingstatus',
+        new lang_string('settings:taggingstatus', 'tool_objectfs'),
+        ''
+    ));
+
+    // Only in 4.4+.
+    if (class_exists('admin_setting_check')) {
+        $settings->add(new admin_setting_check('tool_objectfs/check_taggingsyncstatus', new tagging_sync_status(), true));
+        $settings->add(new admin_setting_check('tool_objectfs/check_taggingmigrationstatus', new tagging_migration_status(), true));
+    } else {
+        // Fallback to links instead.
+        $settings->add(new admin_setting_description('taggingstatuslink', '', html_writer::link(
+            new moodle_url('/report/status/index.php', ['detail' => 'tool_objectfs_tagging_sync_status']),
+            get_string('settings:taggingstatus', 'tool_objectfs')
+        )));
+        $settings->add(new admin_setting_description('taggingmigrationstatuslink', '', html_writer::link(
+            new moodle_url('/report/status/index.php', ['detail' => 'tool_objectfs_tagging_migration_status']),
+            get_string('settings:taggingmigrationstatus', 'tool_objectfs')
+        )));
+    }
+}

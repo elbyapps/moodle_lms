@@ -1,0 +1,21 @@
+define(["exports","./assets/styles-T4VCOv6N","./assets/resources-CaLdCk3e","./assets/signals.module-DLw7oAZm","./assets/library-menu-BSGNgkIk"],(function(b,e,x,o,g){"use strict";function n({icon:a,number:t,label:s}){return e.u("div",{className:"bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6 text-center",children:[e.u("div",{className:"text-4xl text-reb-blue mb-4",children:e.u("i",{className:a})}),e.u("h3",{className:"text-3xl font-bold text-reb-blue mb-2",children:t}),e.u("p",{className:"text-sm text-gray-600",children:s})]})}/**
+ * Global state management using Preact signals.
+ *
+ * @package    local_reblibrary
+ * @copyright  2025 Your Name
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */const N=o.d({id:0,fullname:"Guest",firstname:"Guest",lastname:"",email:"",avatar:"",roles:["guest"]}),r=o.d({totalResources:0,totalAuthors:0,totalCategories:0,totalClasses:0}),A=o.d([]),d=o.d(!1),u=o.d(null);/**
+ * Resource store actions.
+ * Functions to load and manipulate resources, updating Preact signals.
+ *
+ * @module local_reblibrary/services/resource-store
+ * @copyright 2025 Rwanda Education Board
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */const S=async()=>{d.value=!0,u.value=null;try{const a=await x.ResourceService.getAll();A.value=a,r.value={...r.value,totalResources:a.length},console.log("Resources loaded:",a.length)}catch(a){const t=a?.message||"Failed to load resources";u.value=t,console.error("Error loading resources:",a)}finally{d.value=!1}};function w({stats:a}){return e.y(()=>{S()},[]),e.u("section",{className:"p-4 pt-14 lg:p-8",children:[e.u("h2",{className:"text-xl lg:text-2xl font-semibold text-gray-800 mb-4 lg:mb-6",children:"Dashboard Overview"}),u.value&&e.u("div",{className:"bg-red-50 border border-red-200 rounded-lg p-4 mb-6",children:[e.u("h5",{className:"text-lg font-semibold text-red-800 mb-2",children:"Error"}),e.u("p",{className:"text-red-700",children:u.value})]}),e.u("div",{className:"grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-5 mb-6",children:[e.u(n,{icon:"fa fa-book",number:r.value.totalResources,label:"Total Resources"}),e.u(n,{icon:"fa fa-user-edit",number:r.value.totalAuthors,label:"Authors"}),e.u(n,{icon:"fa fa-tags",number:r.value.totalCategories,label:"Categories"}),e.u(n,{icon:"fa fa-graduation-cap",number:r.value.totalClasses,label:"Classes"})]}),d.value&&e.u("div",{className:"bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6",children:e.u("p",{className:"text-gray-700",children:"Loading resources..."})}),e.u("div",{className:"bg-reb-blue-50 border border-reb-blue-200 rounded-lg p-4",children:[e.u("h5",{className:"text-lg font-semibold text-reb-blue-800 mb-2",children:"Welcome to REB Library Administration"}),e.u("p",{className:"text-reb-blue-700",children:"Use the sidebar menu to manage education structure, resources, categories, and assignments."})]})]})}function D({levels:a=[],sublevels:t=[],classes:s=[]}){const c=g.getAdminMenuItems("dashboard"),i=g.getLibraryMenuItems();return e.u("div",{className:"flex min-h-screen bg-white",children:[e.u(e.Sidebar,{adminMenuItems:c,libraryMenuItems:i,levels:a,sublevels:t,classes:s}),e.u("main",{className:"flex-1 overflow-y-auto min-w-0",children:e.u(w,{stats:r.value})})]})}/**
+ * Example REB Library module with Preact integration.
+ *
+ * @module     local_reblibrary/example-with-preact
+ * @copyright  2025 Your Name
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */const C=(a="#reb-library-root")=>{const t=document.querySelector(a);if(!t){console.error(`Container not found: ${a}`);return}try{const s=t.getAttribute("data-user"),c=t.getAttribute("data-stats"),i=t.getAttribute("data-levels"),m=t.getAttribute("data-sublevels"),h=t.getAttribute("data-classes");if(s){const l=JSON.parse(s);N.value=l,console.log("User data loaded:",l)}if(c){const l=JSON.parse(c);r.value=l,console.log("Stats data loaded:",l)}const v=i?JSON.parse(i):[],f=m?JSON.parse(m):[],p=h?JSON.parse(h):[];console.log("Education structure loaded:",{levels:v.length,sublevels:f.length,classes:p.length}),e.G(e._(D,{levels:v,sublevels:f,classes:p}),t)}catch(s){console.error("Error parsing data attributes:",s)}};b.init=C,Object.defineProperty(b,Symbol.toStringTag,{value:"Module"})}));
+//# sourceMappingURL=dashboard.js.map

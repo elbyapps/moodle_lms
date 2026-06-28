@@ -1,0 +1,298 @@
+{{!
+    @template local_elby_dashboard/link_sdms
+
+    Self-service SDMS account linking form for logged-in users.
+    3-step flow: lookup -> preview -> confirm.
+
+    Context variables:
+    * dashboardurl - URL to the dashboard page
+    * sesskey - Session key for AJAX calls
+
+    Example context (json):
+    {
+        "dashboardurl": "/local/elby_dashboard/index.php",
+        "sesskey": "abc123"
+    }
+}}
+<div id="sdms-link-container" class="container-fluid" style="max-width: 600px;">
+
+    <div class="mb-3">
+        <p class="text-muted">{{#str}}self_link_description, local_elby_dashboard{{/str}}</p>
+    </div>
+
+    {{! Step 1: Lookup }}
+    <div class="sdms-link-step" data-step="1">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title mb-3">{{#str}}self_link_step1_title, local_elby_dashboard{{/str}}</h4>
+
+                <div class="form-group mb-3">
+                    <label for="sdms-link-code">{{#str}}sdms_code_label, local_elby_dashboard{{/str}}</label>
+                    <input type="text" id="sdms-link-code" class="form-control"
+                           placeholder="{{#str}}sdms_code_placeholder, local_elby_dashboard{{/str}}"
+                           autocomplete="off">
+                </div>
+
+                <div class="form-group mb-3">
+                    <label for="sdms-link-usertype">{{#str}}sdms_usertype_label, local_elby_dashboard{{/str}}</label>
+                    <select id="sdms-link-usertype" class="form-control custom-select">
+                        <option value="student">{{#str}}sdms_student, local_elby_dashboard{{/str}}</option>
+                        <option value="staff">{{#str}}sdms_staff, local_elby_dashboard{{/str}}</option>
+                    </select>
+                </div>
+
+                <div id="sdms-link-lookup-error" class="alert alert-danger d-none" role="alert"></div>
+
+                <button type="button" id="sdms-link-lookup-btn" class="btn btn-primary w-100">
+                    <i class="fa fa-search me-2"></i>{{#str}}sdms_lookup_btn, local_elby_dashboard{{/str}}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {{! Step 2: Preview }}
+    <div class="sdms-link-step d-none" data-step="2">
+        <div class="card">
+            <div class="card-body">
+                <h4 class="card-title mb-3">{{#str}}self_link_step2_title, local_elby_dashboard{{/str}}</h4>
+
+                <div class="d-flex align-items-center mb-3">
+                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-3"
+                         style="width: 48px; height: 48px; min-width: 48px;">
+                        <i class="fa fa-user"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0" id="sdms-link-preview-name"></h5>
+                        <small class="text-muted" id="sdms-link-preview-sdmsid"></small>
+                    </div>
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6" id="sdms-link-preview-school-wrap">
+                        <small class="text-muted d-block">School</small>
+                        <span id="sdms-link-preview-school" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6" id="sdms-link-preview-gender-wrap">
+                        <small class="text-muted d-block">Gender</small>
+                        <span id="sdms-link-preview-gender" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6 d-none" id="sdms-link-preview-studylevel-wrap">
+                        <small class="text-muted d-block">Study Level</small>
+                        <span id="sdms-link-preview-studylevel" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6 d-none" id="sdms-link-preview-grade-wrap">
+                        <small class="text-muted d-block">Grade / Group</small>
+                        <span id="sdms-link-preview-grade" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6 d-none" id="sdms-link-preview-program-wrap">
+                        <small class="text-muted d-block">{{#str}}profile_program, local_elby_dashboard{{/str}}</small>
+                        <span id="sdms-link-preview-program" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6 d-none" id="sdms-link-preview-position-wrap">
+                        <small class="text-muted d-block">{{#str}}profile_position, local_elby_dashboard{{/str}}</small>
+                        <span id="sdms-link-preview-position" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6" id="sdms-link-preview-status-wrap">
+                        <small class="text-muted d-block">{{#str}}profile_status, local_elby_dashboard{{/str}}</small>
+                        <span id="sdms-link-preview-status" class="fw-semibold"></span>
+                    </div>
+                    <div class="col-6" id="sdms-link-preview-year-wrap">
+                        <small class="text-muted d-block">{{#str}}profile_academic_year, local_elby_dashboard{{/str}}</small>
+                        <span id="sdms-link-preview-year" class="fw-semibold"></span>
+                    </div>
+                </div>
+
+                {{! Already linked warning }}
+                <div id="sdms-link-already-linked" class="d-none">
+                    <div class="alert alert-warning d-flex align-items-center" role="alert">
+                        <i class="fa fa-exclamation-triangle me-2"></i>
+                        <div>
+                            <strong>{{#str}}sdms_code_taken_title, local_elby_dashboard{{/str}}</strong><br>
+                            <small>{{#str}}sdms_code_taken, local_elby_dashboard{{/str}}</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="sdms-link-preview-error" class="alert alert-danger d-none" role="alert"></div>
+
+                {{! Confirm button (hidden when already linked) }}
+                <div id="sdms-link-confirm-wrap">
+                    <button type="button" id="sdms-link-confirm-btn" class="btn btn-success w-100 mb-2">
+                        <i class="fa fa-link me-2"></i>{{#str}}self_link_confirm, local_elby_dashboard{{/str}}
+                    </button>
+                </div>
+
+                <button type="button" id="sdms-link-back-btn" class="btn btn-link p-0">
+                    <i class="fa fa-arrow-left me-1"></i>{{#str}}sdms_back, local_elby_dashboard{{/str}}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {{! Step 3: Success }}
+    <div class="sdms-link-step d-none" data-step="3">
+        <div class="card">
+            <div class="card-body text-center py-4">
+                <div class="mb-3">
+                    <span class="d-inline-flex align-items-center justify-content-center rounded-circle bg-success text-white"
+                          style="width: 64px; height: 64px;">
+                        <i class="fa fa-check fa-2x"></i>
+                    </span>
+                </div>
+                <h4>{{#str}}self_link_success_title, local_elby_dashboard{{/str}}</h4>
+                <p class="text-muted">{{#str}}self_link_success_msg, local_elby_dashboard{{/str}}</p>
+                <a href="{{{ dashboardurl }}}" class="btn btn-primary">
+                    <i class="fa fa-dashboard me-2"></i>{{#str}}self_link_go_dashboard, local_elby_dashboard{{/str}}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {{! Loading overlay }}
+    <div id="sdms-link-loading" class="d-none">
+        <div class="d-flex justify-content-center align-items-center py-4">
+            <div class="spinner-border text-primary" role="status">
+                <span class="sr-only">{{#str}}loading, local_elby_dashboard{{/str}}</span>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+{{#js}}
+require(['core/ajax', 'core/notification'], function(Ajax, Notification) {
+    var container = document.getElementById('sdms-link-container');
+    var steps = container.querySelectorAll('.sdms-link-step');
+    var loading = document.getElementById('sdms-link-loading');
+    var lookupData = null;
+
+    function showStep(stepNum) {
+        steps.forEach(function(s) {
+            s.classList.toggle('d-none', s.getAttribute('data-step') !== String(stepNum));
+        });
+    }
+
+    function showLoading(show) {
+        loading.classList.toggle('d-none', !show);
+        steps.forEach(function(s) { s.classList.toggle('d-none', show || s.classList.contains('d-none')); });
+    }
+
+    function setField(id, value, wrapId) {
+        var el = document.getElementById(id);
+        if (el) {
+            el.textContent = value || '-';
+        }
+        if (wrapId) {
+            var wrap = document.getElementById(wrapId);
+            if (wrap) {
+                wrap.classList.toggle('d-none', !value);
+            }
+        }
+    }
+
+    // Step 1: Lookup.
+    document.getElementById('sdms-link-lookup-btn').addEventListener('click', function() {
+        var code = document.getElementById('sdms-link-code').value.trim();
+        var usertype = document.getElementById('sdms-link-usertype').value;
+        var errorEl = document.getElementById('sdms-link-lookup-error');
+        errorEl.classList.add('d-none');
+
+        if (!code) {
+            errorEl.textContent = '{{#str}}sdms_code_empty, local_elby_dashboard{{/str}}';
+            errorEl.classList.remove('d-none');
+            return;
+        }
+
+        showLoading(true);
+        Ajax.call([{
+            methodname: 'local_elby_dashboard_lookup_for_signup',
+            args: { sdms_code: code, user_type: usertype }
+        }])[0].then(function(result) {
+            showLoading(false);
+            if (!result.success) {
+                errorEl.textContent = result.error || '{{#str}}sdmsnotfound, local_elby_dashboard{{/str}}';
+                errorEl.classList.remove('d-none');
+                showStep(1);
+                return;
+            }
+
+            lookupData = result;
+            lookupData._code = code;
+            lookupData._usertype = usertype;
+
+            // Populate preview using flat fields from lookup_for_signup.
+            var name = result.names || '';
+            var sdmsIdLabel = result.sdms_id + ' (' + usertype + ')';
+
+            document.getElementById('sdms-link-preview-name').textContent = name || code;
+            document.getElementById('sdms-link-preview-sdmsid').textContent = sdmsIdLabel;
+
+            // Common fields.
+            setField('sdms-link-preview-school', result.school_name, 'sdms-link-preview-school-wrap');
+            setField('sdms-link-preview-gender', result.gender, 'sdms-link-preview-gender-wrap');
+            setField('sdms-link-preview-status', result.status);
+            setField('sdms-link-preview-year', result.academic_year);
+
+            // Student-specific fields.
+            setField('sdms-link-preview-studylevel', result.study_level, 'sdms-link-preview-studylevel-wrap');
+
+            var gradeGroup = '';
+            if (result.class_grade) {
+                gradeGroup = result.class_grade;
+                if (result.class_group) {
+                    gradeGroup += ' / ' + result.class_group;
+                }
+            }
+            setField('sdms-link-preview-grade', gradeGroup, 'sdms-link-preview-grade-wrap');
+            setField('sdms-link-preview-program', result.program, 'sdms-link-preview-program-wrap');
+
+            // Staff-specific fields.
+            setField('sdms-link-preview-position', result.position, 'sdms-link-preview-position-wrap');
+
+            // Check if SDMS code is already linked to another Moodle account.
+            var alreadyTaken = result.already_linked || result.already_registered;
+            document.getElementById('sdms-link-already-linked').classList.toggle('d-none', !alreadyTaken);
+            document.getElementById('sdms-link-confirm-wrap').classList.toggle('d-none', alreadyTaken);
+
+            showStep(2);
+        }).catch(function(err) {
+            showLoading(false);
+            errorEl.textContent = err.error || err.message || '{{#str}}error, local_elby_dashboard{{/str}}';
+            errorEl.classList.remove('d-none');
+            showStep(1);
+        });
+    });
+
+    // Step 2: Back.
+    document.getElementById('sdms-link-back-btn').addEventListener('click', function() {
+        showStep(1);
+    });
+
+    // Step 2: Confirm link.
+    document.getElementById('sdms-link-confirm-btn').addEventListener('click', function() {
+        if (!lookupData) return;
+        var errorEl = document.getElementById('sdms-link-preview-error');
+        errorEl.classList.add('d-none');
+
+        showLoading(true);
+        Ajax.call([{
+            methodname: 'local_elby_dashboard_self_link_sdms',
+            args: { sdms_code: lookupData._code, user_type: lookupData._usertype }
+        }])[0].then(function(result) {
+            showLoading(false);
+            if (result.success) {
+                showStep(3);
+            } else {
+                errorEl.textContent = result.error || '{{#str}}error, local_elby_dashboard{{/str}}';
+                errorEl.classList.remove('d-none');
+                showStep(2);
+            }
+        }).catch(function(err) {
+            showLoading(false);
+            errorEl.textContent = err.error || err.message || '{{#str}}error, local_elby_dashboard{{/str}}';
+            errorEl.classList.remove('d-none');
+            showStep(2);
+        });
+    });
+});
+{{/js}}

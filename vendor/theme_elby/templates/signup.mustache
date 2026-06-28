@@ -1,0 +1,133 @@
+{{!
+    @template theme_elby/signup
+
+    Custom signup page template - Split layout design (same as login).
+
+    Context variables:
+    * sitename - Site name
+    * logourl - Logo URL
+    * haslogo - Whether logo exists
+    * bodyattributes - Body attributes string
+    * loginimage - Login illustration image URL
+    * hasloginimage - Whether login image exists
+    * loginurl - URL to the login page
+
+    Example context (json):
+    {
+        "sitename": "My Site",
+        "haslogo": true
+    }
+}}
+{{> theme_boost/head }}
+<style>
+/* Critical inline styles for split layout */
+html, body { height: 100%; margin: 0; }
+body.login-page { background: #fff !important; }
+#page-wrapper.elby-login-wrapper {
+    display: flex !important;
+    flex-direction: row !important;
+    min-height: 100vh;
+    width: 100%;
+}
+.elby-login-form-side {
+    flex: 0 0 50% !important;
+    max-width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 3rem;
+    background: #fff;
+    overflow-y: auto;
+}
+.elby-login-form-container {
+    width: 100%;
+    max-width: 400px;
+}
+/* Logo size constraint */
+.elby-login-logo {
+    max-height: 150px !important;
+    width: auto !important;
+}
+.elby-login-illustration-side {
+    flex: 0 0 50% !important;
+    max-width: 50%;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, {{{ gradient1 }}} 0%, {{{ gradient2 }}} 50%, {{{ gradient3 }}} 100%);
+    {{#hasloginimage}}
+    background: url('{{{ loginimage }}}');
+    background-size: cover;
+    background-position: center;
+    {{/hasloginimage}}
+    position: relative;
+    overflow: hidden;
+}
+@media (max-width: 991px) {
+    #page-wrapper.elby-login-wrapper { flex-direction: column !important; }
+    .elby-login-form-side, .elby-login-illustration-side {
+        flex: 1 1 auto !important;
+        max-width: 100% !important;
+    }
+    .elby-login-illustration-side { min-height: 250px; order: -1; }
+}
+</style>
+<body {{{ bodyattributes }}}>
+{{> core/local/toast/wrapper}}
+{{{ output.standard_top_of_body_html }}}
+
+<div id="page-wrapper" class="elby-login-wrapper">
+
+    {{! Left Side - Form }}
+    <div class="elby-login-form-side">
+        <div class="elby-login-form-container">
+            {{! Logo }}
+            <div class="elby-login-logo-wrapper mb-4">
+                {{#haslogo}}
+                <a href="{{{ config.wwwroot }}}" class="elby-login-logo-link">
+                    <img src="{{{ logourl }}}" alt="{{{ sitename }}}" class="elby-login-logo">
+                </a>
+                {{/haslogo}}
+                {{^haslogo}}
+                <a href="{{{ config.wwwroot }}}" class="elby-login-logo-link">
+                    <span class="elby-login-sitename">{{{ sitename }}}</span>
+                </a>
+                {{/haslogo}}
+            </div>
+
+            {{! Welcome Text }}
+            <div class="elby-login-welcome mb-4">
+                <h1 class="elby-login-heading">{{#str}}sdms_signup_heading, local_elby_dashboard{{/str}}</h1>
+                <p class="elby-login-subtext">{{#str}}sdms_signup_subtext, local_elby_dashboard{{/str}}</p>
+            </div>
+
+            {{! Signup Form Content }}
+            <div class="elby-signup-form">
+                {{{ output.main_content }}}
+            </div>
+        </div>
+    </div>
+
+    {{! Right Side - Illustration Background }}
+    <div class="elby-login-illustration-side">
+        {{^hasloginimage}}
+        {{! Default decorative content when no image }}
+        <div class="elby-login-illustration-content">
+            <div class="elby-login-main-icon">
+                <i class="fa fa-id-card" style="font-size: 5rem; color: rgba(255,255,255,0.9);"></i>
+            </div>
+        </div>
+        {{/hasloginimage}}
+    </div>
+
+</div>
+
+{{{ output.standard_end_of_body_html }}}
+</body>
+</html>
+{{#js}}
+M.util.js_pending('theme_boost/loader');
+require(['theme_boost/loader'], function() {
+  M.util.js_complete('theme_boost/loader');
+});
+{{/js}}

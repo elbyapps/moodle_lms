@@ -1,0 +1,545 @@
+{{!
+    @template theme_elby/frontpage
+
+    Frontpage layout with Edwiser-style design.
+
+    Context variables:
+    * hashero, hasmarketing, hasstats, hastestimonials
+    * hasannouncements, hascampuslife, hasevents, hasfeaturesection
+    * Section-specific data arrays
+    * output, bodyattributes, sitename
+
+    Example context (json):
+    {
+        "sitename": "My Site",
+        "hashero": true,
+        "heroheading": "LET'S DESIGN YOUR FUTURE!"
+    }
+}}
+{{> theme_boost/head }}
+
+<body {{{ bodyattributes }}}>
+{{> core/local/toast/wrapper}}
+{{{ output.standard_top_of_body_html }}}
+
+<div id="page-wrapper" class="elby-frontpage">
+
+    {{! Navigation }}
+    <header class="elby-header">
+        {{> theme_elby/navbar }}
+    </header>
+
+    {{! ============================================= }}
+    {{! HERO SECTION }}
+    {{! Hidden when category filter is active }}
+    {{! ============================================= }}
+    {{^isfiltered}}
+    {{#hashero}}
+
+    {{! ---- Collage Style (default) ---- }}
+    {{#herostyle_collage}}
+    <section class="elby-hero" data-autorotate="{{heroautorotate}}" data-interval="{{herointerval}}" data-slidecount="{{heroslidecount}}">
+        {{! Decorative Elements }}
+        <div class="elby-hero-decorations">
+            <div class="elby-deco-blob elby-deco-blob-1"></div>
+            <div class="elby-deco-blob elby-deco-blob-2"></div>
+            <div class="elby-deco-blob elby-deco-blob-3"></div>
+            <div class="elby-deco-blob elby-deco-blob-4"></div>
+            <div class="elby-deco-dots elby-deco-dots-1"></div>
+            <div class="elby-deco-dots elby-deco-dots-2"></div>
+            <div class="elby-deco-dots elby-deco-dots-3"></div>
+            <div class="elby-deco-dot elby-deco-dot-1"></div>
+            <div class="elby-deco-dot elby-deco-dot-2"></div>
+            <div class="elby-deco-dot elby-deco-dot-3"></div>
+        </div>
+
+        {{#hasmultipleslides}}
+        <button class="elby-hero-nav elby-hero-nav-prev" aria-label="{{#str}}previousslide, theme_elby{{/str}}">
+            <i class="fa fa-chevron-left"></i>
+        </button>
+        <button class="elby-hero-nav elby-hero-nav-next" aria-label="{{#str}}nextslide, theme_elby{{/str}}">
+            <i class="fa fa-chevron-right"></i>
+        </button>
+        {{/hasmultipleslides}}
+
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-5 col-xl-5">
+                    <div class="elby-hero-slides-content">
+                        {{#heroslides}}
+                        <div class="elby-hero-slide {{#active}}active{{/active}}" data-slide="{{index}}">
+                            <div class="elby-hero-content">
+                                <h1 class="elby-hero-heading">{{{ heading }}}</h1>
+                                <div class="elby-hero-subheading">{{{ subheading }}}</div>
+                                {{#hascta}}
+                                <a href="{{{ ctaurl }}}" class="btn elby-btn-primary elby-hero-cta">
+                                    {{{ ctabutton }}}
+                                </a>
+                                {{/hascta}}
+                            </div>
+                        </div>
+                        {{/heroslides}}
+                    </div>
+
+                    {{#hasmultipleslides}}
+                    <div class="elby-hero-pagination">
+                        {{#heroslides}}
+                        <button class="elby-hero-dot {{#active}}active{{/active}}" data-slide="{{index}}" aria-label="{{#str}}gotoslide, theme_elby, {{slidenum}}{{/str}}"></button>
+                        {{/heroslides}}
+                    </div>
+                    {{/hasmultipleslides}}
+                </div>
+
+                <div class="col-lg-7 col-xl-7 d-none d-lg-block">
+                    <div class="elby-hero-slides-images">
+                        {{#heroslides}}
+                        <div class="elby-hero-collage {{#active}}active{{/active}}" data-slide="{{index}}">
+                            <div class="elby-hero-main-image">
+                                {{#hasmainimage}}
+                                <img src="{{{ mainimage }}}" alt="" class="elby-hero-image-blob">
+                                {{/hasmainimage}}
+                                {{^hasmainimage}}
+                                <img src="{{{ config.wwwroot }}}/theme/elby/pix/hero-main.svg" alt="" class="elby-hero-image-default">
+                                {{/hasmainimage}}
+                            </div>
+
+                            <div class="elby-hero-secondary-image">
+                                {{#hassecondaryimage}}
+                                <img src="{{{ secondaryimage }}}" alt="" class="elby-hero-image-circle">
+                                {{/hassecondaryimage}}
+                                {{^hassecondaryimage}}
+                                <img src="{{{ config.wwwroot }}}/theme/elby/pix/hero-secondary.svg" alt="" class="elby-hero-image-circle-default">
+                                {{/hassecondaryimage}}
+                            </div>
+
+                            <div class="elby-hero-shape elby-hero-shape-1"></div>
+                            <div class="elby-hero-shape elby-hero-shape-2"></div>
+                        </div>
+                        {{/heroslides}}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    {{/herostyle_collage}}
+
+    {{! ---- Full-width Background Style ---- }}
+    {{#herostyle_fullwidth}}
+    <section class="elby-hero elby-hero--fullwidth" data-autorotate="{{heroautorotate}}" data-interval="{{herointerval}}" data-slidecount="{{heroslidecount}}">
+        <div class="elby-hero-fullwidth-slides">
+            {{#heroslides}}
+            <div class="elby-hero-slide elby-hero-fullwidth-slide {{#active}}active{{/active}}" data-slide="{{index}}"
+                 {{#hasmainimage}}style="background-image: url('{{{mainimage}}}')"{{/hasmainimage}}>
+                <div class="elby-hero-fullwidth-overlay"></div>
+                <div class="container">
+                    <div class="elby-hero-fullwidth-content">
+                        <h1 class="elby-hero-heading">{{{ heading }}}</h1>
+                        <div class="elby-hero-subheading">{{{ subheading }}}</div>
+                        {{#hascta}}
+                        <a href="{{{ ctaurl }}}" class="btn elby-btn-primary elby-hero-cta">
+                            {{{ ctabutton }}}
+                        </a>
+                        {{/hascta}}
+                    </div>
+                </div>
+            </div>
+            {{/heroslides}}
+        </div>
+
+        {{#hasmultipleslides}}
+        <button class="elby-hero-nav elby-hero-nav-prev" aria-label="{{#str}}previousslide, theme_elby{{/str}}">
+            <i class="fa fa-chevron-left"></i>
+        </button>
+        <button class="elby-hero-nav elby-hero-nav-next" aria-label="{{#str}}nextslide, theme_elby{{/str}}">
+            <i class="fa fa-chevron-right"></i>
+        </button>
+        <div class="elby-hero-pagination">
+            {{#heroslides}}
+            <button class="elby-hero-dot {{#active}}active{{/active}}" data-slide="{{index}}" aria-label="{{#str}}gotoslide, theme_elby, {{slidenum}}{{/str}}"></button>
+            {{/heroslides}}
+        </div>
+        {{/hasmultipleslides}}
+    </section>
+    {{/herostyle_fullwidth}}
+
+    {{/hashero}}
+    {{/isfiltered}}
+
+    {{! ============================================= }}
+    {{! COURSE CATEGORIES SECTION - Udemy Style }}
+    {{! ============================================= }}
+    {{#hascategories}}
+    {{! Category header banner when filtered }}
+    {{#isfiltered}}
+    <div class="elby-category-header">
+        {{#hascategoryimage}}
+        <div class="elby-category-header-image">
+            <img src="{{{categoryimage}}}" alt="{{#currentcategory}}{{{name}}}{{/currentcategory}}">
+        </div>
+        {{/hascategoryimage}}
+        <div class="container">
+            <div class="elby-category-header-content">
+                <nav class="elby-categories-breadcrumb mb-3">
+                    {{#breadcrumbs}}
+                    <a href="{{{url}}}" class="{{#active}}active{{/active}}">{{{name}}}</a>
+                    {{^last}}<span class="separator">/</span>{{/last}}
+                    {{/breadcrumbs}}
+                </nav>
+                <h2 class="elby-category-header-title">{{#currentcategory}}{{{name}}}{{/currentcategory}}</h2>
+                {{#categorydescription}}<p class="elby-category-header-desc">{{{categorydescription}}}</p>{{/categorydescription}}
+            </div>
+        </div>
+    </div>
+    {{/isfiltered}}
+    <section class="elby-categories elby-section">
+        <div class="container">
+
+            {{! Section header }}
+            {{^isfiltered}}
+            <div class="text-center mb-5">
+                <h2 class="elby-section-title">{{{ categoriestitle }}}</h2>
+                {{#categoriessubtitle}}
+                <p class="elby-section-subtitle">{{{ categoriessubtitle }}}</p>
+                {{/categoriessubtitle}}
+            </div>
+            {{/isfiltered}}
+
+            {{! Category/Course cards grid }}
+            <div class="row g-4">
+                {{#items}}
+                <div class="col-lg-4 col-md-6">
+                    <a href="{{{url}}}" class="elby-category-card">
+                        <div class="elby-category-image">
+                            {{#hasthumbnail}}
+                            <img src="{{{thumbnail}}}" alt="{{{name}}}" loading="lazy">
+                            {{/hasthumbnail}}
+                            {{^hasthumbnail}}
+                            <div class="elby-category-placeholder">
+                                <i class="fa {{{icon}}}"></i>
+                            </div>
+                            {{/hasthumbnail}}
+                        </div>
+                        <div class="elby-category-content">
+                            <h3 class="elby-category-title">{{{name}}}</h3>
+                            {{#description}}
+                            <p class="elby-category-desc">{{{description}}}</p>
+                            {{/description}}
+                            <div class="elby-category-stats">
+                                <span class="elby-stat-item">
+                                    <i class="fa fa-book"></i>
+                                    {{{itemcount}}} {{{itemcountlabel}}}
+                                </span>
+                                <span class="elby-stat-item">
+                                    <i class="fa fa-users"></i>
+                                    {{{enrolledcount}}} {{#str}}enrolled, theme_elby{{/str}}
+                                </span>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {{/items}}
+            </div>
+
+            {{! Empty state }}
+            {{^items}}
+            <div class="row justify-content-center">
+                <div class="col-lg-6">
+                    <div class="elby-categories-empty text-center py-5">
+                        <i class="fa fa-folder-open fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">{{#str}}nocontent, theme_elby{{/str}}</p>
+                    </div>
+                </div>
+            </div>
+            {{/items}}
+        </div>
+    </section>
+    {{/hascategories}}
+
+    {{! ============================================= }}
+    {{! ANNOUNCEMENTS SECTION - Edwiser Style }}
+    {{! ============================================= }}
+    {{#hasannouncements}}
+    <section class="elby-announcements elby-section">
+        {{! Decorative Elements }}
+        <div class="elby-announcements-decorations">
+            <div class="elby-announce-deco elby-announce-deco-dot-1"></div>
+            <div class="elby-announce-deco elby-announce-deco-dot-2"></div>
+            <div class="elby-announce-deco elby-announce-deco-dots"></div>
+            <div class="elby-announce-deco elby-announce-deco-circle"></div>
+        </div>
+
+        <div class="container">
+            <div class="elby-announcement-wrapper">
+                <h2 class="elby-announcement-title">{{{ announcementstitle }}}</h2>
+                <div class="elby-announcement-content">{{{ announcementscontent }}}</div>
+                {{#hasannouncementslink}}
+                <a href="{{{ announcementslinkurl }}}" class="btn elby-btn-primary">
+                    {{{ announcementslinktext }}}
+                </a>
+                {{/hasannouncementslink}}
+            </div>
+        </div>
+    </section>
+    {{/hasannouncements}}
+
+    {{! ============================================= }}
+    {{! CAMPUS LIFE GALLERY - Edwiser Style Grid }}
+    {{! ============================================= }}
+    {{#hascampuslife}}
+    <section class="elby-campus-life elby-section">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="elby-section-title">{{{ campuslifetitle }}}</h2>
+            </div>
+
+            {{! Gallery Images - Grid Layout (all visible) }}
+            <div class="elby-campus-gallery-grid">
+                {{#campuslifecategories}}
+                <div class="elby-campus-card">
+                    <div class="elby-campus-image-wrapper">
+                        <img src="{{{ image }}}" alt="{{{ label }}}" class="elby-campus-image">
+                        <div class="elby-campus-overlay">
+                            <span class="elby-campus-label">{{{ label }}}</span>
+                        </div>
+                    </div>
+                </div>
+                {{/campuslifecategories}}
+            </div>
+
+            {{! Navigation dots }}
+            <div class="elby-campus-nav text-center mt-4">
+                <button class="elby-campus-nav-btn elby-campus-nav-prev" aria-label="Previous">
+                    <i class="fa fa-chevron-left"></i>
+                </button>
+                <span class="elby-campus-nav-dot active"></span>
+                <button class="elby-campus-nav-btn elby-campus-nav-next" aria-label="Next">
+                    <i class="fa fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+    {{/hascampuslife}}
+
+    {{! ============================================= }}
+    {{! FEATURE SECTION - Edwiser Split Layout }}
+    {{! ============================================= }}
+    {{#hasfeaturesection}}
+    <section class="elby-feature-section elby-section">
+        <div class="container">
+            <div class="row align-items-center">
+                {{! Left - Image with Decorations }}
+                <div class="col-lg-6 mb-4 mb-lg-0">
+                    <div class="elby-feature-image-wrapper">
+                        {{! Decorative Elements }}
+                        <div class="elby-feature-deco elby-feature-deco-dots"></div>
+                        <div class="elby-feature-deco elby-feature-deco-circle"></div>
+                        <div class="elby-feature-deco elby-feature-deco-dot-1"></div>
+                        <div class="elby-feature-deco elby-feature-deco-dot-2"></div>
+
+                        {{#hasfeaturesectionimage}}
+                        <img src="{{{ featuresectionimage }}}" alt="" class="elby-feature-image">
+                        {{/hasfeaturesectionimage}}
+                        {{^hasfeaturesectionimage}}
+                        <div class="elby-feature-placeholder">
+                            <i class="fa fa-image"></i>
+                        </div>
+                        {{/hasfeaturesectionimage}}
+                    </div>
+                </div>
+
+                {{! Right - Content }}
+                <div class="col-lg-6">
+                    <div class="elby-feature-content">
+                        <h2 class="elby-feature-title">{{{ featuresectiontitle }}}</h2>
+                        <div class="elby-feature-text">{{{ featuresectioncontent }}}</div>
+                        {{#hasfeaturesectionbutton}}
+                        <a href="{{{ featuresectionbuttonurl }}}" class="elby-feature-link">
+                            {{{ featuresectionbuttontext }}} <i class="fa fa-arrow-right"></i>
+                        </a>
+                        {{/hasfeaturesectionbutton}}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    {{/hasfeaturesection}}
+
+    {{! ============================================= }}
+    {{! TESTIMONIALS SECTION }}
+    {{! ============================================= }}
+    {{#hastestimonials}}
+    <section class="elby-testimonials elby-section elby-section-light">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="elby-section-title">{{{ testimonialstitle }}}</h2>
+                {{#testimonialssubtitle}}
+                <p class="elby-section-subtitle">{{{ testimonialssubtitle }}}</p>
+                {{/testimonialssubtitle}}
+            </div>
+
+            <div class="row g-4">
+                {{#testimonials}}
+                <div class="col-lg-4 col-md-6">
+                    <div class="elby-testimonial-card">
+                        <div class="elby-testimonial-header">
+                            {{#hasimage}}
+                            <img src="{{{ image }}}" alt="{{{ name }}}" class="elby-testimonial-image">
+                            {{/hasimage}}
+                            {{^hasimage}}
+                            <div class="elby-testimonial-avatar">
+                                {{{ name.[0] }}}
+                            </div>
+                            {{/hasimage}}
+                            <div class="elby-testimonial-info">
+                                <h4 class="elby-testimonial-name">{{{ name }}}</h4>
+                                <p class="elby-testimonial-role">{{{ role }}}</p>
+                            </div>
+                        </div>
+                        <blockquote class="elby-testimonial-quote">
+                            <i class="fa fa-quote-left elby-quote-icon"></i>
+                            {{{ quote }}}
+                        </blockquote>
+                    </div>
+                </div>
+                {{/testimonials}}
+            </div>
+        </div>
+    </section>
+    {{/hastestimonials}}
+
+    {{! ============================================= }}
+    {{! STATISTICS SECTION }}
+    {{! ============================================= }}
+    {{#hasstats}}
+    <section class="elby-statistics elby-section">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="elby-section-title">{{{ statstitle }}}</h2>
+                {{#statssubtitle}}
+                <p class="elby-section-subtitle">{{{ statssubtitle }}}</p>
+                {{/statssubtitle}}
+            </div>
+
+            <div class="d-flex flex-wrap flex-md-nowrap justify-content-center">
+                {{#stats}}
+                <div class="elby-stats-col">
+                    <div class="elby-stat-item">
+                        <div class="elby-stat-icon">
+                            <i class="fa {{{ icon }}}"></i>
+                        </div>
+                        <div class="elby-stat-value" data-target="{{{ value }}}">
+                            <span class="elby-stat-number">0</span><span class="elby-stat-suffix">{{{ suffix }}}</span>
+                        </div>
+                        <div class="elby-stat-label">{{{ label }}}</div>
+                    </div>
+                </div>
+                {{/stats}}
+            </div>
+        </div>
+    </section>
+    {{/hasstats}}
+
+    {{! ============================================= }}
+    {{! EVENTS SECTION }}
+    {{! ============================================= }}
+    {{#hasevents}}
+    <section class="elby-events elby-section elby-section-light">
+        <div class="container">
+            <div class="text-center mb-5">
+                <h2 class="elby-section-title">{{{ eventstitle }}}</h2>
+            </div>
+
+            <div class="row g-4">
+                {{#events}}
+                <div class="col-lg-4 col-md-6">
+                    <a href="{{{ url }}}" class="elby-event-card">
+                        {{#hasimage}}
+                        <div class="elby-event-image-wrapper">
+                            <img src="{{{ image }}}" alt="{{{ title }}}" class="elby-event-image">
+                        </div>
+                        {{/hasimage}}
+                        <div class="elby-event-content">
+                            {{#hasdate}}
+                            <div class="elby-event-date">
+                                <span class="elby-event-day">{{{ day }}}</span>
+                                <span class="elby-event-month">{{{ month }}}</span>
+                            </div>
+                            {{/hasdate}}
+                            <div class="elby-event-info">
+                                <h4 class="elby-event-title">{{{ title }}}</h4>
+                                <p class="elby-event-description">{{{ description }}}</p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+                {{/events}}
+            </div>
+        </div>
+    </section>
+    {{/hasevents}}
+
+    {{! ============================================= }}
+    {{! MAIN CONTENT AREA (Moodle blocks, etc.) }}
+    {{! ============================================= }}
+    <main id="page" class="elby-main-content">
+        <div class="container py-4">
+            {{{ output.main_content }}}
+        </div>
+    </main>
+
+    {{! ============================================= }}
+    {{! FOOTER }}
+    {{! ============================================= }}
+    {{> theme_elby/footer }}
+
+</div>
+
+{{{ output.standard_end_of_body_html }}}
+</body>
+</html>
+{{#js}}
+M.util.js_pending('theme_boost/loader');
+require(['theme_boost/loader'], function() {
+  M.util.js_complete('theme_boost/loader');
+});
+
+// Hero Carousel
+{{#hashero}}
+{{#hasmultipleslides}}
+require(['theme_elby/herocarousel'], function(HeroCarousel) {
+    new HeroCarousel.init();
+});
+{{/hasmultipleslides}}
+{{/hashero}}
+
+// Statistics counter animation
+{{#hasstats}}
+require(['jquery'], function($) {
+    var animated = false;
+    function animateCounters() {
+        if (animated) return;
+        var statsSection = $('.elby-statistics');
+        if (statsSection.length && $(window).scrollTop() + $(window).height() > statsSection.offset().top + 100) {
+            animated = true;
+            $('.elby-stat-number').each(function() {
+                var $this = $(this);
+                var target = parseInt($this.parent().data('target')) || 0;
+                $({ count: 0 }).animate({ count: target }, {
+                    duration: 2000,
+                    easing: 'swing',
+                    step: function() {
+                        $this.text(Math.floor(this.count));
+                    },
+                    complete: function() {
+                        $this.text(target);
+                    }
+                });
+            });
+        }
+    }
+    $(window).on('scroll', animateCounters);
+    animateCounters();
+});
+{{/hasstats}}
+
+{{/js}}

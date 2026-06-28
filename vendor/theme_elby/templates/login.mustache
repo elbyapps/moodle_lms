@@ -1,0 +1,234 @@
+{{!
+    @template theme_elby/login
+
+    Custom login page template - Split layout design.
+
+    Context variables:
+    * sitename - Site name
+    * logourl - Logo URL
+    * haslogo - Whether logo exists
+    * bodyattributes - Body attributes string
+    * loginimage - Login illustration image URL
+    * hasloginimage - Whether login image exists
+
+    Example context (json):
+    {
+        "sitename": "My Site",
+        "haslogo": true
+    }
+}}
+{{> theme_boost/head }}
+<style>
+/* Critical inline styles for split layout */
+html, body { height: 100%; margin: 0; }
+body.login-page { background: #fff !important; }
+#page-wrapper.elby-login-wrapper {
+    display: flex !important;
+    flex-direction: row !important;
+    min-height: 100vh;
+    width: 100%;
+}
+.elby-login-form-side {
+    flex: 0 0 50% !important;
+    max-width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 3rem;
+    background: #fff;
+    overflow-y: auto;
+}
+.elby-login-form-container {
+    width: 100%;
+    max-width: 400px;
+}
+/* Logo size constraint */
+.elby-login-logo {
+    max-height: 150px !important;
+    width: auto !important;
+}
+/* Hide logo inside Moodle's login form */
+.elby-login-form .login-logo,
+.elby-login-form .login-heading {
+    display: none !important;
+}
+/* Hide guest login, cookies notice, and their dividers */
+.elby-login-form #guestlogin,
+.elby-login-form .login-divider,
+.elby-login-form .login-heading,
+.elby-login-form button[data-modal="alert"],
+.elby-login-form .d-flex:has(button[data-modal="alert"]) {
+    display: none !important;
+}
+/* Align login button to the right */
+.elby-login-form .login-form-submit {
+    display: flex;
+    justify-content: flex-end;
+}
+.elby-login-form #loginbtn {
+    width: auto;
+    padding-left: 2rem;
+    padding-right: 2rem;
+}
+/* Password toggle button */
+.password-wrapper {
+    position: relative;
+}
+.password-wrapper input[type="password"],
+.password-wrapper input[type="text"] {
+    padding-right: 2.5rem !important;
+}
+.password-toggle {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    color: #6b7280;
+    font-size: 1rem;
+    line-height: 1;
+}
+.password-toggle:hover {
+    color: #374151;
+}
+.elby-login-illustration-side {
+    flex: 0 0 50% !important;
+    max-width: 50%;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, {{{ gradient1 }}} 0%, {{{ gradient2 }}} 50%, {{{ gradient3 }}} 100%);
+    {{#hasloginimage}}
+    background: url('{{{ loginimage }}}');
+    background-size: cover;
+    background-position: center;
+    {{/hasloginimage}}
+    position: relative;
+    overflow: hidden;
+}
+.elby-login-illustration-side img.elby-login-image {
+    max-width: 90%;
+    max-height: 80%;
+    object-fit: contain;
+}
+@media (max-width: 991px) {
+    #page-wrapper.elby-login-wrapper { flex-direction: column !important; }
+    .elby-login-form-side, .elby-login-illustration-side {
+        flex: 1 1 auto !important;
+        max-width: 100% !important;
+    }
+    .elby-login-illustration-side { min-height: 250px; order: -1; }
+}
+</style>
+<body {{{ bodyattributes }}}>
+{{> core/local/toast/wrapper}}
+{{{ output.standard_top_of_body_html }}}
+
+<div id="page-wrapper" class="elby-login-wrapper">
+
+    {{! Left Side - Form }}
+    <div class="elby-login-form-side">
+        <div class="elby-login-form-container">
+            {{! Logo }}
+            <div class="elby-login-logo-wrapper mb-4">
+                {{#haslogo}}
+                <a href="{{{ config.wwwroot }}}" class="elby-login-logo-link">
+                    <img src="{{{ logourl }}}" alt="{{{ sitename }}}" class="elby-login-logo">
+                </a>
+                {{/haslogo}}
+                {{^haslogo}}
+                <a href="{{{ config.wwwroot }}}" class="elby-login-logo-link">
+                    <span class="elby-login-sitename">{{{ sitename }}}</span>
+                </a>
+                {{/haslogo}}
+            </div>
+
+            {{! Welcome Text }}
+            <div class="elby-login-welcome mb-4">
+                <h1 class="elby-login-heading">{{#str}}welcomeback, theme_elby{{/str}}</h1>
+                <p class="elby-login-subtext">{{#str}}signinmessage, theme_elby{{/str}}</p>
+            </div>
+
+            {{! Login Form }}
+            <div class="elby-login-form">
+                {{{ output.main_content }}}
+            </div>
+
+            {{! Sign up with SDMS }}
+            <div class="elby-sdms-signup-link mt-3 text-center">
+                <p class="text-muted mb-2">Don't have an account?</p>
+                <a href="{{{ config.wwwroot }}}/local/elby_dashboard/signup.php"
+                   class="btn btn-outline-primary w-100">
+                    <i class="fa fa-id-card me-2"></i>{{#str}}sdms_signup_link, local_elby_dashboard{{/str}}
+                </a>
+            </div>
+
+            {{! Back to home link }}
+            <div class="elby-login-footer mt-4">
+                <a href="{{{ config.wwwroot }}}" class="elby-back-link">
+                    <i class="fa fa-arrow-left me-2"></i>{{#str}}backtohome, theme_elby{{/str}}
+                </a>
+            </div>
+        </div>
+    </div>
+
+    {{! Right Side - Illustration Background }}
+    <div class="elby-login-illustration-side">
+        {{^hasloginimage}}
+        {{! Default decorative content when no image }}
+        <div class="elby-login-illustration-content">
+            <div class="elby-login-main-icon">
+                <i class="fa fa-fingerprint" style="font-size: 5rem; color: rgba(255,255,255,0.9);"></i>
+            </div>
+        </div>
+        {{/hasloginimage}}
+    </div>
+
+</div>
+
+{{{ output.standard_end_of_body_html }}}
+</body>
+</html>
+{{#js}}
+M.util.js_pending('theme_boost/loader');
+require(['theme_boost/loader'], function() {
+  M.util.js_complete('theme_boost/loader');
+});
+
+// Password visibility toggle
+document.addEventListener('DOMContentLoaded', function() {
+    var passwordInput = document.getElementById('password');
+    if (passwordInput) {
+        // Wrap password input
+        var wrapper = document.createElement('div');
+        wrapper.className = 'password-wrapper';
+        passwordInput.parentNode.insertBefore(wrapper, passwordInput);
+        wrapper.appendChild(passwordInput);
+
+        // Create toggle button
+        var toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'password-toggle';
+        toggleBtn.innerHTML = '<i class="fa fa-eye"></i>';
+        toggleBtn.setAttribute('aria-label', 'Show password');
+        wrapper.appendChild(toggleBtn);
+
+        // Toggle visibility
+        toggleBtn.addEventListener('click', function() {
+            var icon = toggleBtn.querySelector('i');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.className = 'fa fa-eye-slash';
+                toggleBtn.setAttribute('aria-label', 'Hide password');
+            } else {
+                passwordInput.type = 'password';
+                icon.className = 'fa fa-eye';
+                toggleBtn.setAttribute('aria-label', 'Show password');
+            }
+        });
+    }
+});
+{{/js}}
