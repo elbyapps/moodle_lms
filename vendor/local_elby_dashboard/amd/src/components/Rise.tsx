@@ -452,30 +452,59 @@ function NesaReviewSection({ applicant, campaignId, review, nidValidated, onSave
     onSaved: (applicantId: string, review: RiseNesaReview) => void;
 }) {
     const [status, setStatus] = useState<NesaStatus>(review?.nesastatus || 'pending');
+    const [indexNumber, setIndexNumber] = useState<string>(review?.nesaindexnumber || '');
     const [nidVerified, setNidVerified] = useState<boolean>(!!review?.nidverified);
     const [comment, setComment] = useState<string>(review?.comment || '');
     const [saving, setSaving] = useState(false);
     const [savedAt, setSavedAt] = useState(0);
     const [error, setError] = useState('');
+    const [confirmOpen, setConfirmOpen] = useState(false);
 
     useEffect(() => {
         setStatus(review?.nesastatus || 'pending');
+        setIndexNumber(review?.nesaindexnumber || '');
         setNidVerified(!!review?.nidverified);
         setComment(review?.comment || '');
         setSavedAt(0);
         setError('');
+        setConfirmOpen(false);
     }, [applicant._id]);
 
     useEffect(() => {
         if (nidValidated) setNidVerified(true);
     }, [nidValidated]);
 
-    const decisions: { key: NesaStatus; label: string; solid: string; accent: string; tint: string }[] = [
-        { key: 'approved', label: 'Approved', solid: '#1a7f43', accent: '#1a7f43', tint: '#bfe2cd' },
-        { key: 'rejected', label: 'Rejected', solid: '#b42318', accent: '#b42318', tint: '#eec3bd' },
-        { key: 'action_requested', label: 'Action requested', solid: '#b6720a', accent: '#b6720a', tint: '#e8d3a3' },
+    const decisions: { key: NesaStatus; label: string; solid: string; accent: string; tint: string; confirmBg: string }[] = [
+        { key: 'approved', label: 'Approved', solid: '#1a7f43', accent: '#1a7f43', tint: '#bfe2cd', confirmBg: '#e6f4ec' },
+        { key: 'rejected', label: 'Rejected', solid: '#b42318', accent: '#b42318', tint: '#eec3bd', confirmBg: '#fee7e3' },
+        { key: 'action_requested', label: 'Action requested', solid: '#b6720a', accent: '#b6720a', tint: '#e8d3a3', confirmBg: '#fff1d6' },
     ];
+    const selectedDecision = decisions.find((d) => d.key === status);
     const hasDecision = status !== 'pending';
+    const needsIndex = status === 'approved';
+    const needsComment = status === 'rejected' || status === 'action_requested';
+
+    function validate(): boolean {
+        if (!hasDecision) {
+            setError('Select a NESA decision before saving.');
+            return false;
+        }
+        if (needsIndex && indexNumber.trim() === '') {
+            setError('NESA index number is required when approving a learner.');
+            return false;
+        }
+        if (needsComment && comment.trim() === '') {
+            setError('Comment is required for rejected or action-requested reviews.');
+            return false;
+        }
+        setError('');
+        return true;
+    }
+
+    function requestSave() {
+        setSavedAt(0);
+        if (validate()) setConfirmOpen(true);
+    }
 
     async function save() {
         try {
@@ -485,6 +514,7 @@ function NesaReviewSection({ applicant, campaignId, review, nidValidated, onSave
                 campaignid: campaignId,
                 applicantid: applicant._id,
                 nesastatus: status,
+                nesaindexnumber: indexNumber.trim(),
                 nidverified: nidVerified ? 1 : 0,
                 comment,
                 applicantdata: JSON.stringify(applicant),
@@ -492,68 +522,110 @@ function NesaReviewSection({ applicant, campaignId, review, nidValidated, onSave
             const saved = JSON.parse(raw) as RiseNesaReview;
             onSaved(applicant._id, saved);
             setSavedAt(Date.now());
-        } catch (e) {
+            setConfirmOpen(false);
+        } catch (e: any) {
             console.error('RISE save review failed:', e);
-            setError('Could not save the review. Please try again.');
+            setError(e?.message || 'Could not save the review. Please try again.');
         } finally {
             setSaving(false);
         }
     }
 
     return (
-        <div style={{ flex: '0 0 auto', borderTop: '1px solid #eceef2', background: '#fbfbfc', padding: '16px 26px 18px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.4px', color: '#161b26' }}>NESA ELIGIBILITY REVIEW</div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 12.5, color: '#3b424f', userSelect: 'none' }}
-                       onClick={() => setNidVerified((v) => !v)}>
-                    <span style={{
-                        width: 17, height: 17, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        color: '#fff', fontSize: 11, lineHeight: 1,
-                        border: `1.5px solid ${nidVerified ? BRAND : '#c4c8d0'}`, background: nidVerified ? BRAND : '#fff',
-                    }}>{nidVerified ? '✓' : ''}</span>
-                    National ID verified
+        <>
+            <div style={{ flex: '0 0 auto', borderTop: '1px solid #eceef2', background: '#fbfbfc', padding: '20px 26px 20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 15 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, letterSpacing: '.5px', color: '#161b26' }}>NESA ELIGIBILITY REVIEW</div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#3b424f', userSelect: 'none' }}
+                           onClick={() => setNidVerified((v) => !v)}>
+                        <span style={{
+                            width: 18, height: 18, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: '#fff', fontSize: 11, lineHeight: 1,
+                            border: `1.5px solid ${nidVerified ? BRAND : '#c4c8d0'}`, background: nidVerified ? BRAND : '#fff',
+                        }}>{nidVerified ? '✓' : ''}</span>
+                        National ID verified
+                    </label>
+                </div>
+
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, letterSpacing: '.6px', color: '#6b7280', marginBottom: 7 }}>
+                    NESA SENIOR 3 CONFIRMATION — INDEX NUMBER{needsIndex ? ' *' : ''}
                 </label>
-            </div>
+                <input
+                    value={indexNumber}
+                    onInput={(e) => setIndexNumber((e.target as HTMLInputElement).value)}
+                    placeholder="Enter NESA index number"
+                    style={{ width: '100%', height: 38, border: '1px solid #dfe3ea', borderRadius: 10, padding: '0 13px', fontSize: 13.5, fontFamily: 'inherit', color: '#161b26', marginBottom: 12, outline: 'none', background: '#fff' }}
+                />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 11 }}>
-                {decisions.map((d) => {
-                    const selected = status === d.key;
-                    return (
-                        <button
-                            key={d.key}
-                            onClick={() => setStatus((s) => (s === d.key ? 'pending' : d.key))}
-                            style={{
-                                padding: '10px 8px', borderRadius: 9, fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-                                border: `1.5px solid ${selected ? d.solid : d.tint}`,
-                                background: selected ? d.solid : '#fff',
-                                color: selected ? '#fff' : d.accent,
-                            }}
-                        >{d.label}</button>
-                    );
-                })}
-            </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 11 }}>
+                    {decisions.map((d) => {
+                        const selected = status === d.key;
+                        return (
+                            <button
+                                key={d.key}
+                                onClick={() => setStatus((s) => (s === d.key ? 'pending' : d.key))}
+                                style={{
+                                    padding: '12px 8px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                                    border: `1.5px solid ${selected ? d.solid : d.tint}`,
+                                    background: selected ? d.solid : '#fff',
+                                    color: selected ? '#fff' : d.accent,
+                                }}
+                            >{d.label}</button>
+                        );
+                    })}
+                </div>
 
-            <textarea
-                value={comment}
-                onInput={(e) => setComment((e.target as HTMLTextAreaElement).value)}
-                placeholder="Add a comment (optional)…"
-                style={{ width: '100%', minHeight: 46, resize: 'none', border: '1px solid #e1e3e8', borderRadius: 9, padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', color: '#1f2430', marginBottom: 12, outline: 'none' }}
-            />
+                <textarea
+                    value={comment}
+                    onInput={(e) => setComment((e.target as HTMLTextAreaElement).value)}
+                    placeholder={needsComment ? 'Add a comment (required)…' : 'Add a comment (optional)…'}
+                    style={{ width: '100%', minHeight: 50, resize: 'none', border: '1px solid #e1e3e8', borderRadius: 10, padding: '10px 12px', fontSize: 13.5, fontFamily: 'inherit', color: '#1f2430', marginBottom: 13, outline: 'none', background: '#fff' }}
+                />
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                {error && <div style={{ margin: '-3px 0 10px', fontSize: 12.5, fontWeight: 600, color: '#b42318' }}>{error}</div>}
+
                 <button
-                    onClick={save}
+                    onClick={requestSave}
                     disabled={!hasDecision || saving}
                     style={{
-                        flex: '1 1 auto', padding: 12, border: 'none', borderRadius: 10, color: '#fff',
-                        fontSize: 13.5, fontWeight: 600, cursor: hasDecision && !saving ? 'pointer' : 'not-allowed',
+                        width: '100%', padding: 13, border: 'none', borderRadius: 10, color: '#fff',
+                        fontSize: 14, fontWeight: 700, cursor: hasDecision && !saving ? 'pointer' : 'not-allowed',
                         background: hasDecision ? BRAND : '#a6c0d6',
                     }}
                 >{saving ? 'Saving…' : 'Save review'}</button>
-                {savedAt > 0 && !error && <span style={{ fontSize: 13, color: '#1a7f43', flex: '0 0 auto' }}>Saved.</span>}
-                {error && <span style={{ fontSize: 13, color: '#b42318', flex: '0 0 auto' }}>{error}</span>}
+                {savedAt > 0 && !error && <div style={{ marginTop: 8, fontSize: 12.5, color: '#1a7f43' }}>Saved.</div>}
             </div>
-        </div>
+
+            {confirmOpen && selectedDecision && (
+                <div className="fixed inset-0 z-[2300]" style={{ background: 'rgba(17,24,39,.48)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                    <div style={{ width: 380, maxWidth: '100%', borderRadius: 17, background: '#fff', boxShadow: '0 24px 70px rgba(20,28,46,.28)', padding: 24 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 17 }}>
+                            <span style={{ flex: '0 0 auto', width: 44, height: 44, borderRadius: 12, background: selectedDecision.confirmBg, color: selectedDecision.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 800 }}>✓</span>
+                            <div>
+                                <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-.2px', color: '#161b26', marginBottom: 2 }}>Submit this review?</div>
+                                <div style={{ fontSize: 13.5, color: '#6b7280', lineHeight: 1.35 }}>This will be recorded against the applicant.</div>
+                            </div>
+                        </div>
+                        <div style={{ border: '1px solid #e5e7ec', background: '#f9fafb', borderRadius: 13, padding: '14px 16px', marginBottom: 20 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center', marginBottom: 13 }}>
+                                <div style={{ fontSize: 12, fontWeight: 800, color: '#6b7280', letterSpacing: '.5px' }}>DECISION</div>
+                                <span style={{ padding: '5px 13px', borderRadius: 999, background: selectedDecision.confirmBg, color: selectedDecision.accent, fontSize: 13, fontWeight: 800 }}>{selectedDecision.label}</span>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
+                                <div style={{ fontSize: 12, fontWeight: 800, color: '#6b7280', letterSpacing: '.5px' }}>NESA INDEX</div>
+                                <div style={{ fontSize: 13.5, fontWeight: 800, color: '#161b26' }}>{indexNumber.trim() || '—'}</div>
+                            </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 12 }}>
+                            <button onClick={() => setConfirmOpen(false)} disabled={saving}
+                                style={{ padding: '12px 14px', borderRadius: 11, border: '1px solid #dfe3ea', background: '#fff', color: '#3b424f', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>Cancel</button>
+                            <button onClick={save} disabled={saving}
+                                style={{ padding: '12px 14px', borderRadius: 11, border: 'none', background: BRAND, color: '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>{saving ? 'Submitting…' : 'Confirm & submit'}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
     );
 }
 
@@ -598,6 +670,7 @@ function ApplicantDetail({ applicant, campaignId, review, onClose, onPreview, on
             if (result.match) {
                 onReviewSaved(applicant._id, {
                     nesastatus: review?.nesastatus || 'pending',
+                    nesaindexnumber: review?.nesaindexnumber || '',
                     nidverified: 1,
                     comment: review?.comment || '',
                 });

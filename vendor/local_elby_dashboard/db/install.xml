@@ -361,6 +361,7 @@
         <FIELD NAME="applicantstatus" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="RISE applicant status snapshot (e.g. SHORTLISTED)"/>
         <FIELD NAME="applicantdata" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Full JSON snapshot of the RISE applicant payload"/>
         <FIELD NAME="nesastatus" TYPE="char" LENGTH="32" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="NESA decision: approved, rejected, action_requested, pending"/>
+        <FIELD NAME="nesaindexnumber" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="NESA Senior 3 confirmation index number"/>
         <FIELD NAME="nidverified" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 if NESA verified the National ID"/>
         <FIELD NAME="comment" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="NESA reviewer comment"/>
         <FIELD NAME="reviewedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Moodle userid of the NESA reviewer"/>

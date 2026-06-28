@@ -167,6 +167,7 @@ class rise extends external_api {
         foreach ($records as $r) {
             $out[$r->applicantid] = [
                 'nesastatus' => $r->nesastatus,
+                'nesaindexnumber' => $r->nesaindexnumber ?? '',
                 'nidverified' => (int) $r->nidverified,
                 'comment' => $r->comment,
                 'reviewedby' => (int) $r->reviewedby,
@@ -191,6 +192,7 @@ class rise extends external_api {
             'campaignid' => new external_value(PARAM_ALPHANUM, 'Campaign id'),
             'applicantid' => new external_value(PARAM_ALPHANUM, 'Applicant id'),
             'nesastatus' => new external_value(PARAM_ALPHANUMEXT, 'NESA decision'),
+            'nesaindexnumber' => new external_value(PARAM_TEXT, 'NESA Senior 3 confirmation index number', VALUE_DEFAULT, ''),
             'nidverified' => new external_value(PARAM_BOOL, 'Whether the National ID is verified', VALUE_DEFAULT, false),
             'comment' => new external_value(PARAM_TEXT, 'Reviewer comment', VALUE_DEFAULT, ''),
             'applicantdata' => new external_value(PARAM_RAW, 'Full applicant JSON snapshot', VALUE_DEFAULT, ''),
@@ -209,7 +211,8 @@ class rise extends external_api {
      * @return string JSON of the stored review.
      */
     public static function save_review(string $campaignid, string $applicantid, string $nesastatus,
-            bool $nidverified = false, string $comment = '', string $applicantdata = ''): string {
+            string $nesaindexnumber = '', bool $nidverified = false, string $comment = '',
+            string $applicantdata = ''): string {
         global $DB, $USER;
 
         $context = context_system::instance();
@@ -220,6 +223,7 @@ class rise extends external_api {
             'campaignid' => $campaignid,
             'applicantid' => $applicantid,
             'nesastatus' => $nesastatus,
+            'nesaindexnumber' => $nesaindexnumber,
             'nidverified' => $nidverified,
             'comment' => $comment,
             'applicantdata' => $applicantdata,
@@ -227,6 +231,12 @@ class rise extends external_api {
 
         if (!in_array($params['nesastatus'], self::NESA_STATUSES, true)) {
             throw new \invalid_parameter_exception('Invalid NESA status: ' . $params['nesastatus']);
+        }
+        if ($params['nesastatus'] === 'approved' && trim($params['nesaindexnumber']) === '') {
+            throw new \invalid_parameter_exception('NESA index number is required for approved learners.');
+        }
+        if (in_array($params['nesastatus'], ['rejected', 'action_requested'], true) && trim($params['comment']) === '') {
+            throw new \invalid_parameter_exception('Comment is required for rejected or action-requested learners.');
         }
 
         // Pull a few summary columns out of the snapshot for easy querying/reporting.
@@ -251,6 +261,7 @@ class rise extends external_api {
             'applicantstatus' => (string) ($snapshot['status'] ?? ''),
             'applicantdata' => $params['applicantdata'] !== '' ? $params['applicantdata'] : null,
             'nesastatus' => $params['nesastatus'],
+            'nesaindexnumber' => trim($params['nesaindexnumber']),
             'nidverified' => $params['nidverified'] ? 1 : 0,
             'comment' => $params['comment'],
             'reviewedby' => $USER->id,
@@ -272,6 +283,7 @@ class rise extends external_api {
         return json_encode([
             'applicantid' => $data->applicantid,
             'nesastatus' => $data->nesastatus,
+            'nesaindexnumber' => $data->nesaindexnumber,
             'nidverified' => (int) ($params['nidverified'] ? 1 : 0),
             'comment' => $data->comment,
             'reviewedby' => (int) $USER->id,

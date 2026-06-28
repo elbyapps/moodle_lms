@@ -127,5 +127,16 @@ function xmldb_local_elby_dashboard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026062701, 'local', 'elby_dashboard');
     }
 
+    if ($oldversion < 2026062801) {
+        // Store the NESA Senior 3 confirmation index number for approved learners.
+        $table = new xmldb_table('elby_rise_reviews');
+        $field = new xmldb_field('nesaindexnumber', XMLDB_TYPE_CHAR, '100', null, null, null, null, 'nesastatus');
+        if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026062801, 'local', 'elby_dashboard');
+    }
+
     return true;
 }
