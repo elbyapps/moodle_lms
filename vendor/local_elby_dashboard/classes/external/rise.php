@@ -84,10 +84,14 @@ class rise extends external_api {
             'provincecode' => new external_value(PARAM_ALPHANUM, 'Province code filter', VALUE_DEFAULT, ''),
             'district' => new external_value(PARAM_TEXT, 'District name filter', VALUE_DEFAULT, ''),
             'gender' => new external_value(PARAM_ALPHA, 'Gender filter', VALUE_DEFAULT, ''),
+            'nesa' => new external_value(PARAM_ALPHANUMEXT, 'NESA review status filter', VALUE_DEFAULT, ''),
+            'nida' => new external_value(PARAM_ALPHA, 'NIDA verification status filter', VALUE_DEFAULT, ''),
+            'search' => new external_value(PARAM_TEXT, 'Free-text search (name/district)', VALUE_DEFAULT, ''),
             'page' => new external_value(PARAM_INT, 'Page number (1-based)', VALUE_DEFAULT, 1),
             'limit' => new external_value(PARAM_INT, 'Results per page', VALUE_DEFAULT, 20),
         ]);
     }
+
 
     /**
      * Get a paginated, filtered list of applicants for a campaign.
@@ -102,7 +106,10 @@ class rise extends external_api {
      * @return string JSON-encoded applicants payload.
      */
     public static function get_applicants(string $campaignid, string $status = '', string $provincecode = '',
-            string $district = '', string $gender = '', int $page = 1, int $limit = 20): string {
+            string $district = '', string $gender = '', string $nesa = '', string $nida = '',
+            string $search = '', int $page = 1, int $limit = 20): string {
+        global $DB;
+
         $context = context_system::instance();
         self::validate_context($context);
         require_capability('local/elby_dashboard:viewreports', $context);
@@ -113,19 +120,105 @@ class rise extends external_api {
             'provincecode' => $provincecode,
             'district' => $district,
             'gender' => $gender,
+            'nesa' => $nesa,
+            'nida' => $nida,
+            'search' => $search,
             'page' => $page,
             'limit' => $limit,
         ]);
 
-        $client = new rise_client();
-        return json_encode($client->get_applicants($params['campaignid'], [
+        $page = max(1, $params['page']);
+        $limit = min(100, max(1, $params['limit']));
+        $remotefilters = [
             'status' => $params['status'],
             'provinceCode' => $params['provincecode'],
             'district' => $params['district'],
             'gender' => $params['gender'],
-            'page' => max(1, $params['page']),
-            'limit' => min(100, max(1, $params['limit'])),
-        ]));
+        ];
+        $search = trim($params['search']);
+        if ($search !== '') {
+            // The RISE API searches name/NID/etc. via the `q` parameter.
+            $remotefilters['q'] = $search;
+        }
+
+        // Cheap path: no NESA/NIDA review-status filter -> let the RISE API paginate (and
+        // search, via `q`) directly across the full applicant set.
+        if ($params['nesa'] === '' && $params['nida'] === '') {
+            $client = new rise_client();
+            return json_encode($client->get_applicants($params['campaignid'], $remotefilters + [
+                'page' => $page,
+                'limit' => $limit,
+            ]));
+        }
+
+        // Review-filter path: NESA/NIDA decisions exist only in the dashboard DB, where every
+        // review row also stores a snapshot of the RISE applicant. Serve straight from the DB
+        // (applying any search across snapshot columns) so review filters never page through
+        // the (slow, un-filterable) RISE applicants API.
+        $where = ['campaignid = :campaignid'];
+        $sqlparams = ['campaignid' => $params['campaignid']];
+        if ($params['nesa'] !== '') {
+            $where[] = 'nesastatus = :nesa';
+            $sqlparams['nesa'] = $params['nesa'];
+        }
+        if ($params['nida'] !== '') {
+            $where[] = 'nidstatus = :nida';
+            $sqlparams['nida'] = $params['nida'];
+        }
+        if ($params['status'] !== '') {
+            $where[] = 'applicantstatus = :astatus';
+            $sqlparams['astatus'] = $params['status'];
+        }
+        if ($params['gender'] !== '') {
+            $where[] = 'gender = :gender';
+            $sqlparams['gender'] = $params['gender'];
+        }
+        if (trim($params['district']) !== '') {
+            $where[] = 'district = :district';
+            $sqlparams['district'] = $params['district'];
+        }
+        if (trim($params['search']) !== '') {
+            $needle = '%' . $DB->sql_like_escape(trim($params['search'])) . '%';
+            $parts = [];
+            foreach (['fullname', 'district', 'phone', 'nid'] as $i => $col) {
+                $pn = 'srch' . $i;
+                $parts[] = $DB->sql_like($col, ':' . $pn, false);
+                $sqlparams[$pn] = $needle;
+            }
+            $where[] = '(' . implode(' OR ', $parts) . ')';
+        }
+        $wheresql = implode(' AND ', $where);
+
+        $total = (int) $DB->count_records_select('elby_rise_reviews', $wheresql, $sqlparams);
+        $records = $DB->get_records_select('elby_rise_reviews', $wheresql, $sqlparams,
+            'timemodified DESC', '*', ($page - 1) * $limit, $limit);
+
+        $applicants = [];
+        foreach ($records as $r) {
+            $applicant = !empty($r->applicantdata) ? json_decode($r->applicantdata, true) : null;
+            if (!is_array($applicant)) {
+                $applicant = [
+                    '_id' => $r->applicantid,
+                    'fullName' => $r->fullname,
+                    'gender' => $r->gender,
+                    'phone' => $r->phone,
+                    'district' => $r->district,
+                    'nid' => $r->nid,
+                    'status' => $r->applicantstatus,
+                ];
+            }
+            $applicants[] = $applicant;
+        }
+
+        return json_encode([
+            'applicants' => $applicants,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'totalPages' => max(1, (int) ceil($total / $limit)),
+            ],
+        ]);
     }
 
     /**

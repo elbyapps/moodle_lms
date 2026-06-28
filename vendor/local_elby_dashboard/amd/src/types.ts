@@ -155,6 +155,7 @@ export interface RiseApplicant {
     reviewerScore?: number;
     createdAt?: string;
     degreeLink?: string | null;
+    idCardLink?: string | null;
     missingDocuments?: string[];
     location?: {
         provinceCode?: string;

@@ -50,6 +50,15 @@ const PROVINCES: Record<string, string> = {
 
 const STATUSES = ['', 'PENDING', 'SHORTLISTED', 'HIRED', 'ENROLLED', 'REJECTED'];
 
+// Rwanda's 30 districts are fixed; the RISE API filters by district name, so a static
+// list lets the dropdown cover every district without fetching the full applicant set.
+const RWANDA_DISTRICTS = [
+    'Bugesera', 'Burera', 'Gakenke', 'Gasabo', 'Gatsibo', 'Gicumbi', 'Gisagara', 'Huye',
+    'Kamonyi', 'Karongi', 'Kayonza', 'Kicukiro', 'Kirehe', 'Muhanga', 'Musanze', 'Ngoma',
+    'Ngororero', 'Nyabihu', 'Nyagatare', 'Nyamagabe', 'Nyamasheke', 'Nyanza', 'Nyarugenge',
+    'Nyaruguru', 'Rubavu', 'Ruhango', 'Rulindo', 'Rusizi', 'Rutsiro', 'Rwamagana',
+];
+
 // NESA decision metadata: short label + badge colour classes (used in the list table).
 const NESA_META: Record<NesaStatus, { label: string; badge: string }> = {
     approved: { label: 'Approved', badge: 'bg-green-100 text-green-700' },
@@ -86,6 +95,49 @@ function ajaxCall(methodname: string, args: Record<string, any>): Promise<any> {
             Ajax.call([{ methodname, args }])[0].then(resolve).catch(reject);
         });
     });
+}
+
+// ---- URL state (deep links + browser back/forward) ------------------------
+// The RISE view is a single-page Preact app on rise.php; navigation state is
+// kept in the query string so the applicants page, applicant drawer and
+// document preview are all linkable, shareable and survive a reload.
+
+interface RiseUrlState {
+    campaignid: string;
+    applicantid: string;
+    doc: string;
+    status: string;
+    gender: string;
+    district: string;
+    q: string;
+    nesa: string;
+    nida: string;
+    page: string;
+}
+
+const RISE_URL_KEYS: (keyof RiseUrlState)[] = ['campaignid', 'applicantid', 'doc', 'status', 'gender', 'district', 'q', 'nesa', 'nida', 'page'];
+
+const EMPTY_URL: RiseUrlState = { campaignid: '', applicantid: '', doc: '', status: '', gender: '', district: '', q: '', nesa: '', nida: '', page: '' };
+
+function readRiseUrlState(): RiseUrlState {
+    const p = new URLSearchParams(window.location.search);
+    const out = { ...EMPTY_URL };
+    for (const k of RISE_URL_KEYS) out[k] = p.get(k) || '';
+    return out;
+}
+
+// Merge a partial patch into the current query string; empty values are removed
+// so the URL stays clean. Other (non-RISE) query params are preserved.
+function writeRiseUrl(patch: Partial<RiseUrlState>, replace = false): void {
+    const p = new URLSearchParams(window.location.search);
+    for (const k of Object.keys(patch) as (keyof RiseUrlState)[]) {
+        const v = patch[k];
+        if (v) p.set(k, v); else p.delete(k);
+    }
+    const qs = p.toString();
+    const url = window.location.pathname + (qs ? '?' + qs : '') + window.location.hash;
+    if (replace) window.history.replaceState({}, '', url);
+    else window.history.pushState({}, '', url);
 }
 
 function formatDate(value?: string | null): string {
@@ -153,6 +205,7 @@ function extractAttachments(applicant: RiseApplicant): RiseAttachment[] {
         out.push({ label, url, ext: fileExt(url) });
     };
 
+    add('National ID', applicant.idCardLink);
     add('Degree / Certificate', applicant.degreeLink);
     const raw = applicant.rawFormData || {};
     Object.keys(raw).forEach((k) => {
@@ -1104,21 +1157,32 @@ function NidaStatusPill({ status }: { status: NidaStatus }) {
 
 // ---- Applicants view ------------------------------------------------------
 
-function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: () => void }) {
+function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApplicant, onSelectDoc }: {
+    campaign: RiseCampaign;
+    onBack: () => void;
+    deepApplicantId: string;
+    deepDoc: string;
+    onSelectApplicant: (id: string | null) => void;
+    onSelectDoc: (label: string | null) => void;
+}) {
     const [applicants, setApplicants] = useState<RiseApplicant[]>([]);
     const [allApplicants, setAllApplicants] = useState<RiseApplicant[]>([]);
     const [pagination, setPagination] = useState<RisePagination>({ page: 1, limit: 10, total: 0, totalPages: 0 });
     const [loading, setLoading] = useState(true);
-    const [fullListLoading, setFullListLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [error, setError] = useState('');
 
-    const [status, setStatus] = useState('ENROLLED');
-    const [district, setDistrict] = useState('');
-    const [gender, setGender] = useState('');
-    const [searchInput, setSearchInput] = useState('');
-    const [search, setSearch] = useState('');
-    const [page, setPage] = useState(1);
+    const initialUrl = readRiseUrlState();
+    // Deep-linking straight to an applicant must search every status, so the
+    // target is present in the loaded list; otherwise default to enrolled.
+    const [status, setStatus] = useState(initialUrl.status || (deepApplicantId ? '' : 'ENROLLED'));
+    const [district, setDistrict] = useState(initialUrl.district);
+    const [gender, setGender] = useState(initialUrl.gender);
+    const [nesaFilter, setNesaFilter] = useState(initialUrl.nesa);
+    const [nidaFilter, setNidaFilter] = useState(initialUrl.nida);
+    const [searchInput, setSearchInput] = useState(initialUrl.q);
+    const [search, setSearch] = useState(initialUrl.q);
+    const [page, setPage] = useState(Math.max(1, parseInt(initialUrl.page || '1', 10) || 1));
 
     const [selected, setSelected] = useState<RiseApplicant | null>(null);
     const [preview, setPreview] = useState<RiseAttachment | null>(null);
@@ -1127,12 +1191,21 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
     useEffect(() => {
+        // Skip the initial run (and any no-op) so a deep-linked page/search isn't reset.
+        if (searchInput === search) return;
         const handle = window.setTimeout(() => {
             setSearch(searchInput);
             setPage(1);
+            writeRiseUrl({ q: searchInput, page: '' }, true);
         }, 300);
         return () => window.clearTimeout(handle);
     }, [searchInput]);
+
+    // Make the default ENROLLED status explicit in the URL on first entry.
+    useEffect(() => {
+        const u = readRiseUrlState();
+        if (!u.status && !deepApplicantId && status) writeRiseUrl({ status }, true);
+    }, []);
 
     useEffect(() => {
         (async () => {
@@ -1149,23 +1222,23 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
         setReviews((prev) => ({ ...prev, [applicantId]: review }));
     }
 
+    // Open/close the applicant drawer to match the URL (deep link + back/forward).
     useEffect(() => {
-        let cancelled = false;
-        setAllApplicants([]);
-        setFullListLoading(true);
-        (async () => {
-            try {
-                const rows = await fetchAllFilteredApplicants();
-                if (!cancelled) setAllApplicants(rows);
-            } catch (e) {
-                console.error('RISE full applicant list load failed:', e);
-                if (!cancelled) setAllApplicants([]);
-            } finally {
-                if (!cancelled) setFullListLoading(false);
-            }
-        })();
-        return () => { cancelled = true; };
-    }, [campaign._id, status, gender]);
+        if (!deepApplicantId) { setSelected(null); return; }
+        if (selected && selected._id === deepApplicantId) return;
+        const pool = allApplicants.length ? allApplicants : applicants;
+        const match = pool.find((a) => a._id === deepApplicantId);
+        if (match) setSelected(match);
+    }, [deepApplicantId, allApplicants, applicants]);
+
+    // Open/close the document preview to match the URL.
+    useEffect(() => {
+        if (!deepDoc || !selected) { setPreview(null); return; }
+        const att = extractAttachments(selected).find((a) => a.label === deepDoc) || null;
+        setPreview(att);
+    }, [deepDoc, selected]);
+
+    const openApplicant = (a: RiseApplicant) => { setSelected(a); onSelectApplicant(a._id); };
 
     useEffect(() => {
         (async () => {
@@ -1178,6 +1251,9 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                     provincecode: '',
                     district,
                     gender,
+                    nesa: nesaFilter,
+                    nida: nidaFilter,
+                    search,
                     page,
                     limit: 10,
                 });
@@ -1191,13 +1267,21 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                 setLoading(false);
             }
         })();
-    }, [campaign._id, status, district, gender, page]);
+    }, [campaign._id, status, district, gender, nesaFilter, nidaFilter, search, page]);
 
     // Reset to page 1 whenever a filter changes.
-    function onFilter(setter: (v: string) => void, value: string) {
+    function onFilter(setter: (v: string) => void, value: string, urlKey: keyof RiseUrlState) {
         setter(value);
         setPage(1);
+        writeRiseUrl({ [urlKey]: value, page: '' }, true);
     }
+
+    // Page lives in the URL too, so a paged view is shareable and survives reload.
+    const goToPage = (p: number) => {
+        const next = Math.max(1, p);
+        setPage(next);
+        writeRiseUrl({ page: next > 1 ? String(next) : '' }, true);
+    };
 
     const avatarColors = (g?: string) => g === 'Female'
         ? { bg: '#f3eafa', fg: '#7b3fb0' }
@@ -1210,21 +1294,17 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
         return (a.fullName || '').localeCompare(b.fullName || '') * dir;
     });
 
-    const sorted = sortApplicants(applicants);
-    const searchActive = search.trim() !== '' || district !== '';
-    const fullFilteredRows = sortApplicants(allApplicants
-        .filter((a) => !district || applicantDistrict(a) === district)
-        .filter((a) => matchesApplicantSearch(a, search)));
-    const localTotalPages = Math.max(1, Math.ceil(fullFilteredRows.length / 10));
-    const localPage = Math.min(page, localTotalPages);
-    const visibleRows = searchActive
-        ? fullFilteredRows.slice((localPage - 1) * 10, localPage * 10)
-        : sorted;
-    const displayTotal = searchActive ? fullFilteredRows.length : pagination.total;
-    const displayPage = searchActive ? localPage : (pagination.page || page);
-    const displayTotalPages = searchActive ? localTotalPages : (pagination.totalPages || 1);
-    const districtOptions = Array.from(new Set(allApplicants.map(applicantDistrict).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-    if (district && !districtOptions.includes(district)) districtOptions.unshift(district);
+    // The table is fully server-driven now (status/gender/district/nesa/nida/search all
+    // filtered + paginated by the backend); we only sort the current page locally.
+    const visibleRows = sortApplicants(applicants);
+    const displayTotal = pagination.total;
+    const displayPage = pagination.page || page;
+    const displayTotalPages = pagination.totalPages || 1;
+    // District options are sourced from the background full list (also used for export).
+    // Rwanda's districts are a fixed set, so the dropdown uses the static list (no fetch).
+    const districtOptions = (district && !RWANDA_DISTRICTS.includes(district))
+        ? [district, ...RWANDA_DISTRICTS]
+        : RWANDA_DISTRICTS;
 
     const reviewRows = Object.values(reviews);
     const totalForMetrics = pagination.total || campaign.stats?.total || allApplicants.length || applicants.length;
@@ -1232,7 +1312,7 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
     const nidaVerifiedCount = reviewRows.filter((r) => nidaStatus(r) === 'verified').length;
     const mismatchCount = reviewRows.filter((r) => nidaStatus(r) === 'mismatch').length;
 
-    async function fetchAllFilteredApplicants(): Promise<RiseApplicant[]> {
+    async function fetchAllFilteredApplicants(extra: Record<string, unknown> = {}): Promise<RiseApplicant[]> {
         const baseArgs = {
             campaignid: campaign._id,
             status,
@@ -1240,6 +1320,7 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
             district: '',
             gender,
             limit: 100,
+            ...extra,
         };
         const firstRaw = await ajaxCall('local_elby_dashboard_rise_get_applicants', { ...baseArgs, page: 1 });
         const first = JSON.parse(firstRaw);
@@ -1263,11 +1344,15 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
     async function exportApplicants() {
         try {
             setExporting(true);
-            const source = await fetchAllFilteredApplicants();
-            setAllApplicants(source);
-            const rows = sortApplicants(source
-                .filter((a) => !district || applicantDistrict(a) === district)
-                .filter((a) => matchesApplicantSearch(a, search)));
+            // Export honours every active filter by asking the backend for the fully filtered
+            // set (review filters resolve from the dashboard DB, not the RISE applicants API).
+            const source = await fetchAllFilteredApplicants({
+                district,
+                nesa: nesaFilter,
+                nida: nidaFilter,
+                search,
+            });
+            const rows = sortApplicants(source);
             const exportedAt = new Date().toLocaleString();
             downloadExcelWorkbook(
                 `RISE-applicants-${filenameTimestamp()}.xls`,
@@ -1382,17 +1467,30 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
 
             {/* FILTERS */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 16, flexWrap: 'wrap' }}>
-                <Select value={status} onChange={(v) => onFilter(setStatus, v)} minWidth={148}>
+                <Select value={status} onChange={(v) => onFilter(setStatus, v, 'status')} minWidth={148}>
                     {STATUSES.map((s) => <option value={s}>{s || 'All statuses'}</option>)}
                 </Select>
-                <Select value={gender} onChange={(v) => onFilter(setGender, v)} minWidth={140}>
+                <Select value={gender} onChange={(v) => onFilter(setGender, v, 'gender')} minWidth={140}>
                     <option value="">All genders</option>
                     <option value="Female">Female</option>
                     <option value="Male">Male</option>
                 </Select>
-                <Select value={district} onChange={(v) => onFilter(setDistrict, v)} minWidth={170}>
+                <Select value={district} onChange={(v) => onFilter(setDistrict, v, 'district')} minWidth={170}>
                     <option value="">All districts</option>
                     {districtOptions.map((d) => <option value={d}>{d}</option>)}
+                </Select>
+                <Select value={nesaFilter} onChange={(v) => onFilter(setNesaFilter, v, 'nesa')} minWidth={155}>
+                    <option value="">All NESA</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="action_requested">Action requested</option>
+                    <option value="pending">Pending</option>
+                </Select>
+                <Select value={nidaFilter} onChange={(v) => onFilter(setNidaFilter, v, 'nida')} minWidth={150}>
+                    <option value="">All NIDA</option>
+                    <option value="verified">Verified</option>
+                    <option value="mismatch">Mismatch</option>
+                    <option value="pending">Pending</option>
                 </Select>
                 <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180, maxWidth: 320 }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#b6bcc6', fontSize: 13 }}>⌕</span>
@@ -1429,8 +1527,8 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                     <div style={headCell}>NESA</div>
                 </div>
 
-                {loading || (searchActive && fullListLoading && allApplicants.length === 0) ? (
-                    <div style={{ padding: 46, textAlign: 'center', color: '#9aa0ab', fontSize: 13.5 }}>{searchActive ? 'Loading full applicant list…' : 'Loading applicants…'}</div>
+                {loading ? (
+                    <div style={{ padding: 46, textAlign: 'center', color: '#9aa0ab', fontSize: 13.5 }}>Loading applicants…</div>
                 ) : error ? (
                     <div style={{ padding: 46, textAlign: 'center', color: '#b42318', fontSize: 13.5 }}>{error}</div>
                 ) : visibleRows.length === 0 ? (
@@ -1444,7 +1542,7 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                     const npLabel = rev ? NESA_META[rev.nesastatus].label : '—';
                     const nida = nidaStatus(rev);
                     return (
-                        <div key={a._id} onClick={() => setSelected(a)}
+                        <div key={a._id} onClick={() => openApplicant(a)}
                             style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 840, alignItems: 'center', padding: '0 22px', minHeight: 56, borderBottom: '1px solid #f3f4f7', cursor: 'pointer', background: isSel ? '#f1f6fb' : '#fff', boxShadow: isSel ? 'inset 3px 0 0 #005198' : 'none' }}
                             onMouseEnter={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#f7f9fb'; }}
                             onMouseLeave={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#fff'; }}>
@@ -1484,9 +1582,9 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 18 }}>
                 <div style={{ fontSize: 13, color: '#8a909c' }}>Page <b style={{ color: '#5a616e' }}>{displayPage}</b> of {displayTotalPages} · {displayTotal.toLocaleString()} applicants</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button disabled={page <= 1} onClick={() => setPage(page - 1)}
+                    <button disabled={page <= 1} onClick={() => goToPage(page - 1)}
                         style={{ padding: '9px 16px', border: '1px solid #e2e5ea', borderRadius: 9, background: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 500, color: page <= 1 ? '#b6bcc6' : '#3b424f', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>‹ Previous</button>
-                    <button disabled={page >= displayTotalPages} onClick={() => setPage(page + 1)}
+                    <button disabled={page >= displayTotalPages} onClick={() => goToPage(page + 1)}
                         style={{ padding: '9px 16px', border: '1px solid #005198', borderRadius: 9, background: page >= displayTotalPages ? '#a6c0d6' : '#005198', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#fff', cursor: page >= displayTotalPages ? 'not-allowed' : 'pointer' }}>Next ›</button>
                 </div>
             </div>
@@ -1496,13 +1594,13 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                     applicant={selected}
                     campaignId={campaign._id}
                     review={reviews[selected._id]}
-                    onClose={() => setSelected(null)}
-                    onPreview={setPreview}
+                    onClose={() => { setSelected(null); onSelectApplicant(null); }}
+                    onPreview={(att) => { setPreview(att); onSelectDoc(att.label); }}
                     onReviewSaved={onReviewSaved}
                 />
             )}
             {preview && (
-                <PreviewModal attachment={preview} onClose={() => setPreview(null)} />
+                <PreviewModal attachment={preview} onClose={() => { setPreview(null); onSelectDoc(null); }} />
             )}
         </div>
     );
@@ -1512,8 +1610,72 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
 
 export default function Rise() {
     const [campaign, setCampaign] = useState<RiseCampaign | null>(null);
+    const [urlState, setUrlState] = useState<RiseUrlState>(readRiseUrlState);
+    const [resolving, setResolving] = useState<boolean>(!!readRiseUrlState().campaignid);
 
-    return campaign
-        ? <ApplicantList campaign={campaign} onBack={() => setCampaign(null)} />
-        : <CampaignList onSelect={setCampaign} />;
+    // Reflect browser back/forward into component state.
+    useEffect(() => {
+        const onPop = () => setUrlState(readRiseUrlState());
+        window.addEventListener('popstate', onPop);
+        return () => window.removeEventListener('popstate', onPop);
+    }, []);
+
+    // Resolve the campaign object for the id in the URL (deep link / reload / back-forward).
+    // The remote API has no single-campaign route, so match against the campaigns list.
+    useEffect(() => {
+        let cancelled = false;
+        const cid = urlState.campaignid;
+        if (!cid) { setCampaign(null); setResolving(false); return; }
+        if (campaign && campaign._id === cid) { setResolving(false); return; }
+        setResolving(true);
+        (async () => {
+            try {
+                const raw = await ajaxCall('local_elby_dashboard_rise_get_campaigns', {});
+                const data = JSON.parse(raw);
+                const found = (data.campaigns || []).find((c: RiseCampaign) => c._id === cid) || null;
+                if (!cancelled) {
+                    setCampaign(found);
+                    if (!found) writeRiseUrl({ campaignid: '', applicantid: '', doc: '' }, true);
+                }
+            } catch (e) {
+                console.error('RISE campaign resolve failed:', e);
+                if (!cancelled) setCampaign(null);
+            } finally {
+                if (!cancelled) setResolving(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [urlState.campaignid]);
+
+    const openCampaign = (c: RiseCampaign) => {
+        setCampaign(c);
+        const ns: RiseUrlState = { ...EMPTY_URL, campaignid: c._id, status: 'ENROLLED' };
+        setUrlState(ns); writeRiseUrl(ns);
+    };
+    const backToCampaigns = () => {
+        setCampaign(null);
+        setUrlState(EMPTY_URL); writeRiseUrl(EMPTY_URL);
+    };
+    const selectApplicant = (id: string | null) => {
+        setUrlState((s) => { const ns = { ...s, applicantid: id || '', doc: '' }; writeRiseUrl({ applicantid: id || '', doc: '' }); return ns; });
+    };
+    const selectDoc = (label: string | null) => {
+        setUrlState((s) => { const ns = { ...s, doc: label || '' }; writeRiseUrl({ doc: label || '' }); return ns; });
+    };
+
+    if (campaign) {
+        return <ApplicantList
+            key={campaign._id}
+            campaign={campaign}
+            onBack={backToCampaigns}
+            deepApplicantId={urlState.applicantid}
+            deepDoc={urlState.doc}
+            onSelectApplicant={selectApplicant}
+            onSelectDoc={selectDoc}
+        />;
+    }
+    if (resolving && urlState.campaignid) {
+        return <div style={{ padding: 46, color: '#9aa0ab', fontSize: 14 }}>Loading campaign…</div>;
+    }
+    return <CampaignList onSelect={openCampaign} />;
 }

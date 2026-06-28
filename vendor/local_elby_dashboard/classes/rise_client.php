@@ -83,7 +83,7 @@ class rise_client {
      */
     public function get_applicants(string $campaignid, array $filters = []): array {
         // Only forward known, non-empty filters.
-        $allowed = ['status', 'provinceCode', 'district', 'gender', 'page', 'limit'];
+        $allowed = ['status', 'provinceCode', 'district', 'gender', 'q', 'page', 'limit'];
         $query = [];
         foreach ($allowed as $key) {
             if (isset($filters[$key]) && $filters[$key] !== '') {
