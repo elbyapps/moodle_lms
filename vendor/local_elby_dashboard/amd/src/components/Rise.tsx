@@ -402,7 +402,7 @@ function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
     const nesaReviewed = nesaTotals.approved + nesaTotals.rejected + nesaTotals.action_requested + nesaTotals.pending;
 
     return (
-        <div style={{ padding: '30px 34px 40px' }}>
+        <div style={{ padding: 'clamp(16px, 3vw, 30px) clamp(16px, 3vw, 34px) 40px' }}>
             <div style={{ marginBottom: 6 }}>
                 <h1 style={{ margin: '0 0 5px', fontSize: 28, fontWeight: 700, letterSpacing: '-.5px', color: '#161b26' }}>RISE</h1>
                 <p style={{ margin: 0, fontSize: 14, color: '#6b7280' }}>Recruitment &amp; enrolment campaigns across the RISE programme.</p>
@@ -436,13 +436,13 @@ function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
                                 {num(nesaReviewed)} reviewed
                             </span>
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14 }}>
                             {NESA_ORDER.map((s) => <NesaStatCard key={s} status={s} value={nesaTotals[s]} />)}
                         </div>
                     </div>
 
                     {/* CARDS GRID */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 20 }}>
                         {campaigns.map((c, i) => {
                             const st = CARD_STYLES[i % CARD_STYLES.length];
                             const isActive = (c.status || '').toUpperCase() === 'ACTIVE';
@@ -1347,7 +1347,7 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
             </div>
 
             {/* REVIEW METRICS */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 18, marginBottom: 22 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 18, marginBottom: 22 }}>
                 <ReviewMetricCard
                     label="Total applicants"
                     value={num(totalForMetrics)}
@@ -1394,11 +1394,11 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                     <option value="">All districts</option>
                     {districtOptions.map((d) => <option value={d}>{d}</option>)}
                 </Select>
-                <div style={{ position: 'relative' }}>
+                <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180, maxWidth: 320 }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#b6bcc6', fontSize: 13 }}>⌕</span>
                     <input value={searchInput} placeholder="Search name or district…"
                            onInput={(e) => setSearchInput((e.target as HTMLInputElement).value)}
-                           style={{ padding: '10px 38px 10px 34px', border: '1px solid #e2e5ea', borderRadius: 10, background: '#fff', fontFamily: 'inherit', fontSize: 13, color: '#1f2430', width: 280, outline: 'none' }} />
+                           style={{ padding: '10px 38px 10px 34px', border: '1px solid #e2e5ea', borderRadius: 10, background: '#fff', fontFamily: 'inherit', fontSize: 13, color: '#1f2430', width: '100%', boxSizing: 'border-box', outline: 'none' }} />
                     {searchInput && (
                         <button
                             type="button"
@@ -1413,8 +1413,8 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
             </div>
 
             {/* TABLE */}
-            <div style={{ background: '#fff', border: '1px solid #ecedf1', borderRadius: 14, overflow: 'hidden', boxShadow: '0 1px 2px rgba(20,28,46,.04), 0 6px 24px rgba(20,28,46,.05)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: GRID, alignItems: 'center', padding: '0 22px', height: 46, background: '#fafbfc', borderBottom: '1px solid #eceef2' }}>
+            <div style={{ background: '#fff', border: '1px solid #ecedf1', borderRadius: 14, overflowX: 'auto', boxShadow: '0 1px 2px rgba(20,28,46,.04), 0 6px 24px rgba(20,28,46,.05)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 840, alignItems: 'center', padding: '0 22px', height: 46, background: '#fafbfc', borderBottom: '1px solid #eceef2' }}>
                     <button onClick={() => toggleSort('name')} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', ...headCell }}>
                         NAME <span style={{ fontSize: 9, color: arrowColor('name') }}>{arrow('name')}</span>
                     </button>
@@ -1445,7 +1445,7 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                     const nida = nidaStatus(rev);
                     return (
                         <div key={a._id} onClick={() => setSelected(a)}
-                            style={{ display: 'grid', gridTemplateColumns: GRID, alignItems: 'center', padding: '0 22px', minHeight: 56, borderBottom: '1px solid #f3f4f7', cursor: 'pointer', background: isSel ? '#f1f6fb' : '#fff', boxShadow: isSel ? 'inset 3px 0 0 #005198' : 'none' }}
+                            style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 840, alignItems: 'center', padding: '0 22px', minHeight: 56, borderBottom: '1px solid #f3f4f7', cursor: 'pointer', background: isSel ? '#f1f6fb' : '#fff', boxShadow: isSel ? 'inset 3px 0 0 #005198' : 'none' }}
                             onMouseEnter={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#f7f9fb'; }}
                             onMouseLeave={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#fff'; }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, paddingRight: 14 }}>
