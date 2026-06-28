@@ -302,11 +302,11 @@ function SummaryChip({ label, value, color }: { label: string; value: string; co
 
 function StatCell({ value, label, dot, border }: { value: string; label: string; dot: string; border: boolean }) {
     return (
-        <div style={{ padding: '11px 13px', borderRight: border ? '1px solid #f0f1f4' : undefined }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#161b26', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: dot }} />
-                <span style={{ fontSize: 10, letterSpacing: '.4px', color: '#9aa0ab', fontWeight: 600 }}>{label}</span>
+        <div style={{ padding: '11px 12px', minWidth: 0, borderRight: border ? '1px solid #f0f1f4' : undefined }}>
+            <div style={{ fontSize: 17, fontWeight: 700, color: '#161b26', lineHeight: 1, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{value}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6, minWidth: 0 }}>
+                <span style={{ flex: '0 0 auto', width: 6, height: 6, borderRadius: '50%', background: dot }} />
+                <span style={{ fontSize: 10, letterSpacing: '.4px', color: '#9aa0ab', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
             </div>
         </div>
     );
@@ -442,7 +442,7 @@ function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
                     </div>
 
                     {/* CARDS GRID */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 20 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
                         {campaigns.map((c, i) => {
                             const st = CARD_STYLES[i % CARD_STYLES.length];
                             const isActive = (c.status || '').toUpperCase() === 'ACTIVE';
