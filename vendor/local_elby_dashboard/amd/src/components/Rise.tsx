@@ -65,6 +65,14 @@ const NESA_PILL: Record<NesaStatus, { label: string; bg: string; fg: string; dot
     pending: { label: 'NESA Pending', bg: '#fff1e0', fg: '#b5660b', dot: '#f79222' },
 };
 
+type NidaStatus = 'pending' | 'verified' | 'mismatch';
+
+const NIDA_PILL: Record<NidaStatus, { label: string; bg: string; fg: string; icon: string }> = {
+    verified: { label: 'Verified', bg: '#e6f4ec', fg: '#1a7f43', icon: '✓' },
+    pending: { label: 'Pending', bg: '#fff1e0', fg: '#b5660b', icon: '◷' },
+    mismatch: { label: 'Mismatch', bg: '#fbe0de', fg: '#b42318', icon: '✕' },
+};
+
 const DOT_FOR: Record<RiseNidField['status'], string> = {
     match: '#1a9c52',
     diff: '#d4462f',
@@ -83,6 +91,25 @@ function formatDate(value?: string | null): string {
     if (!value) return '-';
     const d = new Date(value);
     return isNaN(d.getTime()) ? '-' : d.toLocaleDateString();
+}
+
+function formatDateOnly(value?: string | null): string {
+    if (!value) return '';
+    const raw = String(value).trim();
+    const iso = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (iso) return iso[1];
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw.split(/[T\s]/)[0] || raw;
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function filenameTimestamp(): string {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
 function humanizeKey(key: string): string {
@@ -148,6 +175,119 @@ const CAL_ICON = 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a
 
 function num(n?: number): string {
     return (n ?? 0).toLocaleString('en-US');
+}
+
+function pct(part: number, total: number): number {
+    return total > 0 ? Math.round((part / total) * 100) : 0;
+}
+
+function applicantDistrict(a: RiseApplicant): string {
+    return a.location?.districtName || a.district || '';
+}
+
+function applicantSector(a: RiseApplicant): string {
+    return a.location?.sectorName || a.sector || '';
+}
+
+function nidaStatus(review?: RiseNesaReview): NidaStatus {
+    if (review?.nidstatus === 'verified' || review?.nidstatus === 'mismatch') return review.nidstatus;
+    return review?.nidverified ? 'verified' : 'pending';
+}
+
+function matchesApplicantSearch(a: RiseApplicant, query: string): boolean {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    const haystack = [a.fullName, applicantDistrict(a), applicantSector(a), a.phone, a.nid, a.gender, a.status]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+    return haystack.includes(q);
+}
+
+type ExcelCell = { value: string | number; style?: string; type?: 'String' | 'Number' };
+
+function escapeXml(value: any): string {
+    return String(value === null || value === undefined ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+}
+
+function excelCell(cell: ExcelCell, fallbackStyle = 'Cell'): string {
+    const value = cell.value === null || cell.value === undefined ? '' : cell.value;
+    const type = cell.type || (typeof value === 'number' && Number.isFinite(value) ? 'Number' : 'String');
+    return `<Cell ss:StyleID="${cell.style || fallbackStyle}"><Data ss:Type="${type}">${escapeXml(value)}</Data></Cell>`;
+}
+
+function downloadExcelWorkbook(filename: string, title: string, subtitle: string, headers: string[], rows: ExcelCell[][]) {
+    const columns = [230, 86, 122, 120, 112, 68, 126, 112, 124, 142, 154, 114];
+    const headerXml = headers.map((h) => excelCell({ value: h, style: 'Header' })).join('');
+    const rowXml = rows.map((row, i) => `
+        <Row ss:Height="32">
+            ${row.map((cell) => excelCell(cell, i % 2 === 0 ? 'Cell' : 'AltCell')).join('')}
+        </Row>`).join('');
+
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+    <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+        <Title>${escapeXml(title)}</Title>
+        <Author>REB e-Learning</Author>
+        <Created>${new Date().toISOString()}</Created>
+    </DocumentProperties>
+    <ExcelWorkbook xmlns="urn:schemas-microsoft-com:office:excel">
+        <WindowHeight>9000</WindowHeight>
+        <WindowWidth>18000</WindowWidth>
+        <ProtectStructure>False</ProtectStructure>
+        <ProtectWindows>False</ProtectWindows>
+    </ExcelWorkbook>
+    <Styles>
+        <Style ss:ID="Default" ss:Name="Normal"><Alignment ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="11" ss:Color="#1F2430"/></Style>
+        <Style ss:ID="Title"><Font ss:FontName="Inter" ss:Size="22" ss:Bold="1" ss:Color="#161B26"/><Interior ss:Color="#F6F8FB" ss:Pattern="Solid"/></Style>
+        <Style ss:ID="Subtitle"><Font ss:FontName="Inter" ss:Size="11" ss:Bold="1" ss:Color="#6B7280"/><Interior ss:Color="#F6F8FB" ss:Pattern="Solid"/></Style>
+        <Style ss:ID="Header"><Alignment ss:Horizontal="Left" ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="10" ss:Bold="1" ss:Color="#8A909C"/><Interior ss:Color="#FAFBFC" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E6E9EF"/></Borders></Style>
+        <Style ss:ID="Cell"><Alignment ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="11" ss:Color="#3B424F"/><Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
+        <Style ss:ID="AltCell"><Alignment ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="11" ss:Color="#3B424F"/><Interior ss:Color="#FCFDFE" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
+        <Style ss:ID="NameCell"><Alignment ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="11" ss:Bold="1" ss:Color="#161B26"/><Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
+        <Style ss:ID="ScoreCell"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="11" ss:Bold="1" ss:Color="#161B26"/><Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
+        <Style ss:ID="StatusBlue"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="10" ss:Bold="1" ss:Color="#005198"/><Interior ss:Color="#E8F0F8" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
+        <Style ss:ID="PillGreen"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="10" ss:Bold="1" ss:Color="#1A7F43"/><Interior ss:Color="#E6F4EC" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
+        <Style ss:ID="PillAmber"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="10" ss:Bold="1" ss:Color="#B5660B"/><Interior ss:Color="#FFF1E0" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
+        <Style ss:ID="PillRed"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="10" ss:Bold="1" ss:Color="#B42318"/><Interior ss:Color="#FBE0DE" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
+        <Style ss:ID="Muted"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="10" ss:Bold="1" ss:Color="#AEB4BE"/><Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
+    </Styles>
+    <Worksheet ss:Name="Applicants">
+        <Table ss:ExpandedColumnCount="12" ss:ExpandedRowCount="${rows.length + 4}" x:FullColumns="1" x:FullRows="1">
+            ${columns.map((w) => `<Column ss:Width="${w}"/>`).join('')}
+            <Row ss:Height="36"><Cell ss:MergeAcross="11" ss:StyleID="Title"><Data ss:Type="String">${escapeXml(title)}</Data></Cell></Row>
+            <Row ss:Height="24"><Cell ss:MergeAcross="11" ss:StyleID="Subtitle"><Data ss:Type="String">${escapeXml(subtitle)}</Data></Cell></Row>
+            <Row ss:Height="10"></Row>
+            <Row ss:Height="34">${headerXml}</Row>
+            ${rowXml}
+        </Table>
+        <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+            <FreezePanes/><FrozenNoSplit/><SplitHorizontal>4</SplitHorizontal><TopRowBottomPane>4</TopRowBottomPane>
+            <Print><FitWidth>1</FitWidth><FitHeight>0</FitHeight></Print>
+            <Selected/>
+        </WorksheetOptions>
+    </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 function SummaryChip({ label, value, color }: { label: string; value: string; color?: string }) {
@@ -648,12 +788,32 @@ function ApplicantDetail({ applicant, campaignId, review, onClose, onPreview, on
 
     const [nidVal, setNidVal] = useState<NidState>({ status: 'idle' });
 
-    // Validate the National ID against TMIS/NIDA when the drawer opens.
+    // Validate the National ID against TMIS/NIDA when the drawer opens, unless already verified.
     useEffect(() => {
         if (!applicant.nid) {
             setNidVal({ status: 'idle' });
             return;
         }
+
+        if (nidaStatus(review) === 'verified') {
+            const dob = formatDateOnly(applicant.dateOfBirth);
+            setNidVal({
+                status: 'done',
+                result: {
+                    found: true,
+                    match: true,
+                    namematch: true,
+                    dobmatch: dob ? true : null,
+                    fields: [
+                        { field: 'Name', app: applicant.fullName || '', nida: applicant.fullName || '', status: 'match' },
+                        { field: 'National ID', app: applicant.nid || '', nida: applicant.nid || '', status: 'match' },
+                        { field: 'Date of birth', app: dob, nida: dob, status: dob ? 'match' : 'na' },
+                    ],
+                },
+            });
+            return;
+        }
+
         let cancelled = false;
         setNidVal({ status: 'loading' });
         ajaxCall('local_elby_dashboard_rise_validate_nid', {
@@ -661,30 +821,29 @@ function ApplicantDetail({ applicant, campaignId, review, onClose, onPreview, on
             applicantid: applicant._id,
             nid: applicant.nid,
             fullname: applicant.fullName || '',
-            dateofbirth: applicant.dateOfBirth || '',
+            dateofbirth: formatDateOnly(applicant.dateOfBirth),
             applicantdata: JSON.stringify(applicant),
         }).then((raw: string) => {
             if (cancelled) return;
             const result = JSON.parse(raw) as RiseNidValidation;
             setNidVal({ status: 'done', result });
-            if (result.match) {
-                onReviewSaved(applicant._id, {
-                    nesastatus: review?.nesastatus || 'pending',
-                    nesaindexnumber: review?.nesaindexnumber || '',
-                    nidverified: 1,
-                    comment: review?.comment || '',
-                });
-            }
+            onReviewSaved(applicant._id, {
+                nesastatus: review?.nesastatus || 'pending',
+                nesaindexnumber: review?.nesaindexnumber || '',
+                nidstatus: result.match ? 'verified' : 'mismatch',
+                nidverified: result.match ? 1 : 0,
+                comment: review?.comment || '',
+            });
         }).catch((e: any) => {
             if (cancelled) return;
             setNidVal({ status: 'error', message: e?.message || 'NID validation failed.' });
         });
         return () => { cancelled = true; };
-    }, [applicant._id]);
+    }, [applicant._id, review?.nidstatus, review?.nidverified]);
 
     const detailRows: [string, string, string, string][] = [
         ['Gender', applicant.gender || '-', 'Phone', applicant.phone || '-'],
-        ['National ID', applicant.nid || '-', 'Date of Birth', formatDate(applicant.dateOfBirth)],
+        ['National ID', applicant.nid || '-', 'Date of Birth', formatDateOnly(applicant.dateOfBirth) || '-'],
         ['District', applicant.location?.districtName || applicant.district || '-', 'Sector', applicant.location?.sectorName || applicant.sector || '-'],
         ['Province', applicant.location?.provinceCode ? (PROVINCES[applicant.location.provinceCode] || '-') : '-', 'Applied', formatDate(applicant.createdAt)],
     ];
@@ -820,7 +979,7 @@ function Select({ value, onChange, minWidth, children }: {
             <select
                 value={value}
                 onChange={(e) => onChange((e.target as HTMLSelectElement).value)}
-                style={{ appearance: 'none', padding: '10px 36px 10px 14px', border: '1px solid #e2e5ea', borderRadius: 10, background: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 500, color: '#1f2430', cursor: 'pointer', minWidth }}
+                style={{ appearance: 'none', padding: '10px 36px 10px 14px', border: '1px solid #e2e5ea', borderRadius: 10, background: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#1f2430', cursor: 'pointer', minWidth }}
             >
                 {children}
             </select>
@@ -829,18 +988,51 @@ function Select({ value, onChange, minWidth, children }: {
     );
 }
 
+function ReviewMetricCard({ label, value, sublabel, accent, icon, tone }: {
+    label: string;
+    value: string;
+    sublabel: string;
+    accent?: string;
+    icon: string;
+    tone?: 'blue' | 'green' | 'red';
+}) {
+    const chipBg = tone === 'green' ? '#e6f4ec' : tone === 'red' ? '#fbe0de' : '#e8f0f8';
+    const chipFg = tone === 'green' ? '#1a7f43' : tone === 'red' ? '#b42318' : BRAND;
+    return (
+        <div style={{ position: 'relative', minHeight: 128, background: '#fff', border: '1px solid #ecedf1', borderRadius: 16, padding: '24px 26px 22px', boxShadow: '0 10px 28px rgba(20,28,46,.07)' }}>
+            <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.8px', color: '#8a909c', textTransform: 'uppercase', marginBottom: 22 }}>{label}</div>
+            <div style={{ fontSize: 31, lineHeight: 1, fontWeight: 800, letterSpacing: '-.8px', color: '#161b26', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+            <div style={{ marginTop: 10, fontSize: 13.5, lineHeight: 1.15, fontWeight: 700, color: accent || '#9aa0ab' }}>{sublabel}</div>
+            <span style={{ position: 'absolute', right: 22, top: 22, width: 38, height: 38, borderRadius: 11, background: chipBg, color: chipFg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800 }}>{icon}</span>
+        </div>
+    );
+}
+
+function NidaStatusPill({ status }: { status: NidaStatus }) {
+    const meta = NIDA_PILL[status];
+    return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 999, background: meta.bg, color: meta.fg, fontSize: 11.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 12, lineHeight: 1 }}>{meta.icon}</span>{meta.label}
+        </span>
+    );
+}
+
 // ---- Applicants view ------------------------------------------------------
 
 function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: () => void }) {
     const [applicants, setApplicants] = useState<RiseApplicant[]>([]);
-    const [pagination, setPagination] = useState<RisePagination>({ page: 1, limit: 12, total: 0, totalPages: 0 });
+    const [allApplicants, setAllApplicants] = useState<RiseApplicant[]>([]);
+    const [pagination, setPagination] = useState<RisePagination>({ page: 1, limit: 10, total: 0, totalPages: 0 });
     const [loading, setLoading] = useState(true);
+    const [fullListLoading, setFullListLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [error, setError] = useState('');
 
     const [status, setStatus] = useState('SHORTLISTED');
-    const [provinceCode, setProvinceCode] = useState('');
     const [district, setDistrict] = useState('');
     const [gender, setGender] = useState('');
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
 
     const [selected, setSelected] = useState<RiseApplicant | null>(null);
@@ -848,6 +1040,14 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
     const [reviews, setReviews] = useState<Record<string, RiseNesaReview>>({});
     const [sortKey, setSortKey] = useState<'name' | 'score' | null>(null);
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+    useEffect(() => {
+        const handle = window.setTimeout(() => {
+            setSearch(searchInput);
+            setPage(1);
+        }, 300);
+        return () => window.clearTimeout(handle);
+    }, [searchInput]);
 
     useEffect(() => {
         (async () => {
@@ -865,6 +1065,24 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
     }
 
     useEffect(() => {
+        let cancelled = false;
+        setAllApplicants([]);
+        setFullListLoading(true);
+        (async () => {
+            try {
+                const rows = await fetchAllFilteredApplicants();
+                if (!cancelled) setAllApplicants(rows);
+            } catch (e) {
+                console.error('RISE full applicant list load failed:', e);
+                if (!cancelled) setAllApplicants([]);
+            } finally {
+                if (!cancelled) setFullListLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [campaign._id, status, gender]);
+
+    useEffect(() => {
         (async () => {
             try {
                 setLoading(true);
@@ -872,15 +1090,15 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                 const raw = await ajaxCall('local_elby_dashboard_rise_get_applicants', {
                     campaignid: campaign._id,
                     status,
-                    provincecode: provinceCode,
+                    provincecode: '',
                     district,
                     gender,
                     page,
-                    limit: 12,
+                    limit: 10,
                 });
                 const data = JSON.parse(raw);
                 setApplicants(data.applicants || []);
-                setPagination(data.pagination || { page, limit: 12, total: 0, totalPages: 0 });
+                setPagination(data.pagination || { page, limit: 10, total: 0, totalPages: 0 });
             } catch (e) {
                 console.error('RISE applicants load failed:', e);
                 setError('Failed to load applicants.');
@@ -888,7 +1106,7 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                 setLoading(false);
             }
         })();
-    }, [campaign._id, status, provinceCode, district, gender, page]);
+    }, [campaign._id, status, district, gender, page]);
 
     // Reset to page 1 whenever a filter changes.
     function onFilter(setter: (v: string) => void, value: string) {
@@ -900,12 +1118,109 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
         ? { bg: '#f3eafa', fg: '#7b3fb0' }
         : { bg: '#e8f0f8', fg: '#005198' };
 
-    const sorted = [...applicants].sort((a, b) => {
+    const sortApplicants = (rows: RiseApplicant[]) => [...rows].sort((a, b) => {
         if (!sortKey) return 0;
         const dir = sortDir === 'asc' ? 1 : -1;
         if (sortKey === 'score') return ((a.totalScore ?? 0) - (b.totalScore ?? 0)) * dir;
         return (a.fullName || '').localeCompare(b.fullName || '') * dir;
     });
+
+    const sorted = sortApplicants(applicants);
+    const searchActive = search.trim() !== '' || district !== '';
+    const fullFilteredRows = sortApplicants(allApplicants
+        .filter((a) => !district || applicantDistrict(a) === district)
+        .filter((a) => matchesApplicantSearch(a, search)));
+    const localTotalPages = Math.max(1, Math.ceil(fullFilteredRows.length / 10));
+    const localPage = Math.min(page, localTotalPages);
+    const visibleRows = searchActive
+        ? fullFilteredRows.slice((localPage - 1) * 10, localPage * 10)
+        : sorted;
+    const displayTotal = searchActive ? fullFilteredRows.length : pagination.total;
+    const displayPage = searchActive ? localPage : (pagination.page || page);
+    const displayTotalPages = searchActive ? localTotalPages : (pagination.totalPages || 1);
+    const districtOptions = Array.from(new Set(allApplicants.map(applicantDistrict).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+    if (district && !districtOptions.includes(district)) districtOptions.unshift(district);
+
+    const reviewRows = Object.values(reviews);
+    const totalForMetrics = pagination.total || campaign.stats?.total || allApplicants.length || applicants.length;
+    const reviewedCount = reviewRows.filter((r) => r.nesastatus && r.nesastatus !== 'pending').length;
+    const nidaVerifiedCount = reviewRows.filter((r) => nidaStatus(r) === 'verified').length;
+    const mismatchCount = reviewRows.filter((r) => nidaStatus(r) === 'mismatch').length;
+
+    async function fetchAllFilteredApplicants(): Promise<RiseApplicant[]> {
+        const baseArgs = {
+            campaignid: campaign._id,
+            status,
+            provincecode: '',
+            district: '',
+            gender,
+            limit: 100,
+        };
+        const firstRaw = await ajaxCall('local_elby_dashboard_rise_get_applicants', { ...baseArgs, page: 1 });
+        const first = JSON.parse(firstRaw);
+        const totalPages = Math.max(1, first.pagination?.totalPages || 1);
+        const out: RiseApplicant[] = [...(first.applicants || [])];
+
+        // Fetch every remaining page deliberately for export. Do not rely on the paged table or
+        // background cache, otherwise quick clicks can export only the first visible page.
+        const concurrency = 4;
+        for (let start = 2; start <= totalPages; start += concurrency) {
+            const pageNumbers = Array.from({ length: Math.min(concurrency, totalPages - start + 1) }, (_, i) => start + i);
+            const chunks = await Promise.all(pageNumbers.map(async (pageno) => {
+                const raw = await ajaxCall('local_elby_dashboard_rise_get_applicants', { ...baseArgs, page: pageno });
+                return JSON.parse(raw).applicants || [];
+            }));
+            chunks.forEach((chunk) => out.push(...chunk));
+        }
+        return out;
+    }
+
+    async function exportApplicants() {
+        try {
+            setExporting(true);
+            const source = await fetchAllFilteredApplicants();
+            setAllApplicants(source);
+            const rows = sortApplicants(source
+                .filter((a) => !district || applicantDistrict(a) === district)
+                .filter((a) => matchesApplicantSearch(a, search)));
+            const exportedAt = new Date().toLocaleString();
+            downloadExcelWorkbook(
+                `RISE-applicants-${filenameTimestamp()}.xls`,
+                campaign.name || 'RISE applicants',
+                `${rows.length.toLocaleString()} exported rows · Generated ${exportedAt}`,
+                ['Name', 'Gender', 'District', 'Sector', 'Phone', 'Score', 'Status', 'NIDA', 'NESA', 'NESA index number', 'National ID', 'Date of birth'],
+                rows.map((a) => {
+                    const rev = reviews[a._id];
+                    const nida = nidaStatus(rev);
+                    const nesa = rev?.nesastatus;
+                    const nesaLabel = rev ? NESA_META[rev.nesastatus].label : '—';
+                    const nesaStyle = nesa === 'approved' ? 'PillGreen'
+                        : nesa === 'rejected' ? 'PillRed'
+                            : (nesa === 'action_requested' || nesa === 'pending') ? 'PillAmber' : 'Muted';
+                    const nidaStyle = nida === 'verified' ? 'PillGreen' : nida === 'mismatch' ? 'PillRed' : 'PillAmber';
+                    return [
+                        { value: a.fullName || '', style: 'NameCell' },
+                        { value: a.gender || '' },
+                        { value: applicantDistrict(a) },
+                        { value: applicantSector(a) },
+                        { value: a.phone || '', type: 'String' },
+                        { value: a.totalScore ?? '', style: 'ScoreCell', type: typeof a.totalScore === 'number' ? 'Number' : 'String' },
+                        { value: a.status || '', style: 'StatusBlue' },
+                        { value: NIDA_PILL[nida].icon + ' ' + NIDA_PILL[nida].label, style: nidaStyle },
+                        { value: nesaLabel, style: nesaStyle },
+                        { value: rev?.nesaindexnumber || '', type: 'String' },
+                        { value: a.nid || '', type: 'String' },
+                        { value: formatDateOnly(a.dateOfBirth), type: 'String' }
+                    ];
+                })
+            );
+        } catch (e) {
+            console.error('RISE applicant export failed:', e);
+            setError('Could not export applicants. Please try again.');
+        } finally {
+            setExporting(false);
+        }
+    }
 
     const toggleSort = (k: 'name' | 'score') => {
         if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -914,7 +1229,7 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
     const arrow = (k: 'name' | 'score') => (sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕');
     const arrowColor = (k: 'name' | 'score') => (sortKey === k ? '#005198' : '#c4c8d0');
 
-    const GRID = '2.4fr 0.9fr 1.1fr 1.3fr 0.8fr 1.1fr 1fr';
+    const GRID = '2.3fr 0.85fr 1.05fr 1.2fr 0.75fr 1.1fr 1.05fr 1.05fr';
     const headCell = { fontSize: 10.5, fontWeight: 700, letterSpacing: '.7px', color: '#8a909c' } as const;
 
     return (
@@ -926,11 +1241,58 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                 Back to campaigns
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, marginBottom: 18, flexWrap: 'wrap' }}>
-                <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, letterSpacing: '-.4px', color: '#161b26' }}>{campaign.name}</h1>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 9, background: '#fff', border: '1px solid #e7e9ee', fontSize: 13, color: '#6b7280', fontWeight: 500 }}>
-                    <b style={{ color: '#161b26', fontWeight: 700 }}>{pagination.total.toLocaleString()}</b>&nbsp;applicants
-                </span>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, marginBottom: 22, flexWrap: 'wrap' }}>
+                <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, letterSpacing: '-.7px', color: '#161b26' }}>{campaign.name}</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 12, background: '#fff', border: '1px solid #e7e9ee', fontSize: 15, color: '#6b7280', fontWeight: 700, boxShadow: '0 2px 8px rgba(20,28,46,.04)' }}>
+                        <b style={{ color: '#161b26', fontWeight: 800 }}>{pagination.total.toLocaleString()}</b>&nbsp;applicants
+                    </span>
+                    <button onClick={exportApplicants} disabled={exporting}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '13px 18px', borderRadius: 12, border: 'none', background: exporting ? '#7fa687' : '#337a43', color: '#fff', fontFamily: 'inherit', fontSize: 14.5, fontWeight: 800, cursor: exporting ? 'not-allowed' : 'pointer', boxShadow: '0 6px 16px rgba(51,122,67,.18)' }}>
+                        {exporting ? (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                <circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,.38)" strokeWidth="3" />
+                                <path d="M21 12a9 9 0 0 0-9-9" stroke="#fff" strokeWidth="3" strokeLinecap="round">
+                                    <animateTransform attributeName="transform" type="rotate" from="0 12 12" to="360 12 12" dur="0.8s" repeatCount="indefinite" />
+                                </path>
+                            </svg>
+                        ) : <span style={{ fontSize: 18, lineHeight: 1 }}>⇩</span>} {exporting ? 'Preparing export' : 'Export to Excel'}
+                    </button>
+                </div>
+            </div>
+
+            {/* REVIEW METRICS */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 18, marginBottom: 22 }}>
+                <ReviewMetricCard
+                    label="Total applicants"
+                    value={num(totalForMetrics)}
+                    sublabel={`Page ${displayPage} of ${displayTotalPages}`}
+                    icon="◍"
+                    tone="blue"
+                />
+                <ReviewMetricCard
+                    label="Reviewed"
+                    value={num(reviewedCount)}
+                    sublabel={`${pct(reviewedCount, totalForMetrics)}% complete`}
+                    accent="#1a7f43"
+                    icon="✓"
+                    tone="green"
+                />
+                <ReviewMetricCard
+                    label="NIDA verified"
+                    value={num(nidaVerifiedCount)}
+                    sublabel={`${pct(nidaVerifiedCount, totalForMetrics)}% of applicants`}
+                    icon="▣"
+                    tone="blue"
+                />
+                <ReviewMetricCard
+                    label="Mismatches"
+                    value={num(mismatchCount)}
+                    sublabel="Needs attention"
+                    accent="#b42318"
+                    icon="⚠"
+                    tone="red"
+                />
             </div>
 
             {/* FILTERS */}
@@ -938,23 +1300,31 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                 <Select value={status} onChange={(v) => onFilter(setStatus, v)} minWidth={148}>
                     {STATUSES.map((s) => <option value={s}>{s || 'All statuses'}</option>)}
                 </Select>
-                <Select value={provinceCode} onChange={(v) => onFilter(setProvinceCode, v)} minWidth={140}>
-                    <option value="">All provinces</option>
-                    {Object.keys(PROVINCES).map((code) => <option value={code}>{PROVINCES[code]}</option>)}
-                </Select>
-                <div style={{ position: 'relative' }}>
-                    <span style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#b6bcc6', fontSize: 13 }}>⌕</span>
-                    <input value={district} placeholder="District (e.g. Gasabo)"
-                           onInput={(e) => onFilter(setDistrict, (e.target as HTMLInputElement).value)}
-                           style={{ padding: '10px 14px 10px 32px', border: '1px solid #e2e5ea', borderRadius: 10, background: '#fff', fontFamily: 'inherit', fontSize: 13, color: '#1f2430', width: 220, outline: 'none' }} />
-                </div>
                 <Select value={gender} onChange={(v) => onFilter(setGender, v)} minWidth={140}>
                     <option value="">All genders</option>
                     <option value="Female">Female</option>
                     <option value="Male">Male</option>
                 </Select>
+                <Select value={district} onChange={(v) => onFilter(setDistrict, v)} minWidth={170}>
+                    <option value="">All districts</option>
+                    {districtOptions.map((d) => <option value={d}>{d}</option>)}
+                </Select>
+                <div style={{ position: 'relative' }}>
+                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#b6bcc6', fontSize: 13 }}>⌕</span>
+                    <input value={searchInput} placeholder="Search name or district…"
+                           onInput={(e) => setSearchInput((e.target as HTMLInputElement).value)}
+                           style={{ padding: '10px 38px 10px 34px', border: '1px solid #e2e5ea', borderRadius: 10, background: '#fff', fontFamily: 'inherit', fontSize: 13, color: '#1f2430', width: 280, outline: 'none' }} />
+                    {searchInput && (
+                        <button
+                            type="button"
+                            aria-label="Clear search"
+                            onClick={() => { setSearchInput(''); setSearch(''); setPage(1); }}
+                            style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', width: 22, height: 22, border: 'none', borderRadius: '50%', background: '#eef1f5', color: '#7b8390', fontSize: 14, fontWeight: 800, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >×</button>
+                    )}
+                </div>
                 <div style={{ flex: '1 1 auto' }} />
-                <div style={{ fontSize: 12.5, color: '#9aa0ab' }}>Showing <b style={{ color: '#5a616e' }}>{applicants.length}</b> of {pagination.total.toLocaleString()}</div>
+                <div style={{ fontSize: 12.5, color: '#9aa0ab' }}>Showing <b style={{ color: '#5a616e' }}>{visibleRows.length}</b> of {displayTotal.toLocaleString()}</div>
             </div>
 
             {/* TABLE */}
@@ -970,22 +1340,24 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                         SCORE <span style={{ fontSize: 9, color: arrowColor('score') }}>{arrow('score')}</span>
                     </button>
                     <div style={headCell}>STATUS</div>
+                    <div style={headCell}>NIDA</div>
                     <div style={headCell}>NESA</div>
                 </div>
 
-                {loading ? (
-                    <div style={{ padding: 46, textAlign: 'center', color: '#9aa0ab', fontSize: 13.5 }}>Loading applicants…</div>
+                {loading || (searchActive && fullListLoading && allApplicants.length === 0) ? (
+                    <div style={{ padding: 46, textAlign: 'center', color: '#9aa0ab', fontSize: 13.5 }}>{searchActive ? 'Loading full applicant list…' : 'Loading applicants…'}</div>
                 ) : error ? (
                     <div style={{ padding: 46, textAlign: 'center', color: '#b42318', fontSize: 13.5 }}>{error}</div>
-                ) : sorted.length === 0 ? (
+                ) : visibleRows.length === 0 ? (
                     <div style={{ padding: 46, textAlign: 'center', color: '#9aa0ab', fontSize: 13.5 }}>No applicants match these filters.</div>
-                ) : sorted.map((a) => {
+                ) : visibleRows.map((a) => {
                     const av = avatarColors(a.gender);
                     const isSel = selected?._id === a._id;
                     const score = a.totalScore;
                     const rev = reviews[a._id];
                     const np = rev ? NESA_PILL[rev.nesastatus] : null;
                     const npLabel = rev ? NESA_META[rev.nesastatus].label : '—';
+                    const nida = nidaStatus(rev);
                     return (
                         <div key={a._id} onClick={() => setSelected(a)}
                             style={{ display: 'grid', gridTemplateColumns: GRID, alignItems: 'center', padding: '0 22px', minHeight: 56, borderBottom: '1px solid #f3f4f7', cursor: 'pointer', background: isSel ? '#f1f6fb' : '#fff', boxShadow: isSel ? 'inset 3px 0 0 #005198' : 'none' }}
@@ -1007,6 +1379,7 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
                             <div>
                                 <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 11px', borderRadius: 999, background: '#e8f0f8', color: '#005198', fontSize: 10.5, fontWeight: 600, letterSpacing: '.2px' }}>{a.status || '-'}</span>
                             </div>
+                            <div><NidaStatusPill status={nida} /></div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                                 {np ? (
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 999, background: np.bg, color: np.fg, fontSize: 10.5, fontWeight: 600 }}>
@@ -1024,12 +1397,12 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
 
             {/* PAGINATION */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 18 }}>
-                <div style={{ fontSize: 13, color: '#8a909c' }}>Page <b style={{ color: '#5a616e' }}>{pagination.page}</b> of {pagination.totalPages || 1} · {pagination.total.toLocaleString()} applicants</div>
+                <div style={{ fontSize: 13, color: '#8a909c' }}>Page <b style={{ color: '#5a616e' }}>{displayPage}</b> of {displayTotalPages} · {displayTotal.toLocaleString()} applicants</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button disabled={page <= 1} onClick={() => setPage(page - 1)}
                         style={{ padding: '9px 16px', border: '1px solid #e2e5ea', borderRadius: 9, background: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 500, color: page <= 1 ? '#b6bcc6' : '#3b424f', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>‹ Previous</button>
-                    <button disabled={page >= (pagination.totalPages || 1)} onClick={() => setPage(page + 1)}
-                        style={{ padding: '9px 16px', border: '1px solid #005198', borderRadius: 9, background: page >= (pagination.totalPages || 1) ? '#a6c0d6' : '#005198', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#fff', cursor: page >= (pagination.totalPages || 1) ? 'not-allowed' : 'pointer' }}>Next ›</button>
+                    <button disabled={page >= displayTotalPages} onClick={() => setPage(page + 1)}
+                        style={{ padding: '9px 16px', border: '1px solid #005198', borderRadius: 9, background: page >= displayTotalPages ? '#a6c0d6' : '#005198', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#fff', cursor: page >= displayTotalPages ? 'not-allowed' : 'pointer' }}>Next ›</button>
                 </div>
             </div>
 

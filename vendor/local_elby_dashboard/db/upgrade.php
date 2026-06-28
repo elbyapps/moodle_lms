@@ -138,5 +138,31 @@ function xmldb_local_elby_dashboard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026062801, 'local', 'elby_dashboard');
     }
 
+    if ($oldversion < 2026062802) {
+        // Persist actual NIDA validation status for applicant-list badges and metrics.
+        $table = new xmldb_table('elby_rise_reviews');
+        $field = new xmldb_field('nidstatus', XMLDB_TYPE_CHAR, '20', null, XMLDB_NOTNULL, null, 'pending', 'nesaindexnumber');
+        if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026062802, 'local', 'elby_dashboard');
+    }
+
+    if ($oldversion < 2026062803) {
+        // NESA index numbers are unique when present. Store empty strings as NULL so multiple
+        // pending/non-approved reviews can coexist while the unique index protects real values.
+        $table = new xmldb_table('elby_rise_reviews');
+        if ($dbman->table_exists($table)) {
+            $DB->execute("UPDATE {elby_rise_reviews} SET nesaindexnumber = NULL WHERE nesaindexnumber = ''");
+            $index = new xmldb_index('uq_nesaindexnumber', XMLDB_INDEX_UNIQUE, ['nesaindexnumber']);
+            if (!$dbman->index_exists($table, $index)) {
+                $dbman->add_index($table, $index);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026062803, 'local', 'elby_dashboard');
+    }
+
     return true;
 }

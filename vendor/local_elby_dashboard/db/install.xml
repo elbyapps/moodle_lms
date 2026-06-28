@@ -362,6 +362,7 @@
         <FIELD NAME="applicantdata" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Full JSON snapshot of the RISE applicant payload"/>
         <FIELD NAME="nesastatus" TYPE="char" LENGTH="32" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="NESA decision: approved, rejected, action_requested, pending"/>
         <FIELD NAME="nesaindexnumber" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false" COMMENT="NESA Senior 3 confirmation index number"/>
+        <FIELD NAME="nidstatus" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="NIDA validation status: pending, verified, mismatch"/>
         <FIELD NAME="nidverified" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 if NESA verified the National ID"/>
         <FIELD NAME="comment" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="NESA reviewer comment"/>
         <FIELD NAME="reviewedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Moodle userid of the NESA reviewer"/>
@@ -377,6 +378,7 @@
         <INDEX NAME="idx_campaignid" UNIQUE="false" FIELDS="campaignid"/>
         <INDEX NAME="idx_nesastatus" UNIQUE="false" FIELDS="nesastatus"/>
         <INDEX NAME="idx_nid" UNIQUE="false" FIELDS="nid"/>
+        <INDEX NAME="uq_nesaindexnumber" UNIQUE="true" FIELDS="nesaindexnumber"/>
       </INDEXES>
     </TABLE>
   </TABLES>

@@ -179,6 +179,7 @@ export type NesaStatus = 'approved' | 'rejected' | 'action_requested' | 'pending
 export interface RiseNesaReview {
     nesastatus: NesaStatus;
     nesaindexnumber?: string;
+    nidstatus?: 'pending' | 'verified' | 'mismatch';
     nidverified: number;
     comment: string;
     reviewedby?: number;

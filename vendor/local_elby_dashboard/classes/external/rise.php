@@ -168,6 +168,7 @@ class rise extends external_api {
             $out[$r->applicantid] = [
                 'nesastatus' => $r->nesastatus,
                 'nesaindexnumber' => $r->nesaindexnumber ?? '',
+                'nidstatus' => $r->nidstatus ?? ((int) $r->nidverified === 1 ? 'verified' : 'pending'),
                 'nidverified' => (int) $r->nidverified,
                 'comment' => $r->comment,
                 'reviewedby' => (int) $r->reviewedby,
@@ -239,6 +240,8 @@ class rise extends external_api {
             throw new \invalid_parameter_exception('Comment is required for rejected or action-requested learners.');
         }
 
+        $indexnumber = trim($params['nesaindexnumber']);
+
         // Pull a few summary columns out of the snapshot for easy querying/reporting.
         $snapshot = json_decode($params['applicantdata'], true);
         $snapshot = is_array($snapshot) ? $snapshot : [];
@@ -249,6 +252,18 @@ class rise extends external_api {
             'campaignid' => $params['campaignid'],
             'applicantid' => $params['applicantid'],
         ]);
+
+        if ($indexnumber !== '') {
+            $duplicateparams = ['indexnumber' => $indexnumber];
+            $duplicatesql = 'nesaindexnumber = :indexnumber';
+            if ($record) {
+                $duplicatesql .= ' AND id <> :currentid';
+                $duplicateparams['currentid'] = $record->id;
+            }
+            if ($DB->record_exists_select('elby_rise_reviews', $duplicatesql, $duplicateparams)) {
+                throw new \invalid_parameter_exception('This NESA index number is already assigned to another learner.');
+            }
+        }
 
         $data = (object) [
             'campaignid' => $params['campaignid'],
@@ -261,7 +276,8 @@ class rise extends external_api {
             'applicantstatus' => (string) ($snapshot['status'] ?? ''),
             'applicantdata' => $params['applicantdata'] !== '' ? $params['applicantdata'] : null,
             'nesastatus' => $params['nesastatus'],
-            'nesaindexnumber' => trim($params['nesaindexnumber']),
+            'nesaindexnumber' => $indexnumber !== '' ? $indexnumber : null,
+            'nidstatus' => $params['nidverified'] ? 'verified' : ($record->nidstatus ?? 'pending'),
             'nidverified' => $params['nidverified'] ? 1 : 0,
             'comment' => $params['comment'],
             'reviewedby' => $USER->id,
@@ -283,7 +299,8 @@ class rise extends external_api {
         return json_encode([
             'applicantid' => $data->applicantid,
             'nesastatus' => $data->nesastatus,
-            'nesaindexnumber' => $data->nesaindexnumber,
+            'nesaindexnumber' => $data->nesaindexnumber ?? '',
+            'nidstatus' => $data->nidstatus,
             'nidverified' => (int) ($params['nidverified'] ? 1 : 0),
             'comment' => $data->comment,
             'reviewedby' => (int) $USER->id,
@@ -365,9 +382,8 @@ class rise extends external_api {
         // Overall match: names must match, and DOB must match when both sides have a value.
         $match = $namematch && ($dobmatch !== false);
 
-        if ($match) {
-            self::set_nid_verified($params['campaignid'], $params['applicantid'], $params['applicantdata'], $USER->id);
-        }
+        self::set_nid_status($params['campaignid'], $params['applicantid'], $params['applicantdata'], $USER->id,
+            $match ? 'verified' : 'mismatch');
 
         // Application-side values for the field-by-field comparison table.
         $snapshot = json_decode($params['applicantdata'], true);
@@ -418,17 +434,19 @@ class rise extends external_api {
     }
 
     /**
-     * Upsert a review row setting nidverified=1, preserving any existing decision.
+     * Upsert a review row with the latest NIDA status, preserving any existing decision.
      *
      * @param string $campaignid Campaign id.
      * @param string $applicantid Applicant id.
      * @param string $applicantdata Applicant JSON snapshot.
      * @param int $userid Reviewer user id.
+     * @param string $nidstatus NIDA status: verified or mismatch.
      */
-    private static function set_nid_verified(string $campaignid, string $applicantid,
-            string $applicantdata, int $userid): void {
+    private static function set_nid_status(string $campaignid, string $applicantid,
+            string $applicantdata, int $userid, string $nidstatus): void {
         global $DB;
 
+        $nidstatus = $nidstatus === 'mismatch' ? 'mismatch' : 'verified';
         $now = time();
         $record = $DB->get_record('elby_rise_reviews', [
             'campaignid' => $campaignid,
@@ -438,7 +456,8 @@ class rise extends external_api {
         if ($record) {
             $DB->update_record('elby_rise_reviews', (object) [
                 'id' => $record->id,
-                'nidverified' => 1,
+                'nidstatus' => $nidstatus,
+                'nidverified' => $nidstatus === 'verified' ? 1 : 0,
                 'timemodified' => $now,
             ]);
             return;
@@ -458,7 +477,8 @@ class rise extends external_api {
             'applicantstatus' => (string) ($snapshot['status'] ?? ''),
             'applicantdata' => $applicantdata !== '' ? $applicantdata : null,
             'nesastatus' => 'pending',
-            'nidverified' => 1,
+            'nidstatus' => $nidstatus,
+            'nidverified' => $nidstatus === 'verified' ? 1 : 0,
             'comment' => '',
             'reviewedby' => $userid,
             'timecreated' => $now,
