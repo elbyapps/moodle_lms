@@ -16,20 +16,38 @@
   --color-rtb-blue: #005198;
 }
 
-/* Remove Moodle's default container constraints for full-width layout */
-body.local-rtbdashboard-plugin .main-inner {
+/* Remove Moodle's default container constraints for full-width dashboard layout. */
+body.local-rtbdashboard-plugin .main-inner,
+body.local-elby-dashboard-plugin .main-inner {
   max-width: 100% !important;
   margin-top: 0 !important;
   padding: 0 !important;
 }
 
-/* Hide page header content for cleaner layout */
-body.local-rtbdashboard-plugin #page-header * {
+/* The dashboard SPA owns its page title/header; hide Moodle's page header wrapper. */
+body.local-rtbdashboard-plugin #page-header,
+body.local-elby-dashboard-plugin #page-header {
   display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-body.local-rtbdashboard-plugin #page-header {
-  margin: 0;
+/* Moodle's Boost layout adds drawer gutters around #page; the RISE mockup is edge-to-edge below the top navbar. */
+body.local-elby-dashboard-rise #page.drawers,
+body.local-elby-dashboard-rise #page.drawers .main-inner,
+body.local-elby-dashboard-rise #region-main,
+body.local-elby-dashboard-rise #region-main-box,
+body.local-elby-dashboard-rise [role="main"] {
+  margin: 0 !important;
   padding: 0 !important;
-  margin-top: 10px;
+  max-width: none !important;
+}
+
+body.local-elby-dashboard-rise #page.drawers {
+  overflow-y: auto !important;
+}
+
+body.local-elby-dashboard-rise #elby-dashboard-root {
+  margin: 0 !important;
+  padding: 0 !important;
 }

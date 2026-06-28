@@ -130,8 +130,10 @@ export default function App({ user, stats, activePage, sidenavConfig, themeConfi
     const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
     const closeSidebar = () => setSidebarOpen(false);
 
+    const isRise = activePage === 'rise';
+
     return (
-        <div className="flex h-[calc(100vh-120px)] bg-gray-50">
+        <div className={`flex ${isRise ? 'min-h-[calc(100vh-80px)]' : 'h-[calc(100vh-120px)]'} bg-gray-50`}>
             <Sidebar
                 user={user}
                 activePage={activePage}
@@ -141,7 +143,7 @@ export default function App({ user, stats, activePage, sidenavConfig, themeConfi
                 onClose={closeSidebar}
             />
             <div className="flex-1 flex flex-col min-h-0">
-                <Header user={user} activePage={activePage} themeConfig={themeConfig} onMenuClick={toggleSidebar} />
+                {!isRise && <Header user={user} activePage={activePage} themeConfig={themeConfig} onMenuClick={toggleSidebar} />}
                 <main className="flex-1 overflow-y-auto">
                     {activePage === 'home' && <Dashboard user={user} stats={stats} themeConfig={themeConfig} />}
                     {activePage === 'completion' && <CompletionReport />}

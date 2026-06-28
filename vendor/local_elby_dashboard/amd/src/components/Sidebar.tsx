@@ -120,10 +120,10 @@ export default function Sidebar({ user, activePage, sidenavConfig, themeConfig, 
             {/* Sidebar */}
             <aside className={`
                 fixed lg:sticky inset-y-0 left-0 z-50 top-0
-                w-64 h-screen bg-white border-r border-[#ecedf1] py-[22px] px-4 overflow-y-auto flex flex-col
+                w-64 bg-white border-r border-[#ecedf1] overflow-hidden flex flex-col
                 transform transition-transform duration-300 ease-in-out
                 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-            `}>
+            `} style={{ flex: '0 0 256px', width: 256, height: 'calc(100vh - 80px)', minHeight: 0, padding: '22px 16px' }}> 
                 {/* Header with logo and close button */}
                 <div className="px-2 pb-1 flex items-center justify-between">
                     <div className="flex items-center gap-[11px]">
@@ -147,22 +147,22 @@ export default function Sidebar({ user, activePage, sidenavConfig, themeConfig, 
 
                 {/* Main Menu Section */}
                 <div className={`${sectionLabel} pt-6 pb-3`} style={{ lineHeight: 1 }}>MENU</div>
-                <nav className="flex flex-col gap-1.5">
+                <nav className="flex flex-col gap-0.5">
                     {visibleMenuItems.map((item) => {
                         const isActive = item.id === activePage;
                         return (
                             <a
                                 key={item.id}
                                 href={basePath + item.path}
-                                className="flex items-center gap-3 px-4 rounded-full no-underline transition-colors"
+                                className="flex items-center gap-3 no-underline transition-colors"
                                 style={isActive
-                                    ? { height: 44, background: accent, boxShadow: '0 6px 16px rgba(0,81,152,.28)' }
-                                    : { height: 44 }}
+                                    ? { padding: '9px 12px', borderRadius: 10, background: accent, boxShadow: '0 4px 12px rgba(0,81,152,.26)' }
+                                    : { padding: '9px 12px', borderRadius: 10 }}
                                 onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = '#f3f5f8'; }}
                                 onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
                             >
                                 <NavIcon name={item.icon} color={isActive ? '#fff' : '#7a818d'} />
-                                <span className="flex-1 text-[13px]" style={{ lineHeight: 1, color: isActive ? '#fff' : '#3b424f', fontWeight: isActive ? 600 : 500 }}>
+                                <span className="flex-1 min-w-0 text-[13px] whitespace-nowrap overflow-hidden text-ellipsis" style={{ lineHeight: 1, color: isActive ? '#fff' : '#3b424f', fontWeight: isActive ? 600 : 500 }}>
                                     {item.name}
                                 </span>
                             </a>
@@ -173,19 +173,23 @@ export default function Sidebar({ user, activePage, sidenavConfig, themeConfig, 
                 <div className="flex-1" />
 
                 {/* Account Section */}
-                <div className={`${sectionLabel} pt-[18px] pb-3`} style={{ lineHeight: 1 }}>ACCOUNT</div>
-                <a
-                    href={basePath + '/user/profile.php'}
-                    className="flex items-center gap-[11px] px-2.5 py-[9px] rounded-[11px] no-underline bg-[#f8f9fb] border border-[#eef0f3]"
-                >
-                    {user.avatar
-                        ? <img src={user.avatar} alt={user.fullname} className="w-8 h-8 rounded-full object-cover shrink-0" />
-                        : <span className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-[11.5px] font-semibold text-white" style={{ background: accent }}>{userInitials(user.fullname)}</span>}
-                    <span className="flex-1 min-w-0">
-                        <span className="block text-[12.5px] font-semibold text-[#1f2430] truncate">{user.fullname || 'User'}</span>
-                        <span className="block text-[10.5px] text-[#9aa0ab] mt-px">{user.isAdmin ? 'Administrator' : (user.roles?.[0] || 'User')}</span>
-                    </span>
-                </a>
+                <div style={{ flex: '0 0 auto' }}>
+                    <div className={`${sectionLabel} pt-[18px] pb-3`} style={{ lineHeight: 1 }}>ACCOUNT</div>
+                    <a
+                        href={basePath + '/user/profile.php'}
+                        className="flex items-center gap-[11px] no-underline"
+                        style={{ padding: '9px 10px', borderRadius: 11, background: '#f8f9fb', border: '1px solid #eef0f3', textDecoration: 'none' }}
+                    >
+                        <span className="shrink-0 rounded-full flex items-center justify-center text-white"
+                              style={{ width: 32, height: 32, background: accent, fontSize: 11.5, fontWeight: 600 }}>
+                            {userInitials(user.fullname)}
+                        </span>
+                        <span className="flex-1 min-w-0" style={{ lineHeight: 1.25 }}>
+                            <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, color: '#1f2430', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.fullname || 'User'}</span>
+                            <span style={{ display: 'block', fontSize: 10.5, color: '#9aa0ab', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.isAdmin ? 'Administrator' : (user.roles?.[0] || 'User')}</span>
+                        </span>
+                    </a>
+                </div>
             </aside>
         </>
     );

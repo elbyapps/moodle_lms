@@ -114,6 +114,8 @@ foreach (get_user_roles($context, $USER->id) as $role) {
     $userroles[] = $role->shortname;
 }
 
+$isadmin = is_siteadmin($USER);
+
 $userdata = [
     'id' => $USER->id,
     'fullname' => fullname($USER),
@@ -122,6 +124,7 @@ $userdata = [
     'email' => $USER->email,
     'avatar' => $OUTPUT->get_generated_image_for_id($USER->id),
     'roles' => $userroles,
+    'isAdmin' => $isadmin,
 ];
 
 $statsdata = [

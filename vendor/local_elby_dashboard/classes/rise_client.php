@@ -92,7 +92,9 @@ class rise_client {
         }
         $path = '/campaigns/' . rawurlencode($campaignid) . '/applicants';
         if (!empty($query)) {
-            $path .= '?' . http_build_query($query);
+            // Force a raw '&' separator. Moodle/PHP may set arg_separator.output to '&amp;',
+            // which is correct for HTML but breaks API query strings (limit/page are ignored).
+            $path .= '?' . http_build_query($query, '', '&', PHP_QUERY_RFC3986);
         }
         return $this->get($path);
     }
