@@ -176,6 +176,10 @@ export interface RiseAttachment {
 
 export type NesaStatus = 'approved' | 'rejected' | 'action_requested' | 'pending';
 
+export type RiseNesaCounts = Record<NesaStatus, number>;
+
+export type RiseNesaStatsMap = Record<string, RiseNesaCounts>;
+
 export interface RiseNesaReview {
     nesastatus: NesaStatus;
     nesaindexnumber?: string;

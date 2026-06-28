@@ -29,6 +29,7 @@ import { useState, useEffect } from 'preact/hooks';
 import type {
     RiseCampaign, RiseApplicant, RisePagination, RiseAttachment,
     NesaStatus, RiseNesaReview, RiseNidValidation, RiseNidField,
+    RiseNesaCounts, RiseNesaStatsMap,
 } from '../types';
 
 // @ts-ignore — Moodle AMD loader global.
@@ -311,8 +312,46 @@ function StatCell({ value, label, dot, border }: { value: string; label: string;
     );
 }
 
+// NESA decision order + aggregate-card palette (Approved, Rejected, Action requested, Pending).
+const NESA_ORDER: NesaStatus[] = ['approved', 'rejected', 'action_requested', 'pending'];
+const NESA_STAT_STYLE: Record<NesaStatus, { label: string; bg: string; border: string; fg: string; dot: string }> = {
+    approved: { label: 'Approved', bg: '#f0f9f3', border: '#cfe9d9', fg: '#1a7f43', dot: '#1a9c52' },
+    rejected: { label: 'Rejected', bg: '#fdf3f3', border: '#f3c9c9', fg: '#b42318', dot: '#d4462f' },
+    action_requested: { label: 'Action requested', bg: '#fff8ee', border: '#f3e1c0', fg: '#b5660b', dot: '#f79222' },
+    pending: { label: 'Pending', bg: '#f8f9fb', border: '#e7e9ee', fg: '#5a616e', dot: '#9aa0ab' },
+};
+
+const EMPTY_NESA: RiseNesaCounts = { approved: 0, rejected: 0, action_requested: 0, pending: 0 };
+
+function NesaStatCard({ status, value }: { status: NesaStatus; value: number }) {
+    const s = NESA_STAT_STYLE[status];
+    return (
+        <div style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 12, padding: '13px 15px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.dot }} />
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.4px', textTransform: 'uppercase', color: s.fg }}>{s.label}</span>
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: s.fg, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{num(value)}</div>
+        </div>
+    );
+}
+
+function NesaMiniStat({ status, value }: { status: NesaStatus; value: number }) {
+    const s = NESA_STAT_STYLE[status];
+    return (
+        <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: '#161b26', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{num(value)}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
+                <span style={{ flex: '0 0 auto', width: 6, height: 6, borderRadius: '50%', background: s.dot }} />
+                <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: '.3px', textTransform: 'uppercase', color: '#9aa0ab', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</span>
+            </div>
+        </div>
+    );
+}
+
 function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
     const [campaigns, setCampaigns] = useState<RiseCampaign[]>([]);
+    const [nesaStats, setNesaStats] = useState<RiseNesaStatsMap>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
@@ -333,12 +372,34 @@ function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
         })();
     }, []);
 
+    // NESA review stats are stored locally (independent of the remote campaigns API),
+    // so load them separately; a failure here must not break the campaigns view.
+    useEffect(() => {
+        (async () => {
+            try {
+                const raw = await ajaxCall('local_elby_dashboard_rise_get_nesa_stats', {});
+                setNesaStats(JSON.parse(raw) || {});
+            } catch (e) {
+                console.error('RISE NESA stats load failed:', e);
+            }
+        })();
+    }, []);
+
     const totals = campaigns.reduce((acc, c) => {
         acc.total += c.stats?.total || 0;
         acc.shortlisted += c.stats?.shortlisted || 0;
         acc.enrolled += c.stats?.enrolled || 0;
         return acc;
     }, { total: 0, shortlisted: 0, enrolled: 0 });
+
+    const nesaTotals = Object.values(nesaStats).reduce((acc, c) => {
+        acc.approved += c.approved || 0;
+        acc.rejected += c.rejected || 0;
+        acc.action_requested += c.action_requested || 0;
+        acc.pending += c.pending || 0;
+        return acc;
+    }, { ...EMPTY_NESA });
+    const nesaReviewed = nesaTotals.approved + nesaTotals.rejected + nesaTotals.action_requested + nesaTotals.pending;
 
     return (
         <div style={{ padding: '30px 34px 40px' }}>
@@ -363,6 +424,23 @@ function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
                         <SummaryChip label="ENROLLED" value={num(totals.enrolled)} color="#1a7f43" />
                     </div>
 
+                    {/* NESA REVIEW STATS */}
+                    <div style={{ background: '#fff', border: '1px solid #ecedf1', borderRadius: 16, padding: 20, marginBottom: 24 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 16 }}>
+                            <div>
+                                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#161b26' }}>NESA review stats</h2>
+                                <p style={{ margin: '4px 0 0', fontSize: 13, color: '#6b7280' }}>Eligibility review decisions across all RISE campaigns.</p>
+                            </div>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 999, background: '#e3eef7', padding: '6px 12px', fontSize: 12, fontWeight: 600, color: '#005198' }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#005198' }} />
+                                {num(nesaReviewed)} reviewed
+                            </span>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+                            {NESA_ORDER.map((s) => <NesaStatCard key={s} status={s} value={nesaTotals[s]} />)}
+                        </div>
+                    </div>
+
                     {/* CARDS GRID */}
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
                         {campaigns.map((c, i) => {
@@ -371,6 +449,7 @@ function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
                             const total = c.stats?.total || 0;
                             const enrolled = c.stats?.enrolled || 0;
                             const pct = total ? Math.round((enrolled / total) * 100) : 0;
+                            const nesa = nesaStats[c._id] || EMPTY_NESA;
                             return (
                                 <div key={c._id} onClick={() => onSelect(c)}
                                     style={{ background: '#fff', border: '1px solid #ecedf1', borderRadius: 16, padding: '22px 22px 20px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(20,28,46,.04)', transition: 'box-shadow .16s, border-color .16s' }}
@@ -396,6 +475,12 @@ function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
                                         <StatCell value={num(c.stats?.total)} label="TOTAL" dot="#005198" border />
                                         <StatCell value={num(c.stats?.shortlisted)} label="SHORTLISTED" dot="#f79222" border />
                                         <StatCell value={num(c.stats?.enrolled)} label="ENROLLED" dot="#1a9c52" border={false} />
+                                    </div>
+                                    <div style={{ background: '#f8f9fb', border: '1px solid #f0f1f4', borderRadius: 11, padding: 12, marginBottom: 14 }}>
+                                        <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.4px', color: '#8a909c', marginBottom: 10 }}>NESA REVIEW</div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 10 }}>
+                                            {NESA_ORDER.map((s) => <NesaMiniStat key={s} status={s} value={nesa[s]} />)}
+                                        </div>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                         <span style={{ fontSize: 11.5, color: '#a7adb8' }}>{enrolled > 0 ? pct + '% enrolled' : 'Not yet enrolling'}</span>
@@ -1028,7 +1113,7 @@ function ApplicantList({ campaign, onBack }: { campaign: RiseCampaign; onBack: (
     const [exporting, setExporting] = useState(false);
     const [error, setError] = useState('');
 
-    const [status, setStatus] = useState('SHORTLISTED');
+    const [status, setStatus] = useState('ENROLLED');
     const [district, setDistrict] = useState('');
     const [gender, setGender] = useState('');
     const [searchInput, setSearchInput] = useState('');

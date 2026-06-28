@@ -257,6 +257,14 @@ $functions = [
         'ajax'         => true,
         'capabilities' => 'local/elby_dashboard:viewreports',
     ],
+    'local_elby_dashboard_rise_get_nesa_stats' => [
+        'classname'    => 'local_elby_dashboard\external\rise',
+        'methodname'   => 'get_nesa_stats',
+        'description'  => 'Get NESA review decision counts per RISE campaign',
+        'type'         => 'read',
+        'ajax'         => true,
+        'capabilities' => 'local/elby_dashboard:viewreports',
+    ],
     'local_elby_dashboard_rise_save_review' => [
         'classname'    => 'local_elby_dashboard\external\rise',
         'methodname'   => 'save_review',
@@ -427,6 +435,7 @@ $services = [
             'local_elby_dashboard_rise_get_campaigns',
             'local_elby_dashboard_rise_get_applicants',
             'local_elby_dashboard_rise_get_reviews',
+            'local_elby_dashboard_rise_get_nesa_stats',
             'local_elby_dashboard_rise_save_review',
             'local_elby_dashboard_rise_validate_nid',
         ],

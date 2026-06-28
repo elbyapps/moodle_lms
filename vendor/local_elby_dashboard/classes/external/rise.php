@@ -186,6 +186,52 @@ class rise extends external_api {
     }
 
     /**
+     * Parameters for get_nesa_stats.
+     */
+    public static function get_nesa_stats_parameters(): external_function_parameters {
+        return new external_function_parameters([]);
+    }
+
+    /**
+     * Get NESA review decision counts per campaign, aggregated across all applicants.
+     *
+     * @return string JSON object: { campaignid: { approved, rejected, action_requested, pending } }.
+     */
+    public static function get_nesa_stats(): string {
+        global $DB;
+
+        $context = context_system::instance();
+        self::validate_context($context);
+        require_capability('local/elby_dashboard:viewreports', $context);
+
+        $sql = "SELECT campaignid, nesastatus, COUNT(*) AS cnt
+                  FROM {elby_rise_reviews}
+              GROUP BY campaignid, nesastatus";
+        $rs = $DB->get_recordset_sql($sql);
+        $out = [];
+        foreach ($rs as $row) {
+            if (!isset($out[$row->campaignid])) {
+                $out[$row->campaignid] = [
+                    'approved' => 0, 'rejected' => 0, 'action_requested' => 0, 'pending' => 0,
+                ];
+            }
+            if (array_key_exists($row->nesastatus, $out[$row->campaignid])) {
+                $out[$row->campaignid][$row->nesastatus] = (int) $row->cnt;
+            }
+        }
+        $rs->close();
+
+        return json_encode((object) $out);
+    }
+
+    /**
+     * Return value for get_nesa_stats.
+     */
+    public static function get_nesa_stats_returns(): external_value {
+        return new external_value(PARAM_RAW, 'JSON object of NESA decision counts keyed by campaign id');
+    }
+
+    /**
      * Parameters for save_review.
      */
     public static function save_review_parameters(): external_function_parameters {
