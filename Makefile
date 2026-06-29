@@ -20,9 +20,10 @@ COMPOSE_BASE = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml $(LOC
 COMPOSE_DEV = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.dev.yml $(LOCAL_OVERRIDE)
 COMPOSE_STAGING = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.staging.yml $(LOCAL_OVERRIDE)
 COMPOSE_PROD = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.prod.yml $(LOCAL_OVERRIDE)
+COMPOSE_SCHOOL = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.school.yml $(LOCAL_OVERRIDE)
 COMPOSE_DB = docker compose $(PROJECT_DIR) -f compose/docker-compose.db.yml
 
-.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
+.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh school school-down deploy-school deploy-school-fresh deploy-school-upgrade deploy-school-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -82,6 +83,26 @@ deploy-upgrade: ## Maintenance-mode deploy for changes that include a DB migrati
 
 deploy-upgrade-fresh: ## Same as deploy-upgrade but with --no-cache build (force-refetches git plugins)
 	./scripts/deploy.sh upgrade --no-cache
+
+# --- School instances (self-contained single-box per school) ---
+
+school: ## First-time bring-up of a self-contained school LMS instance
+	$(COMPOSE_SCHOOL) up --build -d
+
+school-down: ## Stop the school stack
+	$(COMPOSE_SCHOOL) down
+
+deploy-school: ## Zero-downtime rolling deploy of a school instance (no DB migration)
+	./scripts/deploy.sh code --profile school
+
+deploy-school-fresh: ## Same as deploy-school but with --no-cache build (force-refetches git plugins)
+	./scripts/deploy.sh code --profile school --no-cache
+
+deploy-school-upgrade: ## Maintenance-mode deploy for a school instance (DB migration)
+	./scripts/deploy.sh upgrade --profile school
+
+deploy-school-upgrade-fresh: ## Same as deploy-school-upgrade but with --no-cache build
+	./scripts/deploy.sh upgrade --profile school --no-cache
 
 # --- Utilities ---
 

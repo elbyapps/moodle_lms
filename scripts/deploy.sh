@@ -12,8 +12,8 @@
 #             containers, runs admin/cli/upgrade.php, then drops maintenance.
 #
 # Usage:
-#   scripts/deploy.sh code [--no-cache]
-#   scripts/deploy.sh upgrade [--no-cache]
+#   scripts/deploy.sh code [--no-cache] [--profile prod|school]
+#   scripts/deploy.sh upgrade [--no-cache] [--profile prod|school]
 #
 # Flags:
 #   --no-cache   Pass --no-cache to `docker compose build`. Useful when you
@@ -30,15 +30,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
-# Compose files live under compose/. --project-directory . keeps the project
-# name as the repo dir (volume prefix stability) and lets .env load from root.
-COMPOSE=(docker compose --project-directory . -f compose/docker-compose.yml -f compose/docker-compose.prod.yml)
-# Honour host-specific overrides (e.g. an external moodledata volume) when
-# compose/docker-compose.local.yml is committed/present on this host. This keeps
-# scripts/deploy.sh aligned with `make prod` on machines that need the override.
-if [ -f compose/docker-compose.local.yml ]; then
-    COMPOSE+=(-f compose/docker-compose.local.yml)
-fi
+# Deploy target profile (default prod). Selected with --profile {prod|school}:
+#   prod   — external-DB overlay (docker-compose.prod.yml), default 3 replicas.
+#   school — self-contained overlay (docker-compose.school.yml): bundled mariadb,
+#            local-filesystem moodledata, no S3; default 1 replica.
+# COMPOSE and REPLICAS are assembled after flag parsing, once PROFILE is known.
+PROFILE="prod"
+COMPOSE=()
 
 # We only need two knobs from .env (PHP_REPLICAS, HEALTH_TIMEOUT). Sourcing
 # the whole file with `set -a; source .env` is brittle — any unquoted value
@@ -59,8 +57,6 @@ read_env_var() {
     printf '%s' "$value"
 }
 
-REPLICAS="${PHP_REPLICAS:-$(read_env_var PHP_REPLICAS)}"
-REPLICAS="${REPLICAS:-3}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-$(read_env_var HEALTH_TIMEOUT)}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-180}"
 
@@ -178,11 +174,13 @@ cmd_upgrade() {
 SUBCMD="${1:-}"
 shift || true
 
-# Parse trailing flags. Keep this tiny — only --no-cache for now.
+# Parse trailing flags.
 while [ $# -gt 0 ]; do
     case "$1" in
-        --no-cache) BUILD_ARGS+=(--no-cache) ;;
-        -h|--help)  SUBCMD="" ;;
+        --no-cache)  BUILD_ARGS+=(--no-cache) ;;
+        --profile)   shift; PROFILE="${1:?ERROR: --profile needs a value (prod|school)}" ;;
+        --profile=*) PROFILE="${1#*=}" ;;
+        -h|--help)   SUBCMD="" ;;
         *)
             echo "ERROR: unknown flag '$1'" >&2
             exit 1
@@ -191,19 +189,38 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+# Assemble the compose invocation + default replica count from the profile.
+case "$PROFILE" in
+    prod)   OVERLAY="compose/docker-compose.prod.yml";   DEFAULT_REPLICAS=3 ;;
+    school) OVERLAY="compose/docker-compose.school.yml"; DEFAULT_REPLICAS=1 ;;
+    *)      echo "ERROR: unknown --profile '$PROFILE' (expected prod|school)" >&2; exit 1 ;;
+esac
+# --project-directory . keeps the project name as the repo dir (volume prefix
+# stability) and lets .env load from root.
+COMPOSE=(docker compose --project-directory . -f compose/docker-compose.yml -f "$OVERLAY")
+# Honour a host-specific override (e.g. an external moodledata volume) when
+# compose/docker-compose.local.yml is committed/present on this host.
+if [ -f compose/docker-compose.local.yml ]; then
+    COMPOSE+=(-f compose/docker-compose.local.yml)
+fi
+REPLICAS="${PHP_REPLICAS:-$(read_env_var PHP_REPLICAS)}"
+REPLICAS="${REPLICAS:-$DEFAULT_REPLICAS}"
+
 case "$SUBCMD" in
     code)    cmd_code ;;
     upgrade) cmd_upgrade ;;
     *)
         cat >&2 <<EOF
-Usage: $0 {code|upgrade} [--no-cache]
+Usage: $0 {code|upgrade} [--no-cache] [--profile prod|school]
 
-  code        Rolling deploy for code-only changes (no DB migration).
-  upgrade     Maintenance-mode upgrade for DB schema changes.
+  code         Rolling deploy for code-only changes (no DB migration).
+  upgrade      Maintenance-mode upgrade for DB schema changes.
 
-  --no-cache  Force a no-cache image rebuild (re-clones git plugins even
-              when moodle-config.json hasn't changed). Containers are
-              NOT stopped; the rolling/maintenance flow is preserved.
+  --no-cache   Force a no-cache image rebuild (re-clones git plugins even
+               when moodle-config.json hasn't changed). Containers are
+               NOT stopped; the rolling/maintenance flow is preserved.
+  --profile P  Target stack: prod (default, external DB) or school
+               (self-contained: bundled mariadb, local-filesystem storage).
 EOF
         exit 1
         ;;

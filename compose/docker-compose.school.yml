@@ -1,0 +1,60 @@
+# School LMS instance overlay — a self-contained, single-box deployment.
+#
+# Layers on compose/docker-compose.yml (base). How it differs from the others:
+#   - vs prod: the database runs locally (bundled mariadb) instead of an
+#     external host.
+#   - vs dev: no source bind-mounts, no dev OPcache override, and NO garage/S3.
+#     moodledata is on the local filesystem (FILESTORAGE_BACKEND=local) and the
+#     vendored plugins are baked into the image.
+#
+# Used by `make school` and `scripts/deploy.sh ... --profile school`.
+# restart: unless-stopped is set across the stack so it returns after a VM/host
+# reboot — school boxes run unattended.
+
+services:
+  mariadb:
+    image: mariadb:11
+    restart: unless-stopped
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    environment:
+      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpass}
+      - MARIADB_DATABASE=${DB_NAME:-moodle}
+      - MARIADB_USER=${DB_USER:-moodleuser}
+      - MARIADB_PASSWORD=${DB_PASSWORD:-moodlepass}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - moodle
+
+  php:
+    restart: unless-stopped
+    # The DB ships in this stack — wait for it to be healthy before php's
+    # entrypoint spends its DB-wait budget on a still-initialising mariadb.
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  cron:
+    restart: unless-stopped
+    depends_on:
+      php:
+        condition: service_started
+      mariadb:
+        condition: service_healthy
+
+  nginx:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+volumes:
+  mariadb_data:
+
+networks:
+  moodle:
