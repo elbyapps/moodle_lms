@@ -1,0 +1,26 @@
+# Keep Docker build contexts small and avoid leaking local/runtime data.
+.git
+.gitignore
+.github
+
+# Local secrets/config generated per host
+.env
+.env.*.local
+*.pem
+*.key
+
+# Runtime data and generated Moodle trees
+moodledata/
+moodle_app/
+
+# Local tooling / scratch artifacts
+scratch/
+.playwright-cli/
+node_modules/
+vendor/**/.git
+
+# Logs, caches, OS/editor noise
+*.log
+.DS_Store
+.cache/
+tmp/

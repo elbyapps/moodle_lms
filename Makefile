@@ -86,8 +86,9 @@ deploy-upgrade-fresh: ## Same as deploy-upgrade but with --no-cache build (force
 
 # --- School instances (self-contained single-box per school) ---
 
-school: ## First-time bring-up of a self-contained school LMS instance
-	$(COMPOSE_SCHOOL) up --build -d
+school: ## First-time bring-up of a self-contained school LMS instance (pulls GHCR images)
+	$(COMPOSE_SCHOOL) pull
+	$(COMPOSE_SCHOOL) up -d
 
 school-down: ## Stop the school stack
 	$(COMPOSE_SCHOOL) down
@@ -95,14 +96,14 @@ school-down: ## Stop the school stack
 deploy-school: ## Zero-downtime rolling deploy of a school instance (no DB migration)
 	./scripts/deploy.sh code --profile school
 
-deploy-school-fresh: ## Same as deploy-school but with --no-cache build (force-refetches git plugins)
-	./scripts/deploy.sh code --profile school --no-cache
+deploy-school-fresh: ## Same as deploy-school; repulls GHCR images (no local build)
+	./scripts/deploy.sh code --profile school
 
 deploy-school-upgrade: ## Maintenance-mode deploy for a school instance (DB migration)
 	./scripts/deploy.sh upgrade --profile school
 
-deploy-school-upgrade-fresh: ## Same as deploy-school-upgrade but with --no-cache build
-	./scripts/deploy.sh upgrade --profile school --no-cache
+deploy-school-upgrade-fresh: ## Same as deploy-school-upgrade; repulls GHCR images (no local build)
+	./scripts/deploy.sh upgrade --profile school
 
 # --- Utilities ---
 

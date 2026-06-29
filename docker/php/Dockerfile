@@ -68,6 +68,7 @@ WORKDIR /var/www/html
 COPY build.sh moodle-config.json ./
 COPY vendor ./vendor
 COPY scripts ./scripts
+COPY config.php.docker ./config.php.docker
 RUN chmod +x build.sh
 
 # Build arg to skip cloning (for development with bind mounts)

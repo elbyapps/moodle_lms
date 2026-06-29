@@ -1,15 +1,14 @@
-# School LMS instance overlay — a self-contained, single-box deployment.
+# School LMS instance overlay — self-contained, single-box deployment.
 #
-# Layers on compose/docker-compose.yml (base). How it differs from the others:
-#   - vs prod: the database runs locally (bundled mariadb) instead of an
-#     external host.
-#   - vs dev: no source bind-mounts, no dev OPcache override, and NO garage/S3.
-#     moodledata is on the local filesystem (FILESTORAGE_BACKEND=local) and the
-#     vendored plugins are baked into the image.
+# This profile is image-based: school boxes pull pre-baked Moodle images from
+# GHCR and do not build or clone Moodle locally. Runtime state remains local:
+# bundled MariaDB, Redis, and local-filesystem moodledata. There is no garage,
+# no S3/objectfs dependency, and no source-tree bind mount.
 #
-# Used by `make school` and `scripts/deploy.sh ... --profile school`.
-# restart: unless-stopped is set across the stack so it returns after a VM/host
-# reboot — school boxes run unattended.
+# Important Compose merge detail: compose/docker-compose.yml defines build:
+# stanzas for php and nginx. We must remove those inherited build definitions
+# with `build: !reset null`, otherwise a school deploy can accidentally try to
+# build on the school VM again.
 
 services:
   mariadb:
@@ -18,10 +17,10 @@ services:
     volumes:
       - mariadb_data:/var/lib/mysql
     environment:
-      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-rootpass}
+      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD:?set DB_ROOT_PASSWORD}
       - MARIADB_DATABASE=${DB_NAME:-moodle}
       - MARIADB_USER=${DB_USER:-moodleuser}
-      - MARIADB_PASSWORD=${DB_PASSWORD:-moodlepass}
+      - MARIADB_PASSWORD=${DB_PASSWORD:?set DB_PASSWORD}
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -32,23 +31,36 @@ services:
       - moodle
 
   php:
+    image: ghcr.io/elbyapps/moodle_lms-php:${IMAGE_TAG:-rtb}
+    build: !reset null
     restart: unless-stopped
-    # The DB ships in this stack — wait for it to be healthy before php's
-    # entrypoint spends its DB-wait budget on a still-initialising mariadb.
+    volumes: !override
+      - ./moodledata:/var/www/moodledata
     depends_on:
       mariadb:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   cron:
+    image: ghcr.io/elbyapps/moodle_lms-php:${IMAGE_TAG:-rtb}
     restart: unless-stopped
+    volumes: !override
+      - ./moodledata:/var/www/moodledata
     depends_on:
       php:
         condition: service_started
       mariadb:
         condition: service_healthy
+      redis:
+        condition: service_started
 
   nginx:
+    image: ghcr.io/elbyapps/moodle_lms-nginx:${IMAGE_TAG:-rtb}
+    build: !reset null
     restart: unless-stopped
+    volumes: !override
+      - ./moodledata:/var/www/moodledata:ro
 
   redis:
     restart: unless-stopped

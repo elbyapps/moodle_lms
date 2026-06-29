@@ -8,21 +8,23 @@
 #             at the end; nginx is a single instance so expect a brief (~5s)
 #             window where users might see a 502.
 #   upgrade   Maintenance-mode upgrade for Moodle core / plugin DB migrations.
-#             Enables Moodle maintenance mode, rebuilds, recreates all
+#             Enables Moodle maintenance mode, refreshes images, recreates all
 #             containers, runs admin/cli/upgrade.php, then drops maintenance.
+#
+# Image refresh mode is profile-specific:
+#   prod      builds local images from Dockerfiles (existing behavior)
+#   school    pulls pre-baked GHCR images; school boxes must not build locally
 #
 # Usage:
 #   scripts/deploy.sh code [--no-cache] [--profile prod|school]
 #   scripts/deploy.sh upgrade [--no-cache] [--profile prod|school]
 #
 # Flags:
-#   --no-cache   Pass --no-cache to `docker compose build`. Useful when you
-#                want to force fresh `git clone`s of plugins whose ref in
-#                moodle-config.json hasn't changed (so the build.sh layer
-#                would otherwise be served from the Docker build cache).
-#                Unlike `make build-fresh`, this does NOT stop containers
-#                or delete the moodle_app volume — the rolling/maintenance
-#                deploy flow is preserved.
+#   --no-cache   Prod profile only: pass --no-cache to `docker compose build`.
+#                Useful when you want to force fresh `git clone`s of plugins
+#                whose ref in moodle-config.json hasn't changed (so the build.sh
+#                layer would otherwise be served from the Docker build cache).
+#                Ignored for the school profile, which pulls GHCR images.
 
 set -euo pipefail
 
@@ -60,8 +62,8 @@ read_env_var() {
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-$(read_env_var HEALTH_TIMEOUT)}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-180}"
 
-# Extra args appended to `docker compose build` (e.g. --no-cache). Populated
-# from the CLI flag parser below.
+# Extra args appended to `docker compose build` (e.g. --no-cache) for build-based
+# profiles. School is pull-based and ignores these.
 BUILD_ARGS=()
 
 php_exec() {
@@ -98,14 +100,26 @@ wait_healthy() {
     return 1
 }
 
+refresh_images() {
+    if [ "$PROFILE" = "school" ]; then
+        if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
+            echo "NOTE: --no-cache is ignored for --profile school (GHCR pull-based deploy)."
+        fi
+        echo "Pulling school GHCR images..."
+        "${COMPOSE[@]}" pull php cron nginx
+    else
+        if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
+            echo "Building images (${BUILD_ARGS[*]})..."
+        else
+            echo "Building images..."
+        fi
+        "${COMPOSE[@]}" build "${BUILD_ARGS[@]}"
+    fi
+}
+
 cmd_code() {
     echo "== Rolling code deploy (no DB migration) =="
-    if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
-        echo "Building images (${BUILD_ARGS[*]})..."
-    else
-        echo "Building images..."
-    fi
-    "${COMPOSE[@]}" build "${BUILD_ARGS[@]}"
+    refresh_images
 
     local old_ids
     old_ids=$("${COMPOSE[@]}" ps -q php || true)
@@ -151,12 +165,7 @@ cmd_upgrade() {
     echo "Enabling Moodle maintenance mode..."
     php_exec php /var/www/html/moodle_app/admin/cli/maintenance.php --enable
 
-    if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
-        echo "Building images (${BUILD_ARGS[*]})..."
-    else
-        echo "Building images..."
-    fi
-    "${COMPOSE[@]}" build "${BUILD_ARGS[@]}"
+    refresh_images
 
     echo "Recreating all containers..."
     "${COMPOSE[@]}" up -d --force-recreate --scale "php=$REPLICAS"
@@ -216,11 +225,12 @@ Usage: $0 {code|upgrade} [--no-cache] [--profile prod|school]
   code         Rolling deploy for code-only changes (no DB migration).
   upgrade      Maintenance-mode upgrade for DB schema changes.
 
-  --no-cache   Force a no-cache image rebuild (re-clones git plugins even
-               when moodle-config.json hasn't changed). Containers are
-               NOT stopped; the rolling/maintenance flow is preserved.
-  --profile P  Target stack: prod (default, external DB) or school
-               (self-contained: bundled mariadb, local-filesystem storage).
+  --no-cache   Prod only: force a no-cache image rebuild (re-clones git
+               plugins even when moodle-config.json hasn't changed).
+               Ignored for school, which pulls GHCR images.
+  --profile P  Target stack: prod (default, external DB, build-based) or school
+               (self-contained: bundled mariadb, local-filesystem storage,
+               GHCR pull-based).
 EOF
         exit 1
         ;;
