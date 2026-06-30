@@ -89,6 +89,14 @@ RUN if [ "$SKIP_CLONE" = "false" ]; then ./build.sh; else echo "SKIP_CLONE=true,
 # Install Composer dependencies for Moodle (skip in dev mode)
 RUN if [ "$SKIP_CLONE" = "false" ]; then cd moodle_app && composer install --no-dev --classmap-authoritative; fi
 
+# Keep production images smaller: runtime does not need cloned Git metadata or
+# Composer's download cache. build.sh already removes plugin .git dirs, but the
+# Moodle core clone still has one unless we strip it here.
+RUN if [ "$SKIP_CLONE" = "false" ]; then \
+        find /var/www/html/moodle_app -name .git -type d -prune -exec rm -rf {} +; \
+        rm -rf /root/.composer/cache; \
+    fi
+
 # Code lives at /var/www/html/moodle_app directly — no named volume, no copy-on-boot.
 # Vendored plugins are installed by build.sh from ./vendor/ — see vendor/README.md.
 RUN chown -R www-data:www-data /var/www/html

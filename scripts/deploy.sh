@@ -105,7 +105,16 @@ refresh_images() {
         if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
             echo "NOTE: --no-cache is ignored for --profile school (GHCR pull-based deploy)."
         fi
-        echo "Pulling school GHCR images..."
+
+        local image_tag
+        image_tag="${IMAGE_TAG:-$(read_env_var IMAGE_TAG)}"
+        image_tag="${image_tag:-rtb}"
+        if [[ "$image_tag" == "rtb" || "$image_tag" == "latest" ]]; then
+            echo "WARNING: school deploy is using mutable IMAGE_TAG=$image_tag." >&2
+            echo "         For production, pin IMAGE_TAG to an immutable sha-<shortsha> tag." >&2
+        fi
+
+        echo "Pulling school GHCR images (IMAGE_TAG=$image_tag)..."
         "${COMPOSE[@]}" pull php cron nginx
     else
         if [ ${#BUILD_ARGS[@]} -gt 0 ]; then

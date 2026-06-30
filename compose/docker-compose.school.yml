@@ -9,6 +9,9 @@
 # stanzas for php and nginx. We must remove those inherited build definitions
 # with `build: !reset null`, otherwise a school deploy can accidentally try to
 # build on the school VM again.
+#
+# IMAGE_TAG defaults to `rtb` for smoke tests. Production school deployments
+# should set IMAGE_TAG to an immutable `sha-<shortsha>` tag via Ansible.
 
 services:
   mariadb:
@@ -34,6 +37,14 @@ services:
     image: ghcr.io/elbyapps/moodle_lms-php:${IMAGE_TAG:-rtb}
     build: !reset null
     restart: unless-stopped
+    # Defense-in-depth for hosts with an older .env that still contains S3 or
+    # garage values: school instances are local-filesystem only.
+    environment:
+      FILESTORAGE_BACKEND: local
+      S3_ENDPOINT: ""
+      S3_ACCESS_KEY: ""
+      S3_SECRET_KEY: ""
+      BACKUP_S3_BUCKET: ""
     volumes: !override
       - ./moodledata:/var/www/moodledata
     depends_on:
@@ -45,6 +56,12 @@ services:
   cron:
     image: ghcr.io/elbyapps/moodle_lms-php:${IMAGE_TAG:-rtb}
     restart: unless-stopped
+    environment:
+      FILESTORAGE_BACKEND: local
+      S3_ENDPOINT: ""
+      S3_ACCESS_KEY: ""
+      S3_SECRET_KEY: ""
+      BACKUP_S3_BUCKET: ""
     volumes: !override
       - ./moodledata:/var/www/moodledata
     depends_on:

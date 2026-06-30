@@ -17,6 +17,7 @@ RUN chmod +x build.sh
 ARG SKIP_CLONE=false
 RUN if [ "$SKIP_CLONE" = "false" ]; then \
         ./build.sh; \
+        find moodle_app -name .git -type d -prune -exec rm -rf {} +; \
     else \
         echo "SKIP_CLONE=true, creating empty public/ for dev bind mount"; \
         mkdir -p moodle_app/public; \
@@ -27,5 +28,8 @@ RUN if [ "$SKIP_CLONE" = "false" ]; then \
 # Vendored plugins are already inside moodle_app/public/ because build.sh installed
 # them in stage 1 — no extra COPYs needed here. See vendor/README.md.
 FROM nginx:alpine
+# Remove the stock nginx welcome page so a bad/missing vhost cannot silently
+# serve the default site at `/`. CI also greps for this content after build.
+RUN rm -rf /usr/share/nginx/html/*
 COPY --from=moodle_fetch /build/moodle_app /var/www/html/moodle_app
 COPY docker/nginx/prod.conf.template /etc/nginx/templates/default.conf.template

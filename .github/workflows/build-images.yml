@@ -80,3 +80,33 @@ jobs:
             org.opencontainers.image.title=moodle_lms-${{ matrix.name }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
+
+      - name: Smoke test ${{ matrix.name }} image contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${{ env.REGISTRY }}/${{ steps.vars.outputs.owner }}/${{ matrix.image }}:sha-${{ steps.vars.outputs.short_sha }}"
+          docker pull "$image"
+
+          case "${{ matrix.name }}" in
+            php)
+              docker run --rm --entrypoint sh "$image" -c '
+                set -eu
+                test -f /var/www/html/config.php.docker
+                test -f /var/www/html/moodle-config.json
+                test -d /var/www/html/scripts
+                test -f /var/www/html/moodle_app/public/index.php
+                test -f /usr/local/bin/docker-entrypoint.sh
+              '
+              ;;
+            nginx)
+              docker run --rm --entrypoint sh "$image" -c '
+                set -eu
+                test -f /etc/nginx/templates/default.conf.template
+                grep -q "root /var/www/html/moodle_app/public" /etc/nginx/templates/default.conf.template
+                grep -q "fastcgi_pass" /etc/nginx/templates/default.conf.template
+                test -f /var/www/html/moodle_app/public/index.php
+                ! grep -R "Welcome to nginx" /etc/nginx /var/www/html/moodle_app/public /usr/share/nginx/html 2>/dev/null
+              '
+              ;;
+          esac
