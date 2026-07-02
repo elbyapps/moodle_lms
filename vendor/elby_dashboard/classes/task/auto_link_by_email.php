@@ -107,6 +107,8 @@ class auto_link_by_email extends \core\task\scheduled_task {
                     $linked++;
                 } else {
                     $failed++;
+                    $this->flag_failed_user($user->id, $sdmscode, 'Not found in TDMP as student or teacher');
+                    $flagged++;
                 }
             } catch (\Exception $e) {
                 if ($e instanceof \moodle_exception && $e->errorcode === 'sdms_code_taken') {
