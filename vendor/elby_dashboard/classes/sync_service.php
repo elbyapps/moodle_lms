@@ -63,10 +63,21 @@ class sync_service {
      * @param int $userid Moodle user ID to link.
      * @param string $sdmscode TDMP identifier (studentNumber or staff identifier).
      * @param string $usertype User type: "student" or "staff".
+     * @param bool $allowreassign Whether an existing link for this SDMS code may be reassigned to this user.
      * @return bool True on success, false if not found in the gateway.
      * @throws \moodle_exception On API or database errors.
      */
-    public function link_user(int $userid, string $sdmscode, string $usertype): bool {
+    public function link_user(int $userid, string $sdmscode, string $usertype, bool $allowreassign = false): bool {
+        global $DB;
+
+        // Prevent duplicate TDMP links by default. The table has a unique index on
+        // sdms_id; automated email linking may explicitly reassign the existing
+        // row when the Moodle account with sdmscode@... should win.
+        $existingbycode = $DB->get_record('elby_sdms_users', ['sdms_id' => $sdmscode], 'id, userid');
+        if ($existingbycode && (int) $existingbycode->userid !== $userid && !$allowreassign) {
+            throw new \moodle_exception('sdms_code_taken', 'local_elby_dashboard');
+        }
+
         // Fetch from the gateway.
         $data = $this->fetch_user($sdmscode, $usertype);
         if ($data === null) {
@@ -95,7 +106,7 @@ class sync_service {
         }
 
         // Upsert user records in a transaction.
-        $this->upsert_user_record($userid, $data, $usertype, $sdmscode);
+        $this->upsert_user_record($userid, $data, $usertype, $sdmscode, $allowreassign);
 
         // Update the Moodle account name from the official gateway record (non-fatal).
         try {
@@ -301,8 +312,10 @@ class sync_service {
      * @param object $data Gateway response data.
      * @param string $usertype "student" or "staff".
      * @param string $sdmscode The TDMP identifier used.
+     * @param bool $allowreassign Whether to reuse an existing record with this TDMP code for this user.
      */
-    private function upsert_user_record(int $userid, object $data, string $usertype, string $sdmscode): void {
+    private function upsert_user_record(int $userid, object $data, string $usertype, string $sdmscode,
+            bool $allowreassign = false): void {
         global $DB;
 
         $transaction = $DB->start_delegated_transaction();
@@ -318,6 +331,9 @@ class sync_service {
 
             // Fetch existing record early so we can preserve schoolid if the gateway returned invalid.
             $existing = $DB->get_record('elby_sdms_users', ['userid' => $userid]);
+            if (!$existing && $allowreassign) {
+                $existing = $DB->get_record('elby_sdms_users', ['sdms_id' => $sdmscode]);
+            }
 
             // Only update schoolid if the gateway returned a valid school.
             // If invalid (null), preserve the existing schoolid.

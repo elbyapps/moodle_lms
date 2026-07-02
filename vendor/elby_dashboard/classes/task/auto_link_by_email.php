@@ -69,15 +69,39 @@ class auto_link_by_email extends \core\task\scheduled_task {
 
         $linked = 0;
         $failed = 0;
+        $skippedduplicates = 0;
         $flagged = 0;
         foreach ($users as $user) {
             $sdmscode = explode('@', $user->email)[0];
+            $allowreassign = false;
+
+            // If this TDMP code is already linked elsewhere, the Moodle account
+            // whose email is exactly based on the code wins. If the current
+            // linked user also has that email pattern, keep the existing link.
+            $existingbycode = $DB->get_record('elby_sdms_users', ['sdms_id' => $sdmscode], 'id, userid');
+            if ($existingbycode && (int) $existingbycode->userid !== (int) $user->id) {
+                $existinguser = $DB->get_record('user', ['id' => $existingbycode->userid], 'id, email, deleted');
+                $existingprefix = '';
+                if ($existinguser && strpos($existinguser->email, '@') !== false) {
+                    $existingprefix = explode('@', $existinguser->email)[0];
+                }
+
+                if ($existinguser && empty($existinguser->deleted) && $existingprefix === $sdmscode) {
+                    $skippedduplicates++;
+                    mtrace("  Skipped user {$user->id} ({$user->email}): TDMP code already linked to user {$existingbycode->userid} with matching email.");
+                    continue;
+                }
+
+                $allowreassign = true;
+                mtrace("  Reassigning TDMP code {$sdmscode} from user {$existingbycode->userid} to user {$user->id} ({$user->email}).");
+            }
+
             try {
                 // Try student first.
-                $ok = $syncservice->link_user($user->id, $sdmscode, 'student');
+                $ok = $syncservice->link_user($user->id, $sdmscode, 'student', $allowreassign);
                 if (!$ok) {
                     // Try teacher/staff.
-                    $ok = $syncservice->link_user($user->id, $sdmscode, 'staff');
+                    $ok = $syncservice->link_user($user->id, $sdmscode, 'staff', $allowreassign);
                 }
                 if ($ok) {
                     $linked++;
@@ -85,6 +109,12 @@ class auto_link_by_email extends \core\task\scheduled_task {
                     $failed++;
                 }
             } catch (\Exception $e) {
+                if ($e instanceof \moodle_exception && $e->errorcode === 'sdms_code_taken') {
+                    $skippedduplicates++;
+                    mtrace("  Skipped user {$user->id} ({$user->email}): TDMP code already linked to another account.");
+                    continue;
+                }
+
                 $failed++;
                 $detail = $e->getMessage();
                 if ($e instanceof \moodle_exception && !empty($e->debuginfo)) {
@@ -100,7 +130,7 @@ class auto_link_by_email extends \core\task\scheduled_task {
                 }
             }
         }
-        mtrace("Auto-link by email: {$linked} linked, {$failed} failed, {$flagged} flagged out of " . count($users) . " unlinked users.");
+        mtrace("Auto-link by email: {$linked} linked, {$failed} failed, {$skippedduplicates} duplicate-code skipped, {$flagged} flagged out of " . count($users) . " unlinked users.");
     }
 
     /**
