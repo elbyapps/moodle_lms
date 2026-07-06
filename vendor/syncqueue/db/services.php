@@ -55,11 +55,41 @@ $functions = [
         'capabilities' => '',
     ],
 
+    // Pull - schools fetch the v2 sequenced outbox stream (dual-stack with download).
+    'local_syncqueue_pull' => [
+        'classname' => 'local_syncqueue\external\pull',
+        'methodname' => 'execute',
+        'description' => 'Pull sequenced v2 outbox rows for a school',
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => '',
+    ],
+
+    // Push - schools send the v2 sequenced upstream fact stream (dual-stack with upload).
+    'local_syncqueue_push' => [
+        'classname' => 'local_syncqueue\external\push',
+        'methodname' => 'execute',
+        'description' => 'Receive and buffer sequenced v2 upstream facts from a school',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => '',
+    ],
+
     // Register - schools register with central server.
     'local_syncqueue_register' => [
         'classname' => 'local_syncqueue\external\register',
         'methodname' => 'execute',
         'description' => 'Register a new school with the central server',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => '',
+    ],
+
+    // Reincarnate - central issues a fresh epoch to a restored/cloned school (v2 §4.5).
+    'local_syncqueue_reincarnate' => [
+        'classname' => 'local_syncqueue\external\reincarnate',
+        'methodname' => 'execute',
+        'description' => 'Issue a new epoch and seed to a re-incarnating school',
         'type' => 'write',
         'ajax' => true,
         'capabilities' => '',
@@ -105,12 +135,54 @@ $functions = [
         'capabilities' => '',
     ],
 
+    // Snapshot bootstrap manifest (step 6) - a fresh/re-incarnated school loads head state.
+    'local_syncqueue_snapshot_manifest' => [
+        'classname' => 'local_syncqueue\external\snapshot_manifest',
+        'methodname' => 'execute',
+        'description' => 'Return a chunk of the school\'s pinned bootstrap manifest',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => '',
+    ],
+
+    // Anti-entropy applied-state digest (step 6) - schools converge replicated content.
+    'local_syncqueue_digest' => [
+        'classname' => 'local_syncqueue\external\digest',
+        'methodname' => 'execute',
+        'description' => 'Exchange an applied-state digest and return entities the school is missing/stale on',
+        'type' => 'read',
+        'ajax' => true,
+        'capabilities' => '',
+    ],
+
+    // Content-addressed submission-blob receive (step 7 file channel).
+    'local_syncqueue_upload_file' => [
+        'classname' => 'local_syncqueue\external\upload_file',
+        'methodname' => 'execute',
+        'description' => 'Receive and content-address a submission blob uploaded by a school',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => '',
+    ],
+
+    // Dual-validity API key rotation (step 7 credentials).
+    'local_syncqueue_rotate_key' => [
+        'classname' => 'local_syncqueue\external\rotate_key',
+        'methodname' => 'execute',
+        'description' => 'Rotate a school API key, keeping the old key valid through a grace window',
+        'type' => 'write',
+        'ajax' => true,
+        'capabilities' => '',
+    ],
+
     // TDMP roster proxy - schools pull their own full student/teacher roster.
     'local_syncqueue_tdmp_roster' => [
         'classname' => 'local_syncqueue\external\tdmp_roster',
         'methodname' => 'execute',
         'description' => 'Return the requesting school\'s full student/teacher roster from TDMP',
-        'type' => 'read',
+        // 'write': serving a roster records the school's home tenure (Option B
+        // producer), so it must run on the write DB, not a read replica.
+        'type' => 'write',
         'ajax' => true,
         'capabilities' => '',
     ],
@@ -123,12 +195,21 @@ $services = [
             'local_syncqueue_status',
             'local_syncqueue_upload',
             'local_syncqueue_download',
+            'local_syncqueue_pull',
+            'local_syncqueue_push',
             'local_syncqueue_register',
+            'local_syncqueue_reincarnate',
             'local_syncqueue_report',
             'local_syncqueue_catalog',
             'local_syncqueue_upload_priorities',
             'local_syncqueue_tdmp_lookup',
             'local_syncqueue_tdmp_roster',
+            // Step 6: schools must be able to call these over the wire, not just in-process.
+            'local_syncqueue_snapshot_manifest',
+            'local_syncqueue_digest',
+            // Step 7.
+            'local_syncqueue_upload_file',
+            'local_syncqueue_rotate_key',
         ],
         'restrictedusers' => 0,
         'enabled' => 1,

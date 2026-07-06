@@ -162,7 +162,7 @@ $string['signup_wrong_school'] = 'This SDMS code belongs to a different school. 
 $string['task_sync_roster'] = 'Sync school roster (offline cache)';
 $string['roster_sync_now'] = 'School roster';
 $string['roster_sync_now_btn'] = 'Sync roster now';
-$string['roster_synced'] = 'Roster synced: {$a->students} students, {$a->teachers} teachers cached.';
+$string['roster_synced'] = 'Roster synced: {$a->students} students, {$a->teachers} teachers cached, {$a->removed} stale entries removed.';
 $string['tdmsapierror'] = 'TDMP gateway error';
 $string['auto_course_enrich_enabled'] = 'Enrich courses with trade, level & school';
 $string['auto_course_enrich_enabled_desc'] = 'When enabled, courses are tagged with their trade and level, and the creating teacher\'s school, into elby_course_meta. Teacher creators must pick a trade and level on the course form; courses are also enriched on create/update and when a teacher links their account.';
@@ -197,6 +197,7 @@ $string['onboard_done'] = 'Your account setup is complete.';
 $string['onboard_linked_other'] = 'This SDMS code is already linked to another account. Please contact your administrator.';
 
 // SDMS error messages.
+$string['error_cohortlock'] = 'Could not acquire the cohort creation lock for {$a}; skipping to avoid a duplicate cohort. It will retry.';
 $string['sdmsapierror'] = '{$a}';
 $string['nosdmsid'] = 'User does not have an SDMS ID configured';
 $string['sdmsnotfound'] = 'Record not found in SDMS';
@@ -241,6 +242,7 @@ $string['task_aggregate_school_metrics'] = 'Aggregate school-level metrics';
 $string['task_refresh_sdms_cache'] = 'Refresh stale SDMS cache records';
 $string['task_auto_link_by_email'] = 'Auto-link users to SDMS by email';
 $string['task_cleanup_old_metrics'] = 'Clean up old metrics data';
+$string['task_reconciledesiredstate'] = 'Reconcile desired-state enrolment (cohorts, membership, links)';
 
 // Metrics API strings.
 $string['no_metrics_data'] = 'No metrics data available for this period';

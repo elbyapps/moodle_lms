@@ -75,4 +75,15 @@ $tasks = [
         'month'     => '*',
         'dayofweek' => '*',
     ],
+    // Hourly at :40 — converge cohorts/membership/enrol instances to the desired
+    // state implied by the roster + links + course metadata (offline, idempotent).
+    [
+        'classname' => 'local_elby_dashboard\task\reconcile_desired_state',
+        'blocking'  => 0,
+        'minute'    => '40',
+        'hour'      => '*',
+        'day'       => '*',
+        'month'     => '*',
+        'dayofweek' => '*',
+    ],
 ];

@@ -237,5 +237,29 @@ function xmldb_local_elby_dashboard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026062603, 'local', 'elby_dashboard');
     }
 
+    if ($oldversion < 2026070200) {
+        // Pin cohort-sync removals to suspend + remove roles: the core default
+        // (ENROL_EXT_REMOVED_UNENROL, in force while the setting is unset) fully
+        // unenrols and destroys grades when a student is moved out of a cohort
+        // (e.g. year rollover or trade change).
+        require_once($CFG->libdir . '/enrollib.php');
+        set_config('unenrolaction', ENROL_EXT_REMOVED_SUSPENDNOROLES, 'enrol_cohort');
+
+        upgrade_plugin_savepoint(true, 2026070200, 'local', 'elby_dashboard');
+    }
+
+    if ($oldversion < 2026070201) {
+        // Remedial: auto_link_by_email used to permanently quarantine users whose
+        // TDMP lookup hit an HTTP 500 (a transient server error) by inserting an
+        // unlinked elby_sdms_users marker row (sync_status=0, empty user_type).
+        // Drop those markers so the users become retryable; genuine not-found
+        // flags ('Not found in TDMP...') are kept.
+        $DB->delete_records_select('elby_sdms_users',
+            "user_type = '' AND sync_status = 0 AND " . $DB->sql_like('sync_error', ':pat'),
+            ['pat' => '%HTTP 500%']);
+
+        upgrade_plugin_savepoint(true, 2026070201, 'local', 'elby_dashboard');
+    }
+
     return true;
 }

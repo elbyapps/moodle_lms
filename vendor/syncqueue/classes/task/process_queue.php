@@ -48,6 +48,14 @@ class process_queue extends scheduled_task {
         }
 
         $queuemanager = new queue_manager();
+
+        // Recover items a dead worker left stuck in processing before
+        // counting pending, so they are retried in this same run.
+        $recovered = $queuemanager->requeue_stuck_items();
+        if ($recovered->requeued || $recovered->failed) {
+            mtrace("Stuck-item recovery: {$recovered->requeued} requeued, {$recovered->failed} moved to failed");
+        }
+
         $stats = $queuemanager->get_stats();
 
         mtrace("Queue status: {$stats->pending} pending, {$stats->failed} failed");

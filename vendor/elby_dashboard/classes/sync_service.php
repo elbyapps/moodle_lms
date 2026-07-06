@@ -115,13 +115,13 @@ class sync_service {
             debugging('Name update failed for user ' . $userid . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
 
-        // Auto-enroll student into matching courses (non-fatal).
+        // Place the student in their TDMP cohort; cohort-sync enrolment then flows
+        // via the enrol_cohort instances the reconciler/linker maintain. The old
+        // one-shot auto_enroll_student manual-enrol path is retired for new links
+        // (§6): manual enrolments risk grade_user_unenrol grade destruction and are
+        // superseded by the desired-state reconciler. Existing manual enrolments
+        // are left untouched.
         if ($usertype === 'student') {
-            try {
-                $this->auto_enroll_student($userid, $data);
-            } catch (\Exception $e) {
-                debugging('Auto-enrollment failed for user ' . $userid . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
-            }
             try {
                 $this->assign_student_cohort($userid, $data);
             } catch (\Exception $e) {
@@ -453,81 +453,6 @@ class sync_service {
     }
 
     /**
-     * Auto-enroll a student into courses matching their trade and level.
-     *
-     * Looks up Moodle course categories whose idnumber matches
-     * "{combinationCode}:{levelNumber}" (e.g., "527:3") and enrolls the
-     * student into all courses under those categories.
-     *
-     * @param int $userid Moodle user ID.
-     * @param object $data Gateway student response data.
-     */
-    private function auto_enroll_student(int $userid, object $data): void {
-        global $DB;
-
-        // Check if auto-enrollment is enabled.
-        if (!get_config('local_elby_dashboard', 'auto_enroll_enabled')) {
-            return;
-        }
-
-        // Extract combination code.
-        $combinationcode = $data->combinationCode ?? null;
-        if (empty($combinationcode)) {
-            return;
-        }
-
-        // Extract level number from gradeName (e.g., "Level 3" → "3").
-        $classgrade = $data->gradeName ?? '';
-        if (!preg_match('/(\d+)/', $classgrade, $matches)) {
-            return;
-        }
-        $levelnumber = $matches[1];
-
-        // Build lookup key.
-        $lookupkey = $combinationcode . ':' . $levelnumber;
-
-        // Find matching course categories.
-        $categories = $DB->get_records('course_categories', ['idnumber' => $lookupkey], '', 'id');
-        if (empty($categories)) {
-            $this->log_enrollment($userid, 'skip', $lookupkey, 'No matching category found');
-            return;
-        }
-
-        // Get student role.
-        $studentrole = $DB->get_record('role', ['shortname' => 'student']);
-        if (!$studentrole) {
-            return;
-        }
-
-        $enrolledcount = 0;
-
-        foreach ($categories as $cat) {
-            $category = \core_course_category::get($cat->id, \IGNORE_MISSING);
-            if (!$category) {
-                continue;
-            }
-
-            // Get all courses under this category (recursively).
-            $courseids = $category->get_courses(['recursive' => true, 'idonly' => true]);
-
-            foreach ($courseids as $courseid) {
-                $result = enrol_try_internal_enrol($courseid, $userid, $studentrole->id);
-                if ($result) {
-                    $enrolledcount++;
-                }
-            }
-        }
-
-        if ($enrolledcount > 0) {
-            $this->log_enrollment($userid, 'create', $lookupkey,
-                'Enrolled in ' . $enrolledcount . ' course(s)');
-        } else {
-            $this->log_enrollment($userid, 'skip', $lookupkey,
-                'Category matched but no new enrollments');
-        }
-    }
-
-    /**
      * Add a student to a system-level cohort for their trade + level + academic year.
      *
      * Cohort key (idnumber): tdmp:{tradeCode}:{level}:{yearSlug}. Students with no
@@ -562,7 +487,6 @@ class sync_service {
         $yearslug = str_replace('/', '-', $year);
 
         require_once($CFG->dirroot . '/cohort/lib.php');
-        $systemctx = \context_system::instance();
         $idnumber = "tdmp:{$tradecode}:{$level}:{$yearslug}";
 
         // Resolve the full trade name from the gateway (falls back to the short name).
@@ -576,20 +500,15 @@ class sync_service {
             debugging('Trade lookup failed for ' . $tradecode . ': ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
 
-        // Find or create the system-context cohort.
-        $cohort = $DB->get_record('cohort', ['contextid' => $systemctx->id, 'idnumber' => $idnumber]);
-        if ($cohort) {
-            $cohortid = (int) $cohort->id;
-        } else {
-            $newcohort = new \stdClass();
-            $newcohort->contextid = $systemctx->id;
-            $newcohort->name = "{$tradename} · " . ($data->gradeName ?? ("Level " . $level)) . " · {$year}";
-            $newcohort->idnumber = $idnumber;
-            $newcohort->description = "Auto-created by TDMP integration (trade {$tradecode}, level {$level}, {$year}).";
-            $newcohort->descriptionformat = FORMAT_PLAIN;
-            $newcohort->visible = 1;
-            $cohortid = (int) cohort_add_cohort($newcohort);
-        }
+        // Find or create the system-context cohort. Route through the reconciler's
+        // shared, lock-serialized helper so a signup and the hourly reconcile can't
+        // both create the same brand-new cohort (cohort.idnumber has no unique index).
+        $newcohort = new \stdClass();
+        $newcohort->name = "{$tradename} · " . ($data->gradeName ?? ("Level " . $level)) . " · {$year}";
+        $newcohort->description = "Auto-created by TDMP integration (trade {$tradecode}, level {$level}, {$year}).";
+        $newcohort->descriptionformat = FORMAT_PLAIN;
+        $newcohort->visible = 1;
+        [$cohortid] = desired_state_reconciler::get_or_create_system_cohort($idnumber, $newcohort);
 
         // Move: drop any prior TDMP cohort memberships for this user.
         $priors = $DB->get_records_sql(

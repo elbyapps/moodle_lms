@@ -17,6 +17,15 @@
 /**
  * Event observers for local_syncqueue.
  *
+ * Learner-fact and account observers are declared internal => true so that,
+ * under push_v2, capture (ledger + outbox insert) commits atomically with the
+ * business write. Core dispatches internal observers synchronously inside the
+ * triggering transaction (lib/classes/event/manager.php process_buffers), rather
+ * than deferring default observers to after commit — where a rolled-back write
+ * would drop the fact before it was ever captured (doc 4.3). Observer callbacks
+ * swallow their own exceptions and core additionally swallows observer
+ * exceptions, so an internal handler can never break the business operation.
+ *
  * @package    local_syncqueue
  * @copyright  2025 REB Rwanda
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -30,6 +39,7 @@ $observers = [
         'eventname' => '\core\event\user_graded',
         'callback' => '\local_syncqueue\observer::user_graded',
         'priority' => 0,
+        'internal' => true,
     ],
 
     // Assignment submission events.
@@ -37,21 +47,25 @@ $observers = [
         'eventname' => '\mod_assign\event\submission_created',
         'callback' => '\local_syncqueue\observer::submission_created',
         'priority' => 0,
+        'internal' => true,
     ],
     [
         'eventname' => '\mod_assign\event\submission_updated',
         'callback' => '\local_syncqueue\observer::submission_updated',
         'priority' => 0,
+        'internal' => true,
     ],
     [
         'eventname' => '\assignsubmission_file\event\submission_created',
         'callback' => '\local_syncqueue\observer::file_submission_created',
         'priority' => 0,
+        'internal' => true,
     ],
     [
         'eventname' => '\assignsubmission_file\event\submission_updated',
         'callback' => '\local_syncqueue\observer::file_submission_updated',
         'priority' => 0,
+        'internal' => true,
     ],
 
     // Quiz events.
@@ -59,9 +73,10 @@ $observers = [
         'eventname' => '\mod_quiz\event\attempt_submitted',
         'callback' => '\local_syncqueue\observer::quiz_attempt_submitted',
         'priority' => 0,
+        'internal' => true,
     ],
 
-    // Forum events.
+    // Forum events (not v2 facts; default post-commit dispatch is fine).
     [
         'eventname' => '\mod_forum\event\post_created',
         'callback' => '\local_syncqueue\observer::forum_post_created',
@@ -78,16 +93,19 @@ $observers = [
         'eventname' => '\core\event\user_enrolment_created',
         'callback' => '\local_syncqueue\observer::user_enrolment_created',
         'priority' => 0,
+        'internal' => true,
     ],
     [
         'eventname' => '\core\event\user_enrolment_deleted',
         'callback' => '\local_syncqueue\observer::user_enrolment_deleted',
         'priority' => 0,
+        'internal' => true,
     ],
     [
         'eventname' => '\core\event\user_enrolment_updated',
         'callback' => '\local_syncqueue\observer::user_enrolment_updated',
         'priority' => 0,
+        'internal' => true,
     ],
 
     // Course completion events.
@@ -95,14 +113,18 @@ $observers = [
         'eventname' => '\core\event\course_module_completion_updated',
         'callback' => '\local_syncqueue\observer::completion_updated',
         'priority' => 0,
+        'internal' => true,
     ],
     [
         'eventname' => '\core\event\course_completed',
         'callback' => '\local_syncqueue\observer::course_completed',
         'priority' => 0,
+        'internal' => true,
     ],
 
-    // User events (for user profile sync).
+    // User events (for user profile sync). user_created carries no v2 fact so it
+    // stays on default dispatch; user_updated/password can capture an account
+    // fact, so they are internal for atomic capture.
     [
         'eventname' => '\core\event\user_created',
         'callback' => '\local_syncqueue\observer::user_created',
@@ -112,10 +134,12 @@ $observers = [
         'eventname' => '\core\event\user_updated',
         'callback' => '\local_syncqueue\observer::user_updated',
         'priority' => 0,
+        'internal' => true,
     ],
     [
         'eventname' => '\core\event\user_password_updated',
         'callback' => '\local_syncqueue\observer::user_password_updated',
         'priority' => 0,
+        'internal' => true,
     ],
 ];

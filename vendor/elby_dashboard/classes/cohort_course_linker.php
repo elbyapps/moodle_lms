@@ -50,6 +50,26 @@ class cohort_course_linker {
     }
 
     /**
+     * Warn when enrol_cohort/unenrolaction has drifted off SUSPENDNOROLES.
+     *
+     * Any other value — including the core default (ENROL_EXT_REMOVED_UNENROL,
+     * in force while the setting is unset) — deletes grades when a student is
+     * moved out of a cohort. The plugin upgrade pins it; this is cheap drift
+     * detection in case an admin changes it back.
+     */
+    private static function warn_unenrolaction_drift(): void {
+        global $CFG;
+
+        require_once($CFG->libdir . '/enrollib.php');
+        $action = get_config('enrol_cohort', 'unenrolaction');
+        if ($action === false || (int) $action !== ENROL_EXT_REMOVED_SUSPENDNOROLES) {
+            debugging('enrol_cohort/unenrolaction is not ENROL_EXT_REMOVED_SUSPENDNOROLES: '
+                . 'cohort removal will delete grades. Set it back to "Disable course enrolment '
+                . 'and remove roles" (value ' . ENROL_EXT_REMOVED_SUSPENDNOROLES . ').');
+        }
+    }
+
+    /**
      * Phase 1: a course's trade/level is known — attach all matching cohorts.
      *
      * @param int $courseid Moodle course ID.
@@ -60,6 +80,7 @@ class cohort_course_linker {
         if (!self::is_enabled() || $courseid <= 1) {
             return;
         }
+        self::warn_unenrolaction_drift();
         $meta = $DB->get_record('elby_course_meta', ['courseid' => $courseid], 'trade_code, level');
         if (!$meta || empty($meta->trade_code) || empty($meta->level)) {
             return;
@@ -81,6 +102,7 @@ class cohort_course_linker {
         if (!self::is_enabled()) {
             return;
         }
+        self::warn_unenrolaction_drift();
         $cohort = $DB->get_record('cohort', ['id' => $cohortid], 'id, idnumber');
         if (!$cohort) {
             return;
@@ -140,9 +162,15 @@ class cohort_course_linker {
         }
 
         try {
+            // Scope the "already there" check to OUR owned instance (by name), so an
+            // admin's own cohort enrolment on the same (course, cohort, role) does not
+            // suppress creation of the integration-owned instance — the reconciler
+            // needs the ownership marker to manage/retire it. Mirrors the retirement
+            // side, which disables only name = INSTANCE_NAME instances.
             $exists = $DB->record_exists('enrol', [
                 'enrol' => 'cohort', 'courseid' => $courseid,
                 'customint1' => $cohortid, 'roleid' => (int) $roleid,
+                'name' => 'TDMP auto cohort sync',
             ]);
             if ($exists) {
                 return;

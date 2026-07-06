@@ -99,9 +99,9 @@ class register extends external_api {
             ];
         }
 
-        // Verify registration secret.
+        // Verify registration secret (constant-time to avoid a timing oracle).
         $registrationsecret = get_config('local_syncqueue', 'registrationsecret');
-        if (empty($registrationsecret) || $params['secret'] !== $registrationsecret) {
+        if (empty($registrationsecret) || !hash_equals((string) $registrationsecret, (string) $params['secret'])) {
             return [
                 'status' => 'error',
                 'message' => 'Invalid registration secret',

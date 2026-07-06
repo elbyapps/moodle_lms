@@ -27,14 +27,35 @@ use stdClass;
  */
 class id_mapper {
 
-    /** @var string School ID */
+    /** @var string School namespace that all mappings are partitioned under */
     protected string $schoolid;
 
     /**
      * Constructor.
+     *
+     * @param string|null $schoolid Explicit school namespace. Required on central,
+     *        where mappings must be partitioned per uploading school; school
+     *        instances may omit it to use their own configured schoolid.
+     * @throws \coding_exception If no school id is passed and none is configured.
      */
-    public function __construct() {
-        $this->schoolid = get_config('local_syncqueue', 'schoolid') ?: 'unknown';
+    public function __construct(?string $schoolid = null) {
+        $schoolid = trim((string) ($schoolid ?? get_config('local_syncqueue', 'schoolid')));
+        if ($schoolid === '') {
+            // A silent fallback here would merge id mappings from different
+            // schools into one namespace and mis-route records across schools.
+            throw new \coding_exception('local_syncqueue id_mapper requires a school id: ' .
+                'none was passed and the schoolid setting is empty');
+        }
+        $this->schoolid = $schoolid;
+    }
+
+    /**
+     * Get the school namespace this mapper is bound to.
+     *
+     * @return string
+     */
+    public function get_schoolid(): string {
+        return $this->schoolid;
     }
 
     /**

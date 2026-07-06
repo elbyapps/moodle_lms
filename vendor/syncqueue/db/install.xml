@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/syncqueue/db" VERSION="20250114" COMMENT="XMLDB file for local_syncqueue"
+<XMLDB PATH="local/syncqueue/db" VERSION="20260703" COMMENT="XMLDB file for local_syncqueue"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -114,7 +114,9 @@
         <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Unique school identifier"/>
         <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" COMMENT="School display name"/>
         <FIELD NAME="description" TYPE="text" NOTNULL="false" COMMENT="School description"/>
-        <FIELD NAME="apikey" TYPE="char" LENGTH="64" NOTNULL="true" COMMENT="Hashed API key for authentication"/>
+        <FIELD NAME="apikey" TYPE="char" LENGTH="64" NOTNULL="true" COMMENT="Hashed current API key for authentication"/>
+        <FIELD NAME="apikey_prev" TYPE="char" LENGTH="64" NOTNULL="false" COMMENT="Hashed previous API key, valid during a rotation grace window (step 7)"/>
+        <FIELD NAME="apikey_prev_expires" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Unix time the previous key stops being accepted; null when there is no previous key"/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="active" COMMENT="active, suspended, pending"/>
         <FIELD NAME="contactemail" TYPE="char" LENGTH="255" NOTNULL="false" COMMENT="Contact email for this school"/>
         <FIELD NAME="lastsynced" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Last successful sync timestamp"/>
@@ -265,6 +267,417 @@
       </KEYS>
       <INDEXES>
         <INDEX NAME="idx_school_trade" UNIQUE="true" FIELDS="schoolid, tradecode, level"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- v2 sequenced outbox (ELMS Sync v2 step 1). Append-only: rows are never
+         updated after sequencing except the one-time seq assignment. -->
+    <TABLE NAME="local_syncqueue_outbox" COMMENT="Sequenced outbox for v2 sync (append-only)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="seq" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Dense sequence number, NULL until assigned post-commit by the sequencer"/>
+        <FIELD NAME="entitytype" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="course, category, course_content, ..."/>
+        <FIELD NAME="entitykey" TYPE="char" LENGTH="255" NOTNULL="true" COMMENT="Stable entity identity, e.g. course:123"/>
+        <FIELD NAME="entityversion" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Per-entity monotonic version; decides staleness, never seq"/>
+        <FIELD NAME="action" TYPE="char" LENGTH="10" NOTNULL="true" COMMENT="upsert, delete or publish"/>
+        <FIELD NAME="payload" TYPE="text" LENGTH="big" NOTNULL="false" COMMENT="Canonical JSON payload"/>
+        <FIELD NAME="payloadhash" TYPE="char" LENGTH="64" NOTNULL="true" COMMENT="SHA256 of canonical JSON payload"/>
+        <FIELD NAME="contentversion" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Content publication version (.mbz) for course_content rows"/>
+        <FIELD NAME="partitionkey" TYPE="char" LENGTH="100" NOTNULL="true" COMMENT="Delivery partition, e.g. content:global or content:course:course:123"/>
+        <FIELD NAME="lineageuuid" TYPE="char" LENGTH="36" NOTNULL="false" COMMENT="Fact lineage UUID (upstream facts, step 2)"/>
+        <FIELD NAME="factversion" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Per-lineage fact version (step 2)"/>
+        <FIELD NAME="factuuid" TYPE="char" LENGTH="36" NOTNULL="false" COMMENT="UUID of one exact fact version (step 2)"/>
+        <FIELD NAME="rostergen" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Roster generation at capture"/>
+        <FIELD NAME="ledgerid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Fact ledger row this upstream fact was captured from (step 2); NULL for downstream content rows"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_seq" UNIQUE="true" FIELDS="seq"/>
+        <INDEX NAME="idx_partition_seq" UNIQUE="false" FIELDS="partitionkey, seq"/>
+        <INDEX NAME="idx_entity" UNIQUE="false" FIELDS="entitytype, entitykey"/>
+        <INDEX NAME="idx_timecreated" UNIQUE="false" FIELDS="timecreated"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Sequencer counters (v2) -->
+    <TABLE NAME="local_syncqueue_seq" COMMENT="Named sequencer counters for the v2 outbox">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Counter name, e.g. outbox"/>
+        <FIELD NAME="value" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Last assigned value"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_name" UNIQUE="true" FIELDS="name"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Per-peer per-direction stream cursors (v2) -->
+    <TABLE NAME="local_syncqueue_cursor" COMMENT="Apply cursors per peer and direction for v2 sync streams">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="peer" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="central on schools; schoolid on central"/>
+        <FIELD NAME="direction" TYPE="char" LENGTH="10" NOTNULL="true" COMMENT="down or up"/>
+        <FIELD NAME="epoch" TYPE="char" LENGTH="36" NOTNULL="false" COMMENT="Peer database epoch this cursor is valid for"/>
+        <FIELD NAME="lastappliedseq" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Highest durably applied seq; advanced after apply"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_peer_direction" UNIQUE="true" FIELDS="peer, direction"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Applied-state digest / version registry (v2) -->
+    <TABLE NAME="local_syncqueue_applied" COMMENT="Per-entity applied state: version registry, DLQ staleness guard and entitykey to local id resolution">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="entitytype" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="entitykey" TYPE="char" LENGTH="255" NOTNULL="true"/>
+        <FIELD NAME="entityversion" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Last applied (school) or last issued (central) entity version"/>
+        <FIELD NAME="payloadhash" TYPE="char" LENGTH="64" NOTNULL="true" DEFAULT="" COMMENT="Hash of last applied payload"/>
+        <FIELD NAME="localid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Local record id this entitykey resolves to"/>
+        <FIELD NAME="contentversion" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Applied .mbz content publication version (course_content entities; step 7)"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_entity" UNIQUE="true" FIELDS="entitytype, entitykey"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Fact ledger (ELMS Sync v2 step 2): proves what upstream facts were
+         captured, pins their deterministic two-level identity, and carries the
+         tenure stamp so a regenerated fact keeps its original roster generation.
+         A widening of the retired shared-'unknown' idmap; holds no payloads. -->
+    <TABLE NAME="local_syncqueue_ledger" COMMENT="Upstream fact ledger: deterministic identity + tenure, no payloads">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="origin" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Authoring school id (this school on a school box)"/>
+        <FIELD NAME="facttype" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="grade, submission, quiz_attempt, completion, account, enrolment"/>
+        <FIELD NAME="lineageuuid" TYPE="char" LENGTH="36" NOTNULL="true" COMMENT="UUIDv5(sync-ns, origin|type|naturalkey): names the fact across its life"/>
+        <FIELD NAME="factversion" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Monotonic per-lineage counter; NULL until the serialized sequencer finalizes it"/>
+        <FIELD NAME="factuuid" TYPE="char" LENGTH="36" NOTNULL="false" COMMENT="UUIDv5(lineageuuid, factversion); NULL until finalized"/>
+        <FIELD NAME="naturalkey" TYPE="char" LENGTH="255" NOTNULL="true" COMMENT="Composed natural key (cm/item identity + SDMS + ordinal)"/>
+        <FIELD NAME="sourcetable" TYPE="char" LENGTH="100" NOTNULL="true" COMMENT="Source Moodle table, e.g. grade_grades"/>
+        <FIELD NAME="sourceid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Local source row id (null once the source row is a tombstone)"/>
+        <FIELD NAME="payloadhash" TYPE="char" LENGTH="64" NOTNULL="true" COMMENT="SHA256 of the canonical fact payload for this version"/>
+        <FIELD NAME="sourceversion" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Source row change marker (e.g. timemodified) for capture-scan diffing"/>
+        <FIELD NAME="rostergen" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Roster generation at capture (tenure stamp)"/>
+        <FIELD NAME="homeschool" TYPE="char" LENGTH="50" NOTNULL="false" COMMENT="Home school at capture"/>
+        <FIELD NAME="capturedat" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Local clock at capture"/>
+        <FIELD NAME="lastexportedseq" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Outbox seq of the last export of this fact"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="captured" COMMENT="captured, exported, acked, stale, dead"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_factuuid" UNIQUE="true" FIELDS="factuuid"/>
+        <INDEX NAME="idx_lineage_version" UNIQUE="true" FIELDS="lineageuuid, factversion"/>
+        <INDEX NAME="idx_source" UNIQUE="false" FIELDS="sourcetable, sourceid"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="idx_origin" UNIQUE="false" FIELDS="origin"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Central ingest buffer (ELMS Sync v2 step 2): school pushes land here in
+         one cheap transaction and are acked as durably stored; a cron applier
+         deserializes asynchronously. The three unique keys give idempotent
+         dedup plus two-tier fork detection. -->
+    <TABLE NAME="local_syncqueue_ingest" COMMENT="Central ingest buffer for school-pushed facts (buffer-then-apply)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="epoch" TYPE="char" LENGTH="36" NOTNULL="true" COMMENT="School database incarnation this fact was authored under"/>
+        <FIELD NAME="schoolseq" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="The school outbox seq (school_seq) of this fact"/>
+        <FIELD NAME="factuuid" TYPE="char" LENGTH="36" NOTNULL="true"/>
+        <FIELD NAME="lineageuuid" TYPE="char" LENGTH="36" NOTNULL="true"/>
+        <FIELD NAME="factversion" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="facttype" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="entitykey" TYPE="char" LENGTH="255" NOTNULL="false" COMMENT="Resolved target entity, when known"/>
+        <FIELD NAME="payload" TYPE="text" LENGTH="big" NOTNULL="false" COMMENT="Fact payload; nulled when pruned, slim identity row retained"/>
+        <FIELD NAME="payloadhash" TYPE="char" LENGTH="64" NOTNULL="true"/>
+        <FIELD NAME="rostergen" TYPE="int" LENGTH="10" NOTNULL="false"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="buffered" COMMENT="buffered, applied, retry, stale, dead"/>
+        <FIELD NAME="attempts" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="lasterror" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_factuuid" UNIQUE="true" FIELDS="factuuid"/>
+        <INDEX NAME="idx_lineage_version" UNIQUE="true" FIELDS="lineageuuid, factversion"/>
+        <INDEX NAME="idx_school_seq" UNIQUE="true" FIELDS="schoolid, epoch, schoolseq"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="idx_schoolid" UNIQUE="false" FIELDS="schoolid"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Epoch registry (ELMS Sync v2 step 2): tracks database incarnations on
+         both sides. scope='self' is this box's own epoch (mirrored in a dataroot
+         marker); scope='central' is a school's view of central's epoch + last
+         observed head_seq (central-restore detection); scope='school' is
+         central's per-school incarnation high-water (seq-regression + fork). -->
+    <TABLE NAME="local_syncqueue_epoch" COMMENT="Database-incarnation epoch registry for restore/clone survival">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="scope" TYPE="char" LENGTH="10" NOTNULL="true" COMMENT="self, central or school"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="" COMMENT="Peer school id for scope=school; '' for self/central singletons"/>
+        <FIELD NAME="epoch" TYPE="char" LENGTH="36" NOTNULL="true" COMMENT="UUID identifying one database incarnation"/>
+        <FIELD NAME="headseq" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="High-water seq for this incarnation/peer"/>
+        <FIELD NAME="bootcount" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="active" COMMENT="active, frozen, superseded"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_scope_school" UNIQUE="true" FIELDS="scope, schoolid"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Dead-letter queue (v2) -->
+    <TABLE NAME="local_syncqueue_deadletter" COMMENT="Failed v2 sync applies kept for retry or replay">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="peer" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="direction" TYPE="char" LENGTH="10" NOTNULL="true" COMMENT="down or up"/>
+        <FIELD NAME="seq" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Stream seq of the failed row, if any"/>
+        <FIELD NAME="entitytype" TYPE="char" LENGTH="50" NOTNULL="true"/>
+        <FIELD NAME="entitykey" TYPE="char" LENGTH="255" NOTNULL="true"/>
+        <FIELD NAME="entityversion" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="payload" TYPE="text" LENGTH="big" NOTNULL="false"/>
+        <FIELD NAME="error" TYPE="text" NOTNULL="false" COMMENT="Last apply error"/>
+        <FIELD NAME="attempts" TYPE="int" LENGTH="5" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="retry" COMMENT="retry, dead or replayed"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="idx_entity" UNIQUE="false" FIELDS="entitytype, entitykey"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- School-side received cm/grade-item identity maps (step 4 preflight) -->
+    <TABLE NAME="local_syncqueue_identity_map" COMMENT="School-side received cm/grade-item identity maps: dry-run review before back-stamping">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="centralcourseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Central course id parsed from the identitymap entitykey"/>
+        <FIELD NAME="localcourseid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Resolved local course id (applied-state); NULL when not present locally"/>
+        <FIELD NAME="entityversion" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Outbox entityversion of the received map"/>
+        <FIELD NAME="payloadhash" TYPE="char" LENGTH="64" NOTNULL="false" COMMENT="Payload hash of the received map"/>
+        <FIELD NAME="map" TYPE="text" NOTNULL="false" COMMENT="Received identity map JSON"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" COMMENT="pending, applied, flagged or nocourse"/>
+        <FIELD NAME="report" TYPE="text" NOTNULL="false" COMMENT="Last match report JSON (ambiguities, would/stamped counts)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_centralcourseid" UNIQUE="true" FIELDS="centralcourseid"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Home-tenure intervals (ELMS Sync v2 step 4, central): per learner, which
+         school was home over which roster-generation range. Half-open [from, to),
+         torostergen NULL = still open. Exactly one open interval per sdms. -->
+    <TABLE NAME="local_syncqueue_tenure" COMMENT="Per-learner home-tenure intervals over roster generations (central)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sdms" TYPE="char" LENGTH="64" NOTNULL="true" COMMENT="Learner SDMS code"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="School that was home over this interval"/>
+        <FIELD NAME="fromrostergen" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Generation the school became home (interval start, inclusive)"/>
+        <FIELD NAME="torostergen" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Generation home moved away (interval end, exclusive); NULL = open"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_sdms_school" UNIQUE="false" FIELDS="sdms, schoolid"/>
+        <INDEX NAME="idx_sdms_open" UNIQUE="false" FIELDS="sdms, torostergen"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- AGS per-item origin-seq high-water (ELMS Sync v2 step 4, central): the
+         highest origin school_seq applied per (origin, epoch, learner+item), so a
+         lower/equal arrival is explicitly stale. Spans lineages, so it orders a
+         (learner, item) across the item-UUID stamping cutover. -->
+    <TABLE NAME="local_syncqueue_ags" COMMENT="Per-(origin,epoch,learner+item) origin-seq high-water for AGS staleness (central)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="origin" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Authoring school id"/>
+        <FIELD NAME="epoch" TYPE="char" LENGTH="36" NOTNULL="true" COMMENT="School database incarnation the facts were authored under"/>
+        <FIELD NAME="agskey" TYPE="char" LENGTH="36" NOTNULL="true" COMMENT="UUIDv5 of (learner SDMS + item UUID)"/>
+        <FIELD NAME="schoolseq" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Highest origin school_seq observed for this group"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_group" UNIQUE="true" FIELDS="origin, epoch, agskey"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- True-contradiction records (ELMS Sync v2 step 4, central): reserved for
+         genuine disagreements between in-tenure origins beyond the pinned policy.
+         Cross-tenure disagreements merge under Highest and are NOT recorded here.
+         Written by the appliers stage. -->
+    <TABLE NAME="local_syncqueue_conflicts" COMMENT="True-contradiction records for in-tenure disagreements (central)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="facttype" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="grade, completion, quiz_attempt, ..."/>
+        <FIELD NAME="lineageuuid" TYPE="char" LENGTH="36" NOTNULL="true" COMMENT="Lineage in contradiction"/>
+        <FIELD NAME="factuuid" TYPE="char" LENGTH="36" NOTNULL="false" COMMENT="Arriving fact version, when known"/>
+        <FIELD NAME="origin" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Authoring school id of the arriving fact"/>
+        <FIELD NAME="sdms" TYPE="char" LENGTH="64" NOTNULL="false" COMMENT="Learner SDMS code"/>
+        <FIELD NAME="entitykey" TYPE="char" LENGTH="255" NOTNULL="false" COMMENT="Resolved target entity, when known"/>
+        <FIELD NAME="rostergen" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Roster generation stamped on the fact"/>
+        <FIELD NAME="reason" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" COMMENT="Short cause"/>
+        <FIELD NAME="detail" TYPE="text" NOTNULL="false" COMMENT="JSON: competing values / origins"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="open" COMMENT="open, resolved"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_lineage" UNIQUE="false" FIELDS="lineageuuid"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="idx_origin" UNIQUE="false" FIELDS="origin"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- History-republish job queue (ELMS Sync v2 step 5, central): one coalesced
+         row per (learner, destination school). Enqueued when a learner's home
+         changes to the school (a genuine move / re-appearance); the history_republish
+         task regenerates the learner's terminal grades/completions FRESH at execution
+         and publishes them down as seed rows. Unique(sdms, schoolid) so a re-move just
+         resets the existing row to pending rather than piling up jobs. -->
+    <TABLE NAME="local_syncqueue_seedjob" COMMENT="Coalesced history-reseed jobs per (learner, destination school) (central)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="sdms" TYPE="char" LENGTH="64" NOTNULL="true" COMMENT="Learner SDMS code to reseed"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="Destination school the history is seeded to"/>
+        <FIELD NAME="rostergen" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Roster generation at which the home change was recorded"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" COMMENT="pending|done|quarantined"/>
+        <FIELD NAME="attempts" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Republish attempts (retry budget)"/>
+        <FIELD NAME="lasterror" TYPE="text" NOTNULL="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_learner_school" UNIQUE="true" FIELDS="sdms, schoolid"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Seed provenance (ELMS Sync v2 step 5, school): what central seeded down for
+         a learner, so the handover releaser knows which overrides are seeded (vs
+         locally authored) and can release them item-by-item when native module
+         evidence appears or a human edits the grade. One row per (school, learner,
+         item); status seeded|released. seededvalue is NULL for completions. -->
+    <TABLE NAME="local_syncqueue_seed" COMMENT="Seeded-fact provenance for deterministic handover (school)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="School the seed is for (self on a school box)"/>
+        <FIELD NAME="sdms" TYPE="char" LENGTH="64" NOTNULL="true" COMMENT="Learner SDMS code"/>
+        <FIELD NAME="itemuuid" TYPE="char" LENGTH="80" NOTNULL="true" COMMENT="grade-item/cm UUID, or course:&lt;idnumber&gt; for a course completion"/>
+        <FIELD NAME="itemtype" TYPE="char" LENGTH="20" NOTNULL="true" COMMENT="grade|activity|course"/>
+        <FIELD NAME="seededvalue" TYPE="number" LENGTH="10" DECIMALS="5" NOTNULL="false" COMMENT="Seeded finalgrade (NULL for completions)"/>
+        <FIELD NAME="localitemid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Resolved local grade_item/cm id, when applied"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="seeded" COMMENT="seeded|released"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_seed_item" UNIQUE="true" FIELDS="schoolid, sdms, itemuuid"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+
+    <!-- Snapshot bootstrap manifests (ELMS Sync v2 step 6, central, §4.4): a per-school
+         materialised snapshot of the head content state, pinned at head seq H so a fresh
+         or re-incarnated school can load the current state in resumable chunks and set
+         its pull cursor to H — never replaying the whole stream or "cursor = MAX(id)".
+         One manifest per school (a new materialisation supersedes the old); rows are the
+         chunks. -->
+    <TABLE NAME="local_syncqueue_snapshot" COMMENT="Per-school chunked bootstrap manifests (central)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="manifestid" TYPE="char" LENGTH="36" NOTNULL="true" COMMENT="Manifest identity (echoed on every chunk fetch)"/>
+        <FIELD NAME="schoolid" TYPE="char" LENGTH="50" NOTNULL="true" COMMENT="School the manifest is for"/>
+        <FIELD NAME="headseq" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Outbox head seq the snapshot is pinned at (cursor lands here)"/>
+        <FIELD NAME="chunkindex" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="0-based chunk index"/>
+        <FIELD NAME="numchunks" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Total chunks in this manifest"/>
+        <FIELD NAME="entries" TYPE="text" NOTNULL="true" COMMENT="JSON [{entitytype, entitykey, payloadhash}] for this chunk"/>
+        <FIELD NAME="pinneduntil" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Retain the manifest + its entities until this time"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_manifest_chunk" UNIQUE="true" FIELDS="manifestid, chunkindex"/>
+        <INDEX NAME="idx_school" UNIQUE="false" FIELDS="schoolid"/>
+      </INDEXES>
+    </TABLE>
+    <!-- Crash-safe content re-restore protocol (step 7, §7): one row per in-flight
+         course version restore, written BEFORE the restore starts so a crash leaves an
+         identifiable corpse (newlocalid) the next apply deletes and retries. -->
+    <TABLE NAME="local_syncqueue_restorelog" COMMENT="In-flight course content re-restore log (school; crash-safe)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="entitykey" TYPE="char" LENGTH="255" NOTNULL="true" COMMENT="Course entitykey, e.g. course:123"/>
+        <FIELD NAME="centralcourseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Central course id the entitykey resolves to"/>
+        <FIELD NAME="contentversion" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Content version being restored"/>
+        <FIELD NAME="oldlocalid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Local id of the copy being superseded"/>
+        <FIELD NAME="newlocalid" TYPE="int" LENGTH="10" NOTNULL="false" COMMENT="Local id of the restoring copy (the corpse to delete on a crash); NULL until restore returns"/>
+        <FIELD NAME="marker" TYPE="char" LENGTH="255" NOTNULL="true" COMMENT="Provisional idnumber stamped on the restoring copy for crash identification"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="restoring" COMMENT="restoring, done or failed"/>
+        <FIELD NAME="attempts" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Restore attempts (dead-letter after MAX)"/>
+        <FIELD NAME="error" TYPE="text" NOTNULL="false" COMMENT="Last failure detail"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_entity_version" UNIQUE="true" FIELDS="entitykey, contentversion"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
       </INDEXES>
     </TABLE>
   </TABLES>

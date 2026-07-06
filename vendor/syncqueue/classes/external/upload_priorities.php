@@ -20,6 +20,9 @@ use core_external\external_api;
 use core_external\external_function_parameters;
 use core_external\external_single_structure;
 use core_external\external_value;
+use local_syncqueue\backup_manager;
+use local_syncqueue\outbox\applied_state;
+use local_syncqueue\outbox\publisher;
 use local_syncqueue\school_manager;
 
 /**
@@ -55,6 +58,8 @@ class upload_priorities extends external_api {
      * @return array
      */
     public static function execute(string $schoolid, string $apikey, int $onlyselected, string $priorities): array {
+        global $DB;
+
         $params = self::validate_parameters(self::execute_parameters(), [
             'schoolid' => $schoolid,
             'apikey' => $apikey,
@@ -83,12 +88,208 @@ class upload_priorities extends external_api {
             $prefs = [];
         }
 
+        // Snapshot the previous selection AND the previous onlyselected flag before
+        // set_course_prefs() replaces them, so v2 republish-on-subscribe can tell what
+        // was just gained. ($school was fetched above, before the prefs were written.)
+        $oldselected = array_map('intval', $DB->get_fieldset_select('local_syncqueue_course_prefs',
+            'courseid', 'schoolid = :schoolid AND selected = 1', ['schoolid' => $params['schoolid']]));
+        $oldonlyselected = (int) ($school->onlyselected ?? 0);
+
         $count = $schoolmanager->set_course_prefs($params['schoolid'], $prefs, (bool) $params['onlyselected']);
+
+        $newselected = [];
+        foreach ($prefs as $p) {
+            $courseid = (int) ($p['courseid'] ?? 0);
+            if ($courseid > 0 && !empty($p['selected'])) {
+                $newselected[] = $courseid;
+            }
+        }
+        $gained = array_diff($newselected, $oldselected);
+
+        // Broadening from selected-only to all-courses: the selected-set diff misses
+        // every previously-unselected course the school is now entitled to, and the
+        // pull cursor has already advanced past their historical rows. Republish EVERY
+        // non-site course so newly-entitled content lands now rather than waiting on
+        // the weekly anti-entropy backstop. republish_gained_courses skips the site
+        // course and dedups by entitykey at the outbox tail.
+        if ($oldonlyselected === 1 && (int) $params['onlyselected'] === 0) {
+            $allcourses = array_map('intval',
+                $DB->get_fieldset_select('course', 'id', 'id <> :site', ['site' => SITEID]));
+            $gained = array_values(array_unique(array_merge($gained, $allcourses)));
+        }
+        self::republish_gained_courses($gained);
 
         return [
             'status' => 'ok',
             'stored' => $count,
         ];
+    }
+
+    /**
+     * ELMS Sync v2 republish-on-subscribe (doc section 4.2).
+     *
+     * Courses newly gained by the school's selection get fresh full-state rows
+     * appended at the outbox tail, so they cannot hide behind a pull cursor
+     * that already passed their original publish. No-op on legacy-only
+     * deployments (no outbox classes/table) and never allowed to break the
+     * legacy priorities flow (dual-stack).
+     *
+     * @param array $courseids Newly selected course ids.
+     */
+    private static function republish_gained_courses(array $courseids): void {
+        global $DB;
+
+        if (!$courseids
+                || !class_exists('\\local_syncqueue\\outbox\\publisher')
+                || !$DB->get_manager()->table_exists('local_syncqueue_outbox')) {
+            return;
+        }
+
+        foreach ($courseids as $courseid) {
+            try {
+                $course = $DB->get_record('course', ['id' => $courseid]);
+                if (!$course || (int) $course->id === SITEID) {
+                    continue;
+                }
+                $partition = 'content:course:course:' . $course->id;
+                // Resolve the newest still-on-disk legacy .mbz once: the course
+                // row carries it too (mirroring queue_course_update_with_backup)
+                // so a school lacking the course restores it WITH content instead
+                // of an empty shell.
+                $backupfilename = self::latest_backup_filename((int) $course->id);
+                // Course rows use 'upsert' (never 'publish'): both the school
+                // applier and update_manager::publish_to_outbox reserve
+                // 'publish' for course_content rows.
+                publisher::publish('course', 'course:' . $course->id, 'upsert',
+                    self::course_payload($course, $backupfilename), $partition);
+                // Same next-version derivation as update_manager::publish_to_outbox
+                // keeps contentversion == entityversion across republishes.
+                $contentkey = 'coursecontent:' . $course->id;
+                $state = applied_state::get('course_content', $contentkey);
+                $contentversion = $state ? ((int) $state->entityversion + 1) : 1;
+                publisher::publish('course_content', $contentkey, 'publish',
+                    self::course_content_payload((int) $course->id, $backupfilename), $partition,
+                    $contentversion);
+            } catch (\Throwable $e) {
+                debugging('local_syncqueue v2 republish failed for course ' . $courseid . ': '
+                    . $e->getMessage(), DEBUG_DEVELOPER);
+            }
+        }
+    }
+
+    /**
+     * Full course metadata payload — the same fields the legacy download
+     * update carries (update_manager::queue_course_update_with_backup()),
+     * including the backup block so a school missing the course restores
+     * content instead of creating an empty shell.
+     *
+     * @param \stdClass $course Course record.
+     * @param string $backupfilename Newest restorable .mbz, '' if none.
+     * @return array
+     */
+    private static function course_payload(\stdClass $course, string $backupfilename): array {
+        return [
+            'table' => 'course',
+            'id' => $course->id,
+            'shortname' => $course->shortname,
+            'fullname' => $course->fullname,
+            'idnumber' => $course->idnumber ?? '',
+            'summary' => $course->summary ?? '',
+            'summaryformat' => $course->summaryformat ?? FORMAT_HTML,
+            'format' => $course->format ?? 'topics',
+            'numsections' => $course->numsections ?? 10,
+            'visible' => $course->visible,
+            'startdate' => $course->startdate,
+            'enddate' => $course->enddate,
+            'category' => [
+                'id' => $course->category,
+                'path' => self::category_path((int) $course->category),
+            ],
+            'backup' => [
+                'filename' => $backupfilename,
+                'has_backup' => $backupfilename !== '',
+            ],
+        ];
+    }
+
+    /**
+     * Payload for a course_content publish row.
+     *
+     * @param int $courseid Central course id.
+     * @param string $backupfilename Newest restorable .mbz, '' if none.
+     * @return array
+     */
+    private static function course_content_payload(int $courseid, string $backupfilename): array {
+        return [
+            'table' => 'course',
+            'id' => $courseid,
+            'backup' => [
+                'filename' => $backupfilename,
+                'has_backup' => $backupfilename !== '',
+            ],
+        ];
+    }
+
+    /**
+     * The most recent still-on-disk .mbz the legacy channel produced for this
+     * course (step 1 has no v2 content pipeline; schools fetch via the legacy
+     * backup download). '' when none exists.
+     *
+     * @param int $courseid Central course id.
+     * @return string
+     */
+    private static function latest_backup_filename(int $courseid): string {
+        global $DB;
+
+        $updates = $DB->get_records_sql(
+            "SELECT id, payload
+               FROM {local_syncqueue_updates}
+              WHERE updatetype = 'course' AND objectid = :courseid
+           ORDER BY timecreated DESC, id DESC", ['courseid' => $courseid], 0, 20);
+        $backupmanager = new backup_manager();
+        foreach ($updates as $update) {
+            $data = json_decode($update->payload, true);
+            $candidate = (string) ($data['backup']['filename'] ?? '');
+            if ($candidate !== '' && $backupmanager->get_backup_path($candidate)) {
+                return $candidate;
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Category path from root to leaf, matching the legacy payload shape
+     * (update_manager::get_category_path(); hidden categories are included
+     * because publication must not depend on the webservice user's view).
+     *
+     * @param int $categoryid Category id.
+     * @return array
+     */
+    private static function category_path(int $categoryid): array {
+        $path = [];
+        $category = \core_course_category::get($categoryid, IGNORE_MISSING, true);
+        if (!$category) {
+            return $path;
+        }
+
+        foreach ($category->get_parents() as $parentid) {
+            $parent = \core_course_category::get($parentid, IGNORE_MISSING, true);
+            if ($parent) {
+                $path[] = [
+                    'id' => $parent->id,
+                    'name' => $parent->name,
+                    'idnumber' => $parent->idnumber ?? '',
+                ];
+            }
+        }
+
+        $path[] = [
+            'id' => $category->id,
+            'name' => $category->name,
+            'idnumber' => $category->idnumber ?? '',
+        ];
+
+        return $path;
     }
 
     /**

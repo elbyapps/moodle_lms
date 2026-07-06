@@ -237,13 +237,16 @@ class course_enricher {
             $DB->insert_record('elby_course_meta', $record);
         }
 
-        // Phase 1: now the course's trade/level is settled, attach matching cohorts.
-        if ($tradecode && $level) {
-            try {
-                cohort_course_linker::link_course($courseid);
-            } catch (\Throwable $e) {
-                debugging('cohort link_course failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
-            }
+        // Phase 1: the course's trade/level is settled — converge its cohort-sync
+        // instances now (event-path scoped reconcile). This both attaches matching
+        // cohorts AND diff-downs stale ones, so a re-tag (e.g. L3->L4) disables the
+        // old instances immediately instead of leaving both enabled until the hourly
+        // reconcile. Runs unconditionally so a course losing its trade/level also has
+        // its instances disabled at event time.
+        try {
+            desired_state_reconciler::reconcile_course_instances($courseid);
+        } catch (\Throwable $e) {
+            debugging('cohort reconcile failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
     }
 

@@ -119,6 +119,10 @@ class queue_manager {
             'account' => [
                 'sdms_id' => $sdms->sdms_id,
                 'user_type' => $sdms->user_type,
+                // School-local userid: central's process_account records the
+                // per-school user mapping from it so later content events for
+                // this user resolve without guessing.
+                'localid' => (int) $user->id,
                 'username' => $user->username,
                 'email' => $user->email,
                 'firstname' => $user->firstname,
@@ -163,10 +167,13 @@ class queue_manager {
     /**
      * Build payload from event for synchronization.
      *
+     * Public so the v2 capture path (\local_syncqueue\capture) can reuse the
+     * exact event-shaped payload central's appliers already consume.
+     *
      * @param base $event The event.
      * @return array Payload data.
      */
-    protected function build_payload(base $event): array {
+    public function build_payload(base $event): array {
         $data = $event->get_data();
 
         // Get additional context data based on event type.
@@ -216,6 +223,15 @@ class queue_manager {
                     'email' => $user->email,
                     'idnumber' => $user->idnumber,
                 ];
+                // Carry the SDMS identity so central's SDMS-only user
+                // resolution works without deferring; omitted when the local
+                // cache table is absent or the user is not linked.
+                if ($DB->get_manager()->table_exists('elby_sdms_users')) {
+                    $sdmsid = $DB->get_field('elby_sdms_users', 'sdms_id', ['userid' => $user->id]);
+                    if (!empty($sdmsid)) {
+                        $context['user']['sdms_id'] = $sdmsid;
+                    }
+                }
             }
         }
 
@@ -231,8 +247,21 @@ class queue_manager {
             }
         }
 
-        // Get object-specific data based on table.
-        if (!empty($data['objecttable']) && !empty($data['objectid'])) {
+        // Get object-specific data based on table. Assignment submission events are
+        // fired by the submission PLUGINS (assignsubmission_file/_onlinetext/...), whose
+        // abstract parent \mod_assign\event\submission_created overrides objecttable to
+        // the plugin's own table — for which get_object_data has no case, leaving the
+        // payload object empty and central rejecting the fact as "Missing submission
+        // data". The fact is really the underlying assign_submission, so resolve it by
+        // other['submissionid'] (which every such event sets) rather than the plugin
+        // objecttable.
+        $submissionid = $data['other']['submissionid'] ?? null;
+        if ($submissionid && strpos((string) ($data['objecttable'] ?? ''), 'assignsubmission') === 0) {
+            $objectdata = $this->get_object_data('assign_submission', (int) $submissionid);
+            if ($objectdata) {
+                $context['object'] = $objectdata;
+            }
+        } else if (!empty($data['objecttable']) && !empty($data['objectid'])) {
             $objectdata = $this->get_object_data($data['objecttable'], $data['objectid']);
             if ($objectdata) {
                 $context['object'] = $objectdata;
@@ -297,6 +326,13 @@ class queue_manager {
                         'timemodified' => $submission->timemodified,
                         'assignname' => $assign->name ?? null,
                         'assignidnumber' => $cmidnumber,
+                        // Attempt identity: Moodle keys a submission by
+                        // (assignment, userid, groupid, attemptnumber) with a `latest`
+                        // flag. Carry all three so central preserves distinct attempts
+                        // instead of aliasing every attempt onto one row.
+                        'groupid' => (int) $submission->groupid,
+                        'attemptnumber' => (int) $submission->attemptnumber,
+                        'latest' => (int) $submission->latest,
                     ];
                 }
                 break;
@@ -412,10 +448,12 @@ class queue_manager {
     /**
      * Queue files associated with an event.
      *
-     * @param int $queueitemid The queue item ID.
+     * @param int|null $queueitemid The legacy queue item ID, or null for a v2
+     *        file-only row that has no legacy parent item (the nullable FK's
+     *        "no parent" value — matches the schema and the file-channel spike).
      * @param base $event The event.
      */
-    public function queue_event_files(int $queueitemid, base $event): void {
+    public function queue_event_files(?int $queueitemid, base $event): void {
         global $DB;
 
         $data = $event->get_data();
@@ -500,6 +538,87 @@ class queue_manager {
              WHERE id $insql",
             array_merge([self::STATUS_PROCESSING, time()], $ids)
         );
+    }
+
+    /**
+     * Recover items stuck in processing state by a worker that died mid-run.
+     *
+     * Items still marked processing after the stuck-age threshold are reset
+     * to pending so they retry; items that already used up their attempts
+     * (mark_processing increments the counter on every pickup) are marked
+     * failed instead of retrying forever. Both UPDATEs keep the
+     * status = processing AND timemodified < cutoff guard so a genuinely
+     * live worker's row (fresh timemodified) is never touched.
+     *
+     * Tunables (no settings UI): local_syncqueue/stuckage in seconds
+     * (default 6 hours) and local_syncqueue/maxretries (default 5).
+     *
+     * @return stdClass Counts: ->requeued and ->failed.
+     */
+    public function requeue_stuck_items(): stdClass {
+        global $DB;
+
+        $stuckage = (int) (get_config('local_syncqueue', 'stuckage') ?: 6 * HOURSECS);
+        $maxretries = (int) (get_config('local_syncqueue', 'maxretries') ?: 5);
+        $cutoff = time() - $stuckage;
+
+        $result = new stdClass();
+        $result->requeued = 0;
+        $result->failed = 0;
+
+        $stuck = $DB->get_records_select(
+            'local_syncqueue_items',
+            'status = :processing AND timemodified < :cutoff',
+            ['processing' => self::STATUS_PROCESSING, 'cutoff' => $cutoff],
+            'id ASC',
+            'id, eventtype, attempts, timemodified'
+        );
+
+        if (empty($stuck)) {
+            return $result;
+        }
+
+        $now = time();
+        foreach ($stuck as $item) {
+            if ($item->attempts >= $maxretries) {
+                $error = "Abandoned in processing (worker died mid-run) after {$item->attempts} attempts; "
+                    . "retry limit {$maxretries} reached";
+                $DB->execute(
+                    "UPDATE {local_syncqueue_items}
+                        SET status = :failed, timemodified = :now, lasterror = :error
+                      WHERE id = :id AND status = :processing AND timemodified < :cutoff",
+                    [
+                        'failed' => self::STATUS_FAILED,
+                        'now' => $now,
+                        'error' => $error,
+                        'id' => $item->id,
+                        'processing' => self::STATUS_PROCESSING,
+                        'cutoff' => $cutoff,
+                    ]
+                );
+                $result->failed++;
+                mtrace("Queue recovery: item {$item->id} ({$item->eventtype}) stuck in processing since "
+                    . userdate($item->timemodified) . ", attempts {$item->attempts}/{$maxretries} -> failed");
+            } else {
+                $DB->execute(
+                    "UPDATE {local_syncqueue_items}
+                        SET status = :pending, timemodified = :now
+                      WHERE id = :id AND status = :processing AND timemodified < :cutoff",
+                    [
+                        'pending' => self::STATUS_PENDING,
+                        'now' => $now,
+                        'id' => $item->id,
+                        'processing' => self::STATUS_PROCESSING,
+                        'cutoff' => $cutoff,
+                    ]
+                );
+                $result->requeued++;
+                mtrace("Queue recovery: item {$item->id} ({$item->eventtype}) stuck in processing since "
+                    . userdate($item->timemodified) . ", attempts {$item->attempts}/{$maxretries} -> requeued");
+            }
+        }
+
+        return $result;
     }
 
     /**

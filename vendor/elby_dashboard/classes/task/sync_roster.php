@@ -51,7 +51,11 @@ class sync_roster extends scheduled_task {
 
         try {
             $result = (new \local_elby_dashboard\roster_manager())->sync_roster();
-            mtrace("Roster sync complete: {$result['students']} students, {$result['teachers']} teachers cached.");
+            mtrace("Roster sync complete: {$result['students']} students, {$result['teachers']} teachers cached, "
+                . "{$result['removed']} stale entries removed.");
+            if (!empty($result['warning'])) {
+                mtrace('WARNING: ' . $result['warning']);
+            }
         } catch (\Exception $e) {
             mtrace('Roster sync failed: ' . $e->getMessage());
         }

@@ -91,10 +91,32 @@ class tdmp_roster extends external_api {
             throw new \moodle_exception('error_syncfailed', 'local_syncqueue', '', $e->getMessage());
         }
 
+        // Option B home producer (doc §5/§8.1): this response IS TDMP's
+        // authoritative "these learners are home at S right now", so record it as
+        // S's home tenure and stamp the reply with the resulting central roster
+        // generation for the school to adopt. A producer failure must never break
+        // the serve — schools depend on their roster — so it is best-effort and
+        // falls back to the current generation.
+        $rostergen = 0;
+        try {
+            $sdmscodes = [];
+            foreach ($students as $student) {
+                $sn = is_object($student) ? ($student->studentNumber ?? null) : ($student['studentNumber'] ?? null);
+                if (!empty($sn)) {
+                    $sdmscodes[] = (string) $sn;
+                }
+            }
+            $rostergen = \local_syncqueue\tenure::record_home($sdmscodes, $params['schoolid']);
+        } catch (\Throwable $e) {
+            debugging('tdmp_roster: home producer failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            $rostergen = \local_syncqueue\tenure::current_generation();
+        }
+
         return [
             'students' => json_encode(array_values($students)),
             'teachers' => json_encode(array_values($teachers)),
             'count' => count($students) + count($teachers),
+            'rostergen' => $rostergen,
         ];
     }
 
@@ -108,6 +130,9 @@ class tdmp_roster extends external_api {
             'students' => new external_value(PARAM_RAW, 'JSON array of student records'),
             'teachers' => new external_value(PARAM_RAW, 'JSON array of teacher records'),
             'count' => new external_value(PARAM_INT, 'Total records returned'),
+            'rostergen' => new external_value(PARAM_INT,
+                'Central roster generation to stamp on facts (Option B home tenure); 0 = none yet',
+                VALUE_OPTIONAL),
         ]);
     }
 }

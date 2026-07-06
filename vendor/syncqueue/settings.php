@@ -87,6 +87,16 @@ if ($hassiteconfig) {
         PARAM_URL
     ));
 
+    // Escape hatch: allow a non-HTTPS central URL (credentials in cleartext).
+    // Off by default; only for a trusted private-network/VPN deployment. Loopback
+    // dev URLs are always allowed regardless of this switch.
+    $settings->add(new admin_setting_configcheckbox(
+        'local_syncqueue/allow_insecure_central',
+        get_string('allow_insecure_central', 'local_syncqueue'),
+        get_string('allow_insecure_central_desc', 'local_syncqueue'),
+        0
+    ));
+
     // Web service token (for Moodle web service authentication).
     $settings->add(new admin_setting_configpasswordunmask(
         'local_syncqueue/wstoken',
@@ -177,6 +187,42 @@ if ($hassiteconfig) {
         'local_syncqueue/debug',
         get_string('debug', 'local_syncqueue'),
         get_string('debug_desc', 'local_syncqueue'),
+        0
+    ));
+
+    // ===========================================
+    // ELMS SYNC v2 (per-school migration toggles)
+    // ===========================================
+    $settings->add(new admin_setting_heading(
+        'local_syncqueue/v2heading',
+        get_string('v2settings', 'local_syncqueue'),
+        get_string('v2settings_desc', 'local_syncqueue')
+    ));
+
+    // v2 downstream (pull) stream — school pulls the sequenced stream from central.
+    $settings->add(new admin_setting_configcheckbox(
+        'local_syncqueue/pull_v2',
+        get_string('pull_v2', 'local_syncqueue'),
+        get_string('pull_v2_desc', 'local_syncqueue'),
+        0
+    ));
+
+    // v2 upstream (push) capture — school captures learner facts to the outbox.
+    $settings->add(new admin_setting_configcheckbox(
+        'local_syncqueue/push_v2',
+        get_string('push_v2', 'local_syncqueue'),
+        get_string('push_v2_desc', 'local_syncqueue'),
+        0
+    ));
+
+    // v2 home-tenure enforcement (central) — reject a fact whose origin was not the
+    // learner's home school at the fact's roster generation (Option B). Off until the
+    // fleet has exchanged at least one roster generation, so central's producer can
+    // populate and observe tenure intervals before they begin rejecting anything.
+    $settings->add(new admin_setting_configcheckbox(
+        'local_syncqueue/tenure_enforce',
+        get_string('tenure_enforce', 'local_syncqueue'),
+        get_string('tenure_enforce_desc', 'local_syncqueue'),
         0
     ));
 

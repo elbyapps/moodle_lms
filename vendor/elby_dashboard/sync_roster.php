@@ -33,9 +33,14 @@ $returnurl = new moodle_url('/admin/settings.php', ['section' => 'local_elby_das
 
 try {
     $result = (new \local_elby_dashboard\roster_manager())->sync_roster();
+    $message = get_string('roster_synced', 'local_elby_dashboard', (object) $result);
+    if (!empty($result['warning'])) {
+        redirect($returnurl, $message . ' ' . $result['warning'], null,
+            \core\output\notification::NOTIFY_WARNING);
+    }
     redirect(
         $returnurl,
-        get_string('roster_synced', 'local_elby_dashboard', (object) $result),
+        $message,
         null,
         \core\output\notification::NOTIFY_SUCCESS
     );

@@ -27,14 +27,58 @@ use stdClass;
  */
 class central_processor {
 
-    /** @var id_mapper ID mapper instance */
-    protected id_mapper $mapper;
+    /** @var id_mapper|null ID mapper bound to the school currently being processed */
+    protected ?id_mapper $mapper = null;
 
     /**
-     * Constructor.
+     * @var bool Whether the current apply is an authoritative v2 fact. When true,
+     * the wall-clock last-write-wins gates are skipped: the v2 ingest applier has
+     * already established ordering by monotonic factversion (doc §8.1 AGS), so a
+     * stale-clock verdict would wrongly drop a legitimate update (e.g. a regrade
+     * whose source-deterministic payload carries no dispatch timestamp). The
+     * legacy synchronous upload path never sets this, so its behaviour is
+     * unchanged. The full LWW removal + overridden-grade/latch appliers are step 4.
      */
-    public function __construct() {
-        $this->mapper = new id_mapper();
+    protected bool $authoritative = false;
+
+    /**
+     * Mark subsequent applies as authoritative v2 facts (ordering already decided
+     * by factversion), so the wall-clock LWW gates are bypassed.
+     *
+     * @param bool $authoritative
+     */
+    public function set_authoritative(bool $authoritative): void {
+        $this->authoritative = $authoritative;
+    }
+
+    /**
+     * @var array|null Ordering + tenure context of the v2 fact currently being
+     * applied (ELMS Sync v2 step 4). The async ingest applier sets this from the
+     * ingest row before process_item so the overridden-grade / completion-latch
+     * appliers can tenure-gate and AGS-order the write (tenure::in_force /
+     * tenure::is_stale) without reaching back into the ingest table. This is an
+     * inert seam: the legacy synchronous upload path never sets it, so
+     * fact_context() returns null there and applier behaviour is unchanged.
+     */
+    protected ?array $factcontext = null;
+
+    /**
+     * Provide (or clear) the current fact's ordering + tenure context.
+     *
+     * @param array|null $ctx origin, epoch, schoolseq, rostergen, sdms, itemuuid,
+     *        lineageuuid, factuuid, factversion; or null to clear.
+     */
+    public function set_fact_context(?array $ctx): void {
+        $this->factcontext = $ctx;
+    }
+
+    /**
+     * The current fact's ordering + tenure context, or null on the legacy path.
+     *
+     * @return array|null
+     */
+    public function fact_context(): ?array {
+        return $this->factcontext;
     }
 
     /**
@@ -45,6 +89,12 @@ class central_processor {
      * @return array Result with status and message.
      */
     public function process_item(string $schoolid, array $item): array {
+        // Bind id mappings to the authenticated school so local ids from
+        // different schools can never collide in one shared namespace.
+        if ($this->mapper === null || $this->mapper->get_schoolid() !== $schoolid) {
+            $this->mapper = new id_mapper($schoolid);
+        }
+
         $eventtype = $item['eventtype'] ?? 'unknown';
         $payload = $item['payload'] ?? [];
 
@@ -82,13 +132,164 @@ class central_processor {
     }
 
     /**
-     * Process a grade sync.
+     * Map a v2 upstream fact type to the event category process_item dispatches on.
+     *
+     * The async ingest applier stores a fact under its v2 facttype
+     * (local_syncqueue_ingest.facttype = local_syncqueue_outbox.entitytype), but
+     * process_item switches on the legacy eventtype vocabulary. Two v2 fact types
+     * are named differently from their applier category — quiz_attempt -> quiz and
+     * enrolment -> enrol — the rest are identical. An unrecognised fact type is
+     * returned unchanged so process_item's default branch reports it as unknown
+     * (which the applier then retries rather than silently dropping).
+     *
+     * @param string $facttype v2 fact type.
+     * @return string The eventtype process_item expects.
+     */
+    public static function eventtype_for_facttype(string $facttype): string {
+        static $map = [
+            'quiz_attempt' => 'quiz',
+            'enrolment' => 'enrol',
+        ];
+        return $map[$facttype] ?? $facttype;
+    }
+
+    /**
+     * Process a grade sync: v2-authoritative overridden-grade applier, or the
+     * legacy synchronous raw-grade write.
      *
      * @param string $schoolid School identifier.
      * @param array $payload Grade data.
      * @return array Result.
      */
     protected function process_grade(string $schoolid, array $payload): array {
+        if ($this->authoritative) {
+            return $this->apply_grade_fact($schoolid, $payload);
+        }
+        return $this->process_grade_legacy($schoolid, $payload);
+    }
+
+    /**
+     * Apply a v2 grade fact as an OVERRIDDEN leaf-item finalgrade (doc §8.2, spike a).
+     *
+     * The leaf grade item is resolved by its stamped grade-item UUID idnumber and
+     * written through the grade API as an overridden finalgrade, which a regrade
+     * and a later module grade_update leave untouched. Category and course TOTAL
+     * grades are NEVER written — local aggregation recomputes them. Across in-tenure
+     * origins the pinned policy is Highest, so the overridden value is the max ever
+     * asserted (a later lower re-take can never erase a higher record). Ordering is
+     * by factversion (apply_ingest pre-checks supersession) + tenure + AGS, never a
+     * wall clock; the write is echo-suppressed so its own user_graded event is not
+     * re-captured as a fresh fact.
+     *
+     * @param string $schoolid Authoring school id (fact origin).
+     * @param array $payload Grade fact payload.
+     * @return array Result.
+     */
+    protected function apply_grade_fact(string $schoolid, array $payload): array {
+        global $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
+        require_once($CFG->libdir . '/grade/grade_item.php');
+        require_once($CFG->libdir . '/grade/grade_grade.php');
+
+        $context = $payload['context'] ?? [];
+        $object = $context['object'] ?? [];
+        if (empty($object)) {
+            return ['status' => 'error', 'message' => 'Missing grade data'];
+        }
+
+        // Category/course TOTAL grades are never synced (doc §8.2). The upstream
+        // capture only emits leaf grades, but refuse anything non-leaf defensively.
+        $itemmeta = $object['item'] ?? [];
+        $itemtype = (string) ($itemmeta['itemtype'] ?? '');
+        if ($itemtype !== '' && !in_array($itemtype, ['mod', 'manual'], true)) {
+            return ['status' => 'success', 'centralid' => 0,
+                'message' => "ignored non-leaf grade item ({$itemtype}); totals are locally aggregated"];
+        }
+
+        $user = $this->find_user($context['user'] ?? []);
+        if (!$user) {
+            return $this->user_unresolved_error($context['user'] ?? []);
+        }
+        $course = $this->find_course($context['course'] ?? []);
+        if (!$course) {
+            return ['status' => 'error', 'message' => 'Course not found on central'];
+        }
+        $gradeitem = $this->find_grade_item($course->id, $itemmeta);
+        if (!$gradeitem) {
+            return ['status' => 'error', 'message' => 'Grade item not found on central'];
+        }
+        // Defence in depth: never author an aggregated (course/category) total row.
+        if (in_array((string) $gradeitem->itemtype, ['course', 'category'], true)) {
+            return ['status' => 'success', 'centralid' => 0,
+                'message' => 'refused to write aggregated total grade'];
+        }
+
+        // v2 ordering + tenure gate (own-origin skip / tenure-fail / AGS stale).
+        $sdms = $this->sdms_of($context);
+        $itemtoken = $this->ags_token('gi', (string) $gradeitem->idnumber, (int) $gradeitem->id);
+        $gate = $this->fact_gate($schoolid, $sdms, $itemtoken, (string) $gradeitem->idnumber);
+        if ($gate !== null) {
+            return $gate;
+        }
+
+        // A null-finalgrade fact carries no authoritative value to override.
+        $incoming = $this->to_grade($object['finalgrade'] ?? null);
+        if ($incoming === null) {
+            $this->observe_fact_seq($schoolid, $sdms, $itemtoken);
+            return ['status' => 'success', 'centralid' => 0,
+                'message' => 'grade fact carries no finalgrade; nothing to override'];
+        }
+
+        $gi = \grade_item::fetch(['id' => $gradeitem->id]);
+        if (!$gi) {
+            return ['status' => 'error', 'message' => 'Grade item vanished on central'];
+        }
+        $existing = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $user->id]);
+
+        // Highest merge across in-tenure origins (pinned for national courses).
+        $newvalue = $incoming;
+        if ($existing && $existing->finalgrade !== null) {
+            $newvalue = max((float) $existing->finalgrade, $incoming);
+        }
+
+        // Idempotent: an already-overridden identical value is left untouched (no
+        // needless user_graded event, no timemodified churn).
+        if ($existing && $existing->finalgrade !== null && (int) $existing->overridden > 0
+                && !grade_floats_different((float) $existing->finalgrade, $newvalue)) {
+            $this->observe_fact_seq($schoolid, $sdms, $itemtoken);
+            return ['status' => 'success', 'centralid' => (int) $existing->id,
+                'message' => 'grade already overridden at ' . $newvalue];
+        }
+
+        $feedback = (isset($object['feedback']) && $object['feedback'] !== null)
+            ? (string) $object['feedback'] : false;
+
+        // Write the overridden leaf finalgrade, echo-suppressed.
+        capture::suppress(true);
+        try {
+            $ok = $gi->update_final_grade($user->id, $newvalue, 'local_syncqueue', $feedback);
+        } finally {
+            capture::suppress(false);
+        }
+        if ($ok === false) {
+            return ['status' => 'error',
+                'message' => 'grade_item::update_final_grade refused (locked or no gradetype)'];
+        }
+
+        $this->observe_fact_seq($schoolid, $sdms, $itemtoken);
+        $written = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $user->id]);
+        return ['status' => 'success', 'centralid' => $written ? (int) $written->id : 0,
+            'message' => 'overridden leaf grade written (' . $newvalue . ')'];
+    }
+
+    /**
+     * Legacy synchronous raw-grade write (pre-v2 upload path). Wall-clock LWW.
+     *
+     * @param string $schoolid School identifier.
+     * @param array $payload Grade data.
+     * @return array Result.
+     */
+    protected function process_grade_legacy(string $schoolid, array $payload): array {
         global $DB;
 
         $context = $payload['context'] ?? [];
@@ -101,7 +302,7 @@ class central_processor {
         // Find user on central.
         $user = $this->find_user($context['user'] ?? []);
         if (!$user) {
-            return ['status' => 'error', 'message' => 'User not found on central'];
+            return $this->user_unresolved_error($context['user'] ?? []);
         }
 
         // Find course on central.
@@ -188,7 +389,7 @@ class central_processor {
 
         $user = $this->find_user($context['user'] ?? []);
         if (!$user) {
-            return ['status' => 'error', 'message' => 'User not found on central'];
+            return $this->user_unresolved_error($context['user'] ?? []);
         }
 
         $course = $this->find_course($context['course'] ?? []);
@@ -205,15 +406,39 @@ class central_processor {
             return ['status' => 'error', 'message' => 'Assignment not found on central'];
         }
 
-        // Check for existing submission.
+        // Moodle keys each submission attempt uniquely by (assignment, userid,
+        // groupid, attemptnumber); capture carries groupid + attemptnumber so central
+        // preserves distinct attempts instead of aliasing them onto one row.
+        $attemptnumber = (int) ($object['attemptnumber'] ?? 0);
+        $groupid = (int) ($object['groupid'] ?? 0);
+
+        // v2 ordering + tenure gate (per-(group, attempt) token so distinct attempts /
+        // groups keep independent AGS high-waters). Runs only for an authoritative v2
+        // apply; the legacy path stays ungated.
+        $sdms = '';
+        $itemtoken = '';
+        if ($this->authoritative) {
+            $sdms = $this->sdms_of($context);
+            $cmidnumber = (string) ($object['assignidnumber'] ?? '');
+            $itemtoken = $this->ags_token('sub', $cmidnumber, (int) $assign->id)
+                . ':g' . $groupid . ':a' . $attemptnumber;
+            $gate = $this->fact_gate($schoolid, $sdms, $itemtoken, $cmidnumber);
+            if ($gate !== null) {
+                return $gate;
+            }
+        }
+
+        // Find the EXACT attempt, not just any submission for the user/assignment.
         $existing = $DB->get_record('assign_submission', [
             'assignment' => $assign->id,
             'userid' => $user->id,
+            'groupid' => $groupid,
+            'attemptnumber' => $attemptnumber,
         ]);
 
         if ($existing) {
             $schooltime = $object['timemodified'] ?? 0;
-            if ($existing->timemodified > $schooltime) {
+            if (!$this->authoritative && $existing->timemodified > $schooltime) {
                 return [
                     'status' => 'conflict',
                     'message' => 'Central submission is newer',
@@ -224,29 +449,43 @@ class central_processor {
             $existing->status = $object['status'] ?? $existing->status;
             $existing->timemodified = time();
             $DB->update_record('assign_submission', $existing);
-
-            return [
-                'status' => 'success',
-                'message' => 'Submission updated',
-                'centralid' => $existing->id,
-            ];
+            $centralid = (int) $existing->id;
+        } else {
+            $submission = new stdClass();
+            $submission->assignment = $assign->id;
+            $submission->userid = $user->id;
+            $submission->groupid = $groupid;
+            $submission->attemptnumber = $attemptnumber;
+            $submission->latest = 0;
+            $submission->status = $object['status'] ?? 'submitted';
+            $submission->timecreated = time();
+            $submission->timemodified = time();
+            $centralid = (int) $DB->insert_record('assign_submission', $submission);
+            $this->mapper->set_mapping('assign_submission', $object['localid'], $centralid);
         }
 
-        // Create new submission.
-        $submission = new stdClass();
-        $submission->assignment = $assign->id;
-        $submission->userid = $user->id;
-        $submission->status = $object['status'] ?? 'submitted';
-        $submission->timecreated = time();
-        $submission->timemodified = time();
+        // Recompute `latest` DETERMINISTICALLY from attemptnumber: the highest attempt
+        // central holds for this (assignment, userid, groupid) is the current one.
+        // Trusting the payload's historical `latest` would let an out-of-order retry of
+        // an OLDER attempt clear the flag from a newer attempt already applied —
+        // apply_ingest drains buffered/retry rows independently and can replay a failed
+        // older fact after a newer one, and the per-attempt AGS token does not order
+        // across attempts. Order-independent, so replays converge to the same result.
+        $maxattempt = (int) $DB->get_field_sql(
+            'SELECT MAX(attemptnumber) FROM {assign_submission} '
+            . 'WHERE assignment = ? AND userid = ? AND groupid = ?',
+            [$assign->id, $user->id, $groupid]);
+        $DB->execute(
+            'UPDATE {assign_submission} SET latest = CASE WHEN attemptnumber = ? THEN 1 ELSE 0 END '
+            . 'WHERE assignment = ? AND userid = ? AND groupid = ?',
+            [$maxattempt, $assign->id, $user->id, $groupid]);
 
-        $centralid = $DB->insert_record('assign_submission', $submission);
-
-        $this->mapper->set_mapping('assign_submission', $object['localid'], $centralid);
-
+        if ($this->authoritative) {
+            $this->observe_fact_seq($schoolid, $sdms, $itemtoken);
+        }
         return [
             'status' => 'success',
-            'message' => 'Submission created',
+            'message' => $existing ? 'Submission updated' : 'Submission created',
             'centralid' => $centralid,
         ];
     }
@@ -270,7 +509,7 @@ class central_processor {
 
         $user = $this->find_user($context['user'] ?? []);
         if (!$user) {
-            return ['status' => 'error', 'message' => 'User not found on central'];
+            return $this->user_unresolved_error($context['user'] ?? []);
         }
 
         $course = $this->find_course($context['course'] ?? []);
@@ -289,6 +528,22 @@ class central_processor {
 
         $attemptnum = (int) ($object['attempt'] ?? 1);
 
+        // v2 ordering + tenure gate. Uses a per-ATTEMPT AGS token so distinct attempts
+        // keep independent high-waters (a bare cm token would stale-drop a later
+        // attempt that arrives at a lower seq than an earlier one's regrade). Runs
+        // only for an authoritative v2 apply; the legacy path stays ungated.
+        $sdms = '';
+        $itemtoken = '';
+        if ($this->authoritative) {
+            $sdms = $this->sdms_of($context);
+            $cmidnumber = (string) ($object['quizidnumber'] ?? '');
+            $itemtoken = $this->ags_token('qz', $cmidnumber, (int) $quiz->id) . ':a' . $attemptnum;
+            $gate = $this->fact_gate($schoolid, $sdms, $itemtoken, $cmidnumber);
+            if ($gate !== null) {
+                return $gate;
+            }
+        }
+
         // Check for existing attempt.
         $existing = $DB->get_record('quiz_attempts', [
             'quiz' => $quiz->id,
@@ -298,7 +553,7 @@ class central_processor {
 
         if ($existing) {
             $schooltime = $object['timefinish'] ?? 0;
-            if ($existing->timefinish > $schooltime && $existing->state === 'finished') {
+            if (!$this->authoritative && $existing->timefinish > $schooltime && $existing->state === 'finished') {
                 return [
                     'status' => 'conflict',
                     'message' => 'Central quiz attempt is newer',
@@ -312,6 +567,9 @@ class central_processor {
             $existing->timemodified = time();
             $DB->update_record('quiz_attempts', $existing);
 
+            if ($this->authoritative) {
+                $this->observe_fact_seq($schoolid, $sdms, $itemtoken);
+            }
             return [
                 'status' => 'success',
                 'message' => 'Quiz attempt updated',
@@ -330,18 +588,51 @@ class central_processor {
         $attempt->timefinish = $object['timefinish'] ?? 0;
         $attempt->timemodified = time();
         $attempt->layout = '';
-        // Generate a unique usage ID for the question engine.
-        $attempt->uniqueid = $DB->get_field_sql('SELECT MAX(id) + 1 FROM {question_usages}') ?: 1;
+        // A summary carries no per-question responses, but uniqueid is a FK to
+        // question_usages: create a REAL (empty) usage row so the FK is valid. The old
+        // MAX(id)+1 fabricated a dangling id and — because question_usages never grew —
+        // recomputed the SAME id for the next attempt, colliding on quiz_attempts'
+        // unique (quiz,userid,attempt)/uniqueid indexes.
+        $attempt->uniqueid = $this->make_summary_question_usage((int) $course->id, (int) $quiz->id);
 
         $centralid = $DB->insert_record('quiz_attempts', $attempt);
 
         $this->mapper->set_mapping('quiz_attempts', $object['localid'], $centralid);
 
+        if ($this->authoritative) {
+            $this->observe_fact_seq($schoolid, $sdms, $itemtoken);
+        }
         return [
             'status' => 'success',
             'message' => 'Quiz attempt created',
             'centralid' => $centralid,
         ];
+    }
+
+    /**
+     * Create a real (empty) question usage for a summary quiz-attempt import so
+     * quiz_attempts.uniqueid is a valid, unique FK. A summary has no per-question
+     * responses, so the usage carries no slots; correctness only needs the id to be
+     * real and monotonic (unlike the old MAX(question_usages.id)+1, which dangled and
+     * then collided once question_usages stopped growing).
+     *
+     * @param int $courseid Central course id.
+     * @param int $quizid Central quiz instance id.
+     * @return int question_usages id.
+     */
+    protected function make_summary_question_usage(int $courseid, int $quizid): int {
+        global $DB;
+
+        $cm = get_coursemodule_from_instance('quiz', $quizid, $courseid);
+        $contextid = $cm
+            ? \context_module::instance($cm->id)->id
+            : \context_course::instance($courseid)->id;
+
+        $usage = new stdClass();
+        $usage->contextid = $contextid;
+        $usage->component = 'mod_quiz';
+        $usage->preferredbehaviour = 'deferredfeedback';
+        return (int) $DB->insert_record('question_usages', $usage);
     }
 
     /**
@@ -368,6 +659,282 @@ class central_processor {
      * @return array Result.
      */
     protected function process_completion(string $schoolid, array $payload): array {
+        if ($this->authoritative) {
+            return $this->apply_completion_fact($schoolid, $payload);
+        }
+        return $this->process_completion_legacy($schoolid, $payload);
+    }
+
+    /**
+     * Apply a v2 completion fact as a latch (doc §8.2): activity-level via an
+     * override-to-COMPLETE, course-level via mark_complete + criteria rows.
+     *
+     * @param string $schoolid Authoring school id (fact origin).
+     * @param array $payload Completion fact payload.
+     * @return array Result.
+     */
+    protected function apply_completion_fact(string $schoolid, array $payload): array {
+        $context = $payload['context'] ?? [];
+        $object = $context['object'] ?? [];
+
+        $user = $this->find_user($context['user'] ?? []);
+        if (!$user) {
+            return $this->user_unresolved_error($context['user'] ?? []);
+        }
+        $course = $this->find_course($context['course'] ?? []);
+        if (!$course) {
+            return ['status' => 'error', 'message' => 'Course not found on central'];
+        }
+
+        // Course-level completion is captured from course_completed, whose payload
+        // carries no object row (build_payload has no course_completions case), so
+        // the event target is the reliable discriminator; object.table is a fallback.
+        $eventtarget = (string) ($payload['event']['objecttable'] ?? '');
+        $objecttable = (string) ($object['table'] ?? '');
+        if ($eventtarget === 'course_completions' || $objecttable === 'course_completions') {
+            return $this->apply_course_completion_fact($schoolid, $payload, $user, $course);
+        }
+        return $this->apply_activity_completion_fact($schoolid, $payload, $user, $course);
+    }
+
+    /**
+     * Apply an activity-completion fact as an override-to-COMPLETE latch (spike b).
+     *
+     * The cm is resolved by its stamped cm-UUID idnumber. Only COMPLETE latches;
+     * an override-to-INCOMPLETE stays recomputable per core. The write is echo-
+     * suppressed. update_state early-returns when the row already holds the target
+     * state, so when a COMPLETE latch was intended but the override marker is
+     * absent, it is stamped directly.
+     *
+     * @param string $schoolid Fact origin.
+     * @param array $payload Completion fact payload.
+     * @param stdClass $user Central user.
+     * @param stdClass $course Central course.
+     * @return array Result.
+     */
+    protected function apply_activity_completion_fact(string $schoolid, array $payload,
+            stdClass $user, stdClass $course): array {
+        global $DB, $CFG;
+        require_once($CFG->libdir . '/completionlib.php');
+
+        $context = $payload['context'] ?? [];
+        $object = $context['object'] ?? [];
+        $cmdata = $object['coursemodule'] ?? [];
+        if (empty($cmdata)) {
+            return ['status' => 'error', 'message' => 'Missing course module data'];
+        }
+
+        $modulename = $cmdata['modulename'] ?? null;
+        $instanceid = (int) ($cmdata['instance'] ?? 0);
+        if (empty($modulename)) {
+            $moduleid = (int) ($cmdata['module'] ?? 0);
+            if ($moduleid) {
+                $modulename = $DB->get_field('modules', 'name', ['id' => $moduleid]);
+            }
+        }
+        if (empty($modulename) || empty($instanceid)) {
+            return ['status' => 'error', 'message' => 'Cannot identify course module'];
+        }
+
+        $centralcm = $this->find_course_module(
+            $course->id, $modulename, $instanceid, $schoolid, $cmdata['cmidnumber'] ?? null);
+        if (!$centralcm) {
+            return ['status' => 'error', 'message' => 'Course module not found on central'];
+        }
+
+        $sdms = $this->sdms_of($context);
+        $itemtoken = $this->ags_token('cm', (string) $centralcm->idnumber, (int) $centralcm->id);
+        $gate = $this->fact_gate($schoolid, $sdms, $itemtoken, (string) $centralcm->idnumber);
+        if ($gate !== null) {
+            return $gate;
+        }
+
+        $completionstate = (int) ($object['completionstate'] ?? COMPLETION_COMPLETE);
+        try {
+            $cm = get_fast_modinfo($course)->get_cm((int) $centralcm->id);
+        } catch (\Throwable $e) {
+            return ['status' => 'error', 'message' => 'Course module not in modinfo: ' . $e->getMessage()];
+        }
+
+        $completion = new \completion_info($course);
+        if (!$completion->is_enabled($cm)) {
+            // Completion isn't tracked for this activity on central; nothing to latch.
+            $this->observe_fact_seq($schoolid, $sdms, $itemtoken);
+            return ['status' => 'success', 'centralid' => 0,
+                'message' => 'activity completion not enabled on central; skipped'];
+        }
+
+        $centralid = $this->latch_activity_completion($completion, $course, $cm, (int) $user->id, $completionstate);
+        $this->observe_fact_seq($schoolid, $sdms, $itemtoken);
+
+        $latched = in_array($completionstate,
+            [COMPLETION_COMPLETE, COMPLETION_COMPLETE_PASS, COMPLETION_COMPLETE_FAIL], true);
+        return ['status' => 'success', 'centralid' => $centralid,
+            'message' => $latched
+                ? 'activity completion latched (override->COMPLETE)'
+                : 'activity completion applied (state ' . $completionstate . ')'];
+    }
+
+    /**
+     * Establish the activity-completion latch (echo-suppressed). Returns the
+     * course_modules_completion row id.
+     *
+     * @param \completion_info $completion Course completion helper.
+     * @param stdClass $course Central course.
+     * @param \cm_info $cm Central course module.
+     * @param int $userid Central user id.
+     * @param int $completionstate Incoming completion state.
+     * @return int
+     */
+    protected function latch_activity_completion(\completion_info $completion, stdClass $course,
+            \cm_info $cm, int $userid, int $completionstate): int {
+        global $DB;
+
+        // Only COMPLETE latches (spike b): override-to-INCOMPLETE stays recomputable.
+        $iscomplete = in_array($completionstate,
+            [COMPLETION_COMPLETE, COMPLETION_COMPLETE_PASS, COMPLETION_COMPLETE_FAIL], true);
+        $target = $iscomplete ? COMPLETION_COMPLETE : $completionstate;
+
+        capture::suppress(true);
+        try {
+            $completion->update_state($cm, $target, $userid, true);
+
+            // update_state early-returns when the row already holds the target
+            // state, leaving overrideby unset (spike b) — a natural completion would
+            // then not latch against a later reset. If a COMPLETE latch was intended
+            // but the override marker is missing, stamp it directly (echo-free) and
+            // drop the stale completion cache so the latch is read from the row.
+            if ($target === COMPLETION_COMPLETE) {
+                $row = $DB->get_record('course_modules_completion',
+                    ['coursemoduleid' => $cm->id, 'userid' => $userid]);
+                if ($row && $row->overrideby === null
+                        && (int) $row->completionstate !== COMPLETION_INCOMPLETE) {
+                    $row->overrideby = $this->override_actor();
+                    $row->timemodified = time();
+                    $DB->update_record('course_modules_completion', $row);
+                    \cache::make('core', 'completion')->delete($userid . '_' . $course->id);
+                }
+            }
+        } finally {
+            capture::suppress(false);
+        }
+
+        $final = $DB->get_record('course_modules_completion',
+            ['coursemoduleid' => $cm->id, 'userid' => $userid]);
+        return $final ? (int) $final->id : 0;
+    }
+
+    /**
+     * Apply a course-completion fact as a mark_complete + criteria latch (spike c).
+     *
+     * @param string $schoolid Fact origin.
+     * @param array $payload Completion fact payload.
+     * @param stdClass $user Central user.
+     * @param stdClass $course Central course.
+     * @return array Result.
+     */
+    protected function apply_course_completion_fact(string $schoolid, array $payload,
+            stdClass $user, stdClass $course): array {
+        global $DB, $CFG;
+        require_once($CFG->libdir . '/completionlib.php');
+        require_once($CFG->dirroot . '/completion/completion_completion.php');
+        require_once($CFG->dirroot . '/completion/completion_criteria_completion.php');
+
+        $context = $payload['context'] ?? [];
+        $object = $context['object'] ?? [];
+
+        $sdms = $this->sdms_of($context);
+        $coursetoken = $this->course_token($course);
+        $gate = $this->fact_gate($schoolid, $sdms, $coursetoken, 'course:' . $coursetoken);
+        if ($gate !== null) {
+            return $gate;
+        }
+
+        // The captured course_completed payload carries no timecompleted, so absent
+        // an explicit time we keep an existing latch (idempotent) or stamp now for a
+        // fresh completion (mark_complete never moves an existing time — spike c).
+        $desired = (isset($object['timecompleted']) && (int) $object['timecompleted'] > 0)
+            ? (int) $object['timecompleted'] : null;
+        $existing = $DB->get_record('course_completions', ['course' => $course->id, 'userid' => $user->id]);
+
+        capture::suppress(true);
+        try {
+            if ($existing && $existing->timecompleted && $desired !== null
+                    && (int) $existing->timecompleted !== $desired) {
+                // Superseding DIFFERENT completion outcome: mark_complete refuses to
+                // move an existing time, so clear the rows and purge the
+                // coursecompletion MUC cache before re-asserting (spike c).
+                $this->clear_course_completion((int) $course->id, (int) $user->id);
+            }
+            $this->latch_course_completion($course, (int) $user->id, $desired);
+        } finally {
+            capture::suppress(false);
+        }
+
+        $final = $DB->get_record('course_completions', ['course' => $course->id, 'userid' => $user->id]);
+        $this->observe_fact_seq($schoolid, $sdms, $coursetoken);
+        return ['status' => 'success', 'centralid' => $final ? (int) $final->id : 0,
+            'message' => 'course completion latched (timecompleted ' . ($final ? $final->timecompleted : '?') . ')'];
+    }
+
+    /**
+     * Latch a course completion: mark each course criterion complete then
+     * completion_completion::mark_complete (spike c). Idempotent; echo-suppressed
+     * by the caller.
+     *
+     * @param stdClass $course Central course.
+     * @param int $userid Central user id.
+     * @param int|null $timecompleted Explicit completion time, or null for now().
+     */
+    protected function latch_course_completion(stdClass $course, int $userid, ?int $timecompleted): void {
+        global $CFG;
+        require_once($CFG->libdir . '/completionlib.php');
+        require_once($CFG->dirroot . '/completion/completion_completion.php');
+        require_once($CFG->dirroot . '/completion/completion_criteria_completion.php');
+
+        $time = $timecompleted ?: time();
+
+        // Latch the course's completion criteria so cron re-aggregation re-latches
+        // from surviving criteria rows if timecompleted is ever cleared (spike c).
+        $completion = new \completion_info($course);
+        foreach ($completion->get_criteria() as $criterion) {
+            $cc = new \completion_criteria_completion([
+                'course' => (int) $course->id,
+                'userid' => $userid,
+                'criteriaid' => (int) $criterion->id,
+            ]);
+            if (!$cc->is_complete()) {
+                $cc->mark_complete($time);
+            }
+        }
+
+        // Latch the course_completions row. mark_complete never moves an existing time.
+        $ccompletion = new \completion_completion(['course' => (int) $course->id, 'userid' => $userid]);
+        $ccompletion->mark_complete($time);
+    }
+
+    /**
+     * Clear a user's course-completion rows and purge the coursecompletion MUC
+     * cache, so a superseding DIFFERENT completion time can be re-asserted (spike c).
+     *
+     * @param int $courseid Central course id.
+     * @param int $userid Central user id.
+     */
+    protected function clear_course_completion(int $courseid, int $userid): void {
+        global $DB;
+        $DB->delete_records('course_completion_crit_compl', ['course' => $courseid, 'userid' => $userid]);
+        $DB->delete_records('course_completions', ['course' => $courseid, 'userid' => $userid]);
+        \cache::make('core', 'coursecompletion')->delete($userid . '_' . $courseid);
+    }
+
+    /**
+     * Legacy synchronous completion write (pre-v2 upload path). Wall-clock LWW.
+     *
+     * @param string $schoolid School identifier.
+     * @param array $payload Completion data.
+     * @return array Result.
+     */
+    protected function process_completion_legacy(string $schoolid, array $payload): array {
         global $DB;
 
         $context = $payload['context'] ?? [];
@@ -379,7 +946,7 @@ class central_processor {
 
         $user = $this->find_user($context['user'] ?? []);
         if (!$user) {
-            return ['status' => 'error', 'message' => 'User not found on central'];
+            return $this->user_unresolved_error($context['user'] ?? []);
         }
 
         $course = $this->find_course($context['course'] ?? []);
@@ -469,7 +1036,7 @@ class central_processor {
     }
 
     /**
-     * Process a course-level completion record.
+     * Process a course-level completion record (legacy synchronous path).
      *
      * @param stdClass $user The central user.
      * @param stdClass $course The central course.
@@ -556,19 +1123,21 @@ class central_processor {
     }
 
     /**
-     * Create or update a central account from a school account push.
+     * Update a central account from a school account push.
      *
-     * Finds/creates the central Moodle user, applies the school's password hash
-     * (manual auth), then enriches via local_elby_dashboard's sync_service so the
-     * central record gets the full TDMP profile, national cohorts and enrolments.
+     * Resolution is strictly via the SDMS link (elby_sdms_users): a school push
+     * can never create a central user or bind to one by username/email guessing.
+     * Credential-bearing fields (password, auth, username) in the payload are
+     * stripped so a school can never change central credentials. Unresolved
+     * accounts return a retryable error so the school queue keeps retrying
+     * until the identity is provisioned/linked on central.
      *
      * @param string $schoolid School identifier.
      * @param array $payload Account payload.
      * @return array Result with the central user ID.
      */
     protected function process_account(string $schoolid, array $payload): array {
-        global $DB, $CFG;
-        require_once($CFG->dirroot . '/user/lib.php');
+        global $DB;
 
         $account = $payload['account'] ?? [];
         $sdmsid = trim((string) ($account['sdms_id'] ?? ''));
@@ -577,46 +1146,48 @@ class central_processor {
             return ['status' => 'error', 'message' => 'Missing SDMS identity in account payload'];
         }
 
-        // Locate the central user: prefer an existing SDMS link, then username, then email.
-        $user = null;
-        if ($DB->get_manager()->table_exists('elby_sdms_users')) {
-            $link = $DB->get_record('elby_sdms_users', ['sdms_id' => $sdmsid], 'userid');
-            if ($link) {
-                $user = $DB->get_record('user', ['id' => $link->userid, 'deleted' => 0]);
+        // Account-takeover guard: never accept credential fields from a school.
+        $stripped = [];
+        foreach (['password', 'auth', 'username'] as $field) {
+            if (isset($account[$field]) && $account[$field] !== '') {
+                $stripped[] = $field;
             }
+            unset($account[$field]);
         }
-        if (!$user && !empty($account['username'])) {
-            $user = $DB->get_record('user', ['username' => strtolower($account['username']), 'deleted' => 0]);
-        }
-        if (!$user && !empty($account['email'])) {
-            $user = $DB->get_record('user', ['email' => $account['email'], 'deleted' => 0]);
+        if ($stripped) {
+            debugging('Syncqueue: stripped credential fields (' . implode(', ', $stripped) .
+                ") from account push for SDMS id {$sdmsid} from school {$schoolid}", DEBUG_NORMAL);
         }
 
+        if (!$DB->get_manager()->table_exists('elby_sdms_users')) {
+            return [
+                'status' => 'error',
+                'message' => 'SDMS link table not installed on central; account deferred (item will be retried)',
+            ];
+        }
+
+        // Locate the central user via the SDMS link only.
+        $user = null;
+        $link = $DB->get_record('elby_sdms_users', ['sdms_id' => $sdmsid], 'userid');
+        if ($link) {
+            $user = $DB->get_record('user', ['id' => $link->userid, 'deleted' => 0]) ?: null;
+        }
         if (!$user) {
-            $new = new stdClass();
-            $new->username = !empty($account['username']) ? strtolower($account['username']) : strtolower($sdmsid);
-            $new->firstname = (string) ($account['firstname'] ?? '');
-            $new->lastname = (string) ($account['lastname'] ?? '');
-            $new->email = !empty($account['email']) ? $account['email'] : (strtolower($sdmsid) . '@rtb.ac.rw');
-            $new->idnumber = (string) ($account['idnumber'] ?? '');
-            $new->auth = 'manual';
-            $new->confirmed = 1;
-            $new->mnethostid = $CFG->mnet_localhost_id;
-            // Do not let user_create_user hash a password here; the school's hash is applied below.
-            $newid = user_create_user($new, false, false);
-            $user = $DB->get_record('user', ['id' => $newid]);
+            return [
+                'status' => 'error',
+                'message' => "No central user linked to SDMS id {$sdmsid}; " .
+                    'deferred until the identity is provisioned on central (item will be retried)',
+            ];
         }
 
-        if (!$user) {
-            return ['status' => 'error', 'message' => 'Could not create central account'];
+        // Record the school-local userid mapping (when the school sends it) so
+        // later content events for this user resolve without any guessing.
+        $localid = (int) ($account['localid'] ?? 0);
+        if ($localid) {
+            $this->mapper->set_mapping('user', $localid, (int) $user->id);
         }
 
-        // Apply the school's bcrypt password hash so the same password works on central.
-        if (!empty($account['password']) && $account['password'] !== $user->password) {
-            $DB->set_field('user', 'password', $account['password'], ['id' => $user->id]);
-        }
-
-        // Enrich + link via elby_dashboard: pulls the full TDMP profile, applies
+        // Enrich + refresh via elby_dashboard: pulls the full TDMP profile, applies
         // national cohorts and auto-enrolments, and caches the identity.
         if (class_exists('\local_elby_dashboard\sync_service')) {
             // sync_service expects 'student' or 'staff'; school stores 'teacher'.
@@ -630,16 +1201,22 @@ class central_processor {
 
         return [
             'status' => 'success',
-            'message' => 'Account synced',
+            'message' => 'Account synced' . ($stripped ? ' (credential fields ignored)' : ''),
             'centralid' => (int) $user->id,
         ];
     }
 
     /**
-     * Find a user on central by various identifiers.
+     * Resolve an incoming school user to a central user via exact SDMS identity only.
      *
-     * @param array $userdata User identification data.
-     * @return stdClass|null
+     * A school payload may only bind to a central account through the SDMS link
+     * table (elby_sdms_users), or through a per-school id mapping that was itself
+     * recorded from an SDMS-linked account push. Heuristic idnumber/email/username
+     * matching is deliberately not attempted: a wrong guess files another person's
+     * records and is unrecoverable, while an unresolved user is simply retried.
+     *
+     * @param array $userdata User identification data from the payload.
+     * @return stdClass|null The central user, or null when no exact link exists.
      */
     protected function find_user(array $userdata): ?stdClass {
         global $DB;
@@ -648,31 +1225,53 @@ class central_processor {
             return null;
         }
 
-        // Try idnumber first.
-        if (!empty($userdata['idnumber'])) {
-            $user = $DB->get_record('user', ['idnumber' => $userdata['idnumber']]);
-            if ($user) {
-                return $user;
+        // Exact SDMS number, when the school includes it in the payload.
+        $sdmsid = trim((string) ($userdata['sdms_id'] ?? ''));
+        if ($sdmsid !== '' && $DB->get_manager()->table_exists('elby_sdms_users')) {
+            $link = $DB->get_record('elby_sdms_users', ['sdms_id' => $sdmsid], 'userid');
+            if ($link) {
+                $user = $DB->get_record('user', ['id' => $link->userid, 'deleted' => 0]);
+                if ($user) {
+                    return $user;
+                }
             }
         }
 
-        // Try email.
-        if (!empty($userdata['email'])) {
-            $user = $DB->get_record('user', ['email' => $userdata['email']]);
-            if ($user) {
-                return $user;
-            }
-        }
-
-        // Try username.
-        if (!empty($userdata['username'])) {
-            $user = $DB->get_record('user', ['username' => $userdata['username']]);
-            if ($user) {
-                return $user;
+        // Per-school mapping recorded when this school's SDMS-linked account
+        // push was accepted (see process_account).
+        $localid = (int) ($userdata['localid'] ?? 0);
+        if ($localid) {
+            $centraluserid = $this->mapper->get_central_id('user', $localid);
+            if ($centraluserid) {
+                $user = $DB->get_record('user', ['id' => $centraluserid, 'deleted' => 0]);
+                if ($user) {
+                    return $user;
+                }
             }
         }
 
         return null;
+    }
+
+    /**
+     * Retryable error result for a user payload with no exact SDMS resolution.
+     *
+     * Returned as status 'error' so the school queue keeps retrying the item;
+     * fuzzy matching or auto-creation must never substitute for a missing link.
+     *
+     * @param array $userdata User identification data from the payload.
+     * @return array Error result.
+     */
+    protected function user_unresolved_error(array $userdata): array {
+        $sdmsid = trim((string) ($userdata['sdms_id'] ?? ''));
+        if ($sdmsid === '') {
+            $message = 'User payload carries no SDMS identity and no per-school user mapping exists; ' .
+                'deferred until the school account push links it (item will be retried)';
+        } else {
+            $message = "No central user linked to SDMS id {$sdmsid}; " .
+                'deferred until the identity is linked on central (item will be retried)';
+        }
+        return ['status' => 'error', 'message' => $message];
     }
 
     /**
@@ -856,5 +1455,198 @@ class central_processor {
         }
 
         return $DB->get_record('grade_items', $params) ?: null;
+    }
+
+    // --- v2 home-authorship gating (doc §5/§8.1) --------------------------------
+
+    /**
+     * Apply the v2 ordering + tenure gates for a fact about learner $sdms on the
+     * item identified by $itemtoken (a stable per-central-item AGS token).
+     *
+     * Returns null when the fact is clear to apply, or a terminal result array the
+     * applier returns verbatim and apply_ingest routes:
+     *  - own-origin echo -> success no-op (this instance authored it);
+     *  - 'tenurefail'    -> apply_ingest records a conflict and marks the row stale;
+     *  - 'stale'         -> apply_ingest marks the row stale (AGS out-of-order).
+     *
+     * Gating only runs for a v2-authoritative apply (fact context set). Tenure is
+     * only ENFORCED once tenure knowledge exists for the learner, so before the
+     * roster/home signal is populated v2 apply is not globally bricked (dual-stack);
+     * a null rostergen (pre-first roster refresh) is likewise uncheckable and not
+     * gated. AGS is table_exists-guarded inside tenure::is_stale.
+     *
+     * @param string $origin Authoring school id (the pushing school = fact origin).
+     * @param string $sdms Learner SDMS code resolved from the payload.
+     * @param string $itemtoken Stable per-(central item) AGS token.
+     * @param string $itemuuid Item UUID recorded on a tenure conflict (may equal the token).
+     * @return array|null
+     */
+    protected function fact_gate(string $origin, string $sdms, string $itemtoken, string $itemuuid): ?array {
+        global $DB;
+
+        $ctx = $this->factcontext;
+        if ($ctx === null) {
+            // Legacy path: no v2 ordering context, so no gating.
+            return null;
+        }
+
+        // NOTE: the doc §8.2 "skip a fact this instance itself authored" rule belongs
+        // to the FUTURE school-side pull applier (step 5 seeding), where an instance
+        // can legitimately receive back a fact it authored. On THIS central push-apply
+        // path central is never a legitimate fact origin, so an origin==self test here
+        // would only misfire on a misconfigured central schoolid and SILENTLY DROP a
+        // real school's facts. Echo suppression (capture::suppress) already stops the
+        // applier's own writes from being re-captured. So no own-origin skip here.
+
+        $rostergen = $ctx['rostergen'] ?? null;
+        $epoch = (string) ($ctx['epoch'] ?? '');
+        $schoolseq = (int) ($ctx['schoolseq'] ?? 0);
+
+        // Tenure: a fact applies only if its origin held home tenure for the learner
+        // at the roster generation stamped on it (doc §5/§8.1) — judged against
+        // tenure in force at G, never arrival time. Enforcement is a deliberate
+        // operator switch (tenure_enforce): the Option B producer populates and
+        // observes intervals as soon as central upgrades, but rejection stays off
+        // until the fleet has exchanged at least one roster generation so a school
+        // still stamping a pre-Option-B (or NULL) generation is never rejected in a
+        // numbering space it has not yet adopted.
+        if ($sdms !== '' && $rostergen !== null && $this->tenure_enforced() && $this->tenure_known($sdms)) {
+            if (!tenure::in_force($sdms, $origin, (int) $rostergen)) {
+                return [
+                    'status' => 'tenurefail',
+                    'sdms' => $sdms,
+                    'entitykey' => $itemuuid,
+                    'rostergen' => (int) $rostergen,
+                    'message' => "origin {$origin} did not hold home tenure for {$sdms} at rostergen {$rostergen}",
+                ];
+            }
+        }
+
+        // AGS: within (origin, epoch, learner, item) the origin sequence must be
+        // strictly increasing; a lower/equal arrival is explicitly stale (doc §8.1).
+        if ($sdms !== '' && $epoch !== ''
+                && tenure::is_stale($origin, $epoch, $sdms, $itemtoken, $schoolseq)) {
+            return [
+                'status' => 'stale',
+                'message' => "AGS stale: schoolseq {$schoolseq} not newer than the high-water for {$sdms} on this item",
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Advance the AGS (origin, epoch, learner, item) origin-seq high-water after a
+     * fact is durably applied. No-op on the legacy path or without a learner/epoch.
+     *
+     * @param string $origin Authoring school id.
+     * @param string $sdms Learner SDMS code.
+     * @param string $itemtoken Stable per-(central item) AGS token.
+     */
+    protected function observe_fact_seq(string $origin, string $sdms, string $itemtoken): void {
+        $ctx = $this->factcontext;
+        if ($ctx === null || $sdms === '') {
+            return;
+        }
+        $epoch = (string) ($ctx['epoch'] ?? '');
+        if ($epoch === '') {
+            return;
+        }
+        tenure::observe_seq($origin, $epoch, $sdms, $itemtoken, (int) ($ctx['schoolseq'] ?? 0));
+    }
+
+    /**
+     * Whether the operator has switched on home-tenure rejection (see fact_gate).
+     *
+     * Off by default so central's Option B producer can populate and observe tenure
+     * intervals before they begin rejecting any fact — turned on only once the fleet
+     * is stamping facts in central's roster-generation space.
+     *
+     * @return bool
+     */
+    protected function tenure_enforced(): bool {
+        return (bool) get_config('local_syncqueue', 'tenure_enforce');
+    }
+
+    /**
+     * Whether central holds any home-tenure knowledge for a learner (gates whether
+     * the tenure check is enforced — see fact_gate).
+     *
+     * @param string $sdms Learner SDMS code.
+     * @return bool
+     */
+    protected function tenure_known(string $sdms): bool {
+        global $DB;
+        if ($sdms === '' || !$DB->get_manager()->table_exists('local_syncqueue_tenure')) {
+            return false;
+        }
+        return $DB->record_exists('local_syncqueue_tenure', ['sdms' => $sdms]);
+    }
+
+    /**
+     * A stable per-(central item) AGS token: the stamped UUID idnumber when present,
+     * else a local-id fallback so the token is still stable on central.
+     *
+     * @param string $prefix Fallback token prefix ('gi', 'cm', 'course').
+     * @param string $idnumber The central item's idnumber.
+     * @param int $localid The central item's local id.
+     * @return string
+     */
+    protected function ags_token(string $prefix, string $idnumber, int $localid): string {
+        // Always keep the kind prefix, even for a UUID idnumber: an itemnumber-0
+        // module stamps its grade-item idnumber EQUAL to its cm idnumber (one UUID),
+        // so without the 'gi:'/'cm:' discriminator a grade fact and that activity's
+        // completion fact would share one AGS (origin, epoch, learner, item)
+        // high-water and a lower-seq grade could be wrongly stale-dropped and lost.
+        return $prefix . ':' . (item_identity::is_uuid($idnumber) ? $idnumber : (string) $localid);
+    }
+
+    /**
+     * The learner SDMS code carried on a fact payload's user context.
+     *
+     * @param array $context Payload context.
+     * @return string
+     */
+    protected function sdms_of(array $context): string {
+        return trim((string) ($context['user']['sdms_id'] ?? ''));
+    }
+
+    /**
+     * Coerce a payload grade value to a float, or null when absent.
+     *
+     * @param mixed $value
+     * @return float|null
+     */
+    protected function to_grade($value): ?float {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        return (float) $value;
+    }
+
+    /**
+     * A stable per-course AGS token: the central course idnumber when set, else a
+     * local-id fallback.
+     *
+     * @param stdClass $course Central course.
+     * @return string
+     */
+    protected function course_token(stdClass $course): string {
+        $idnumber = (string) ($course->idnumber ?? '');
+        return ($idnumber !== '') ? $idnumber : 'cid:' . (int) $course->id;
+    }
+
+    /**
+     * The user id to record as a completion override author. The apply task runs as
+     * the admin cron user (get_admin); fall back to get_admin() explicitly.
+     *
+     * @return int
+     */
+    protected function override_actor(): int {
+        global $USER;
+        if (!empty($USER->id)) {
+            return (int) $USER->id;
+        }
+        return (int) get_admin()->id;
     }
 }

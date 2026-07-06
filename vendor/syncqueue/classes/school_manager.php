@@ -30,6 +30,9 @@ class school_manager {
     /** @var string Table name */
     protected const TABLE = 'local_syncqueue_schools';
 
+    /** @var int Grace window (seconds) the previous key stays valid after a rotation. */
+    public const ROTATION_GRACE = 14 * 86400;
+
     /**
      * Check if a school exists.
      *
@@ -123,7 +126,81 @@ class school_manager {
             return false;
         }
 
-        return $this->check_apikey($apikey, $school->apikey);
+        if ($this->check_apikey($apikey, $school->apikey)) {
+            return true;
+        }
+
+        // Dual-validity: the previous key stays valid through the rotation grace
+        // window, so rotating a key can never lock out a school that hasn't adopted
+        // the new one yet (an offline box, or an in-flight request). Expired or
+        // absent previous keys are not accepted.
+        if (!empty($school->apikey_prev) && (int) $school->apikey_prev_expires > time()
+                && $this->check_apikey($apikey, $school->apikey_prev)) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Rotate a school's API key to a new one, keeping the current key valid as the
+     * previous key through a grace window (dual-validity; ELMS Sync v2 step 7, §4.6).
+     *
+     * Idempotent: if $newkey is already the current key (a rotation whose ack the
+     * school lost, retried), this is a no-op success rather than a second swap that
+     * would demote the just-adopted key — and this no-op is allowed even when the caller
+     * authenticated with the still-valid previous key.
+     *
+     * A GENUINE rotation (a different new key) requires authentication by the CURRENT
+     * key: a leaked, rotated-away previous key must NOT be able to seize the account or
+     * chain-rotate during its grace window (it can only re-confirm the current key).
+     *
+     * @param string $schoolid School identifier.
+     * @param string $authkey The key the caller authenticated with (current or previous).
+     * @param string $newkey The school's chosen new plaintext key.
+     * @return array{rotated:bool, current:bool, prev_expires:int}
+     */
+    public function rotate_key(string $schoolid, string $authkey, string $newkey): array {
+        global $DB;
+
+        $school = $this->get_school($schoolid);
+        if (!$school) {
+            throw new \moodle_exception('error_authfailed', 'local_syncqueue');
+        }
+        $newhash = $this->hash_apikey($newkey);
+
+        // Already the current key: idempotent no-op (do NOT demote it to previous).
+        if (hash_equals((string) $school->apikey, $newhash)) {
+            return ['rotated' => false, 'current' => true,
+                'prev_expires' => (int) ($school->apikey_prev_expires ?? 0)];
+        }
+
+        // A real rotation must be driven by the CURRENT key. Authenticating with the
+        // previous (grace) key is enough to re-confirm the current key (the no-op above)
+        // but never to set a NEW one — otherwise a leaked old key owns the account for
+        // the grace window, and a client that regenerates its pending key each retry
+        // could chain-rotate the school out of its own credential.
+        if (!$this->check_apikey($authkey, (string) $school->apikey)) {
+            throw new \moodle_exception('error_authfailed', 'local_syncqueue');
+        }
+
+        $expires = time() + self::ROTATION_GRACE;
+        $DB->update_record(self::TABLE, (object) [
+            'id' => $school->id,
+            'apikey' => $newhash,
+            'apikey_prev' => $school->apikey,
+            'apikey_prev_expires' => $expires,
+            'timemodified' => time(),
+        ]);
+        return ['rotated' => true, 'current' => true, 'prev_expires' => $expires];
+    }
+
+    /**
+     * Generate a fresh plaintext API key (public helper for the school-side rotation).
+     *
+     * @return string 64-char hex.
+     */
+    public static function generate_key(): string {
+        return bin2hex(random_bytes(32));
     }
 
     /**
@@ -138,7 +215,11 @@ class school_manager {
         $apikey = $this->generate_apikey();
         $apikeyhash = $this->hash_apikey($apikey);
 
+        // Emergency revoke: clear any grace-window previous key too, or a leaked key
+        // regenerated away from would keep authenticating until its original expiry.
         $DB->set_field(self::TABLE, 'apikey', $apikeyhash, ['schoolid' => $schoolid]);
+        $DB->set_field(self::TABLE, 'apikey_prev', null, ['schoolid' => $schoolid]);
+        $DB->set_field(self::TABLE, 'apikey_prev_expires', null, ['schoolid' => $schoolid]);
         $DB->set_field(self::TABLE, 'timemodified', time(), ['schoolid' => $schoolid]);
 
         return $apikey;

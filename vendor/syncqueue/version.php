@@ -24,8 +24,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2026062606;        // The current plugin version (Date: YYYYMMDDXX).
+$plugin->version   = 2026070510;        // The current plugin version (Date: YYYYMMDDXX).
 $plugin->requires  = 2024100700;        // Requires Moodle 5.0+.
 $plugin->component = 'local_syncqueue'; // Full name of the plugin.
 $plugin->maturity  = MATURITY_ALPHA;
-$plugin->release   = '0.5.2';           // Roster proxy: schools pull their own full student/teacher roster.
+$plugin->release   = '0.9.5';           // Sync v2 step 7 review fixes: WS service membership (snapshot_manifest/digest/upload_file/rotate_key), rotation hardening, file-channel robustness.

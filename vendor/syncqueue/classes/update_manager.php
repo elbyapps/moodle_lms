@@ -16,6 +16,8 @@
 
 namespace local_syncqueue;
 
+use local_syncqueue\outbox\applied_state;
+use local_syncqueue\outbox\publisher;
 use stdClass;
 
 /**
@@ -77,54 +79,139 @@ class update_manager {
         $objecttable = $data['table'] ?? null;
         $objectid = $data['id'] ?? null;
 
-        // Dedup: if an un-downloaded update exists for the same object, update it instead.
-        if ($objectid !== null) {
-            $params = [
-                'updatetype' => $type,
-                'action' => $action,
-                'objecttable' => $objecttable,
-                'objectid' => $objectid,
-            ];
-            if ($schoolid !== null) {
-                $params['schoolid'] = $schoolid;
-            }
-            $sql = "SELECT u.id
-                      FROM {" . self::TABLE . "} u
-                 LEFT JOIN {" . self::TRACKING_TABLE . "} t ON t.updateid = u.id
-                     WHERE u.updatetype = :updatetype
-                       AND u.action = :action
-                       AND u.objecttable = :objecttable
-                       AND u.objectid = :objectid
-                       AND " . ($schoolid !== null ? "u.schoolid = :schoolid" : "u.schoolid IS NULL") . "
-                       AND t.id IS NULL";
-            $existing = $DB->get_record_sql($sql, $params);
+        // Legacy write + v2 outbox publish must commit (or roll back) atomically
+        // so the transactional-outbox guarantee holds (doc §4.1).
+        $transaction = $DB->start_delegated_transaction();
+        try {
+            $updateid = null;
 
-            if ($existing) {
-                $DB->update_record(self::TABLE, (object) [
-                    'id' => $existing->id,
-                    'payload' => json_encode($data),
-                    'priority' => $priority,
-                    'tradecode' => $tradecode,
-                    'level' => $level,
-                    'timecreated' => time(),
-                ]);
-                return $existing->id;
+            // Dedup: if an un-downloaded update exists for the same object, update it
+            // instead. LEGACY table only — v2 outbox rows are append-only and never
+            // coalesced; supersession happens at pull read time instead (doc §4.2).
+            if ($objectid !== null) {
+                $params = [
+                    'updatetype' => $type,
+                    'action' => $action,
+                    'objecttable' => $objecttable,
+                    'objectid' => $objectid,
+                ];
+                if ($schoolid !== null) {
+                    $params['schoolid'] = $schoolid;
+                }
+                $sql = "SELECT u.id
+                          FROM {" . self::TABLE . "} u
+                     LEFT JOIN {" . self::TRACKING_TABLE . "} t ON t.updateid = u.id
+                         WHERE u.updatetype = :updatetype
+                           AND u.action = :action
+                           AND u.objecttable = :objecttable
+                           AND u.objectid = :objectid
+                           AND " . ($schoolid !== null ? "u.schoolid = :schoolid" : "u.schoolid IS NULL") . "
+                           AND t.id IS NULL";
+                $existing = $DB->get_record_sql($sql, $params);
+
+                if ($existing) {
+                    $DB->update_record(self::TABLE, (object) [
+                        'id' => $existing->id,
+                        'payload' => json_encode($data),
+                        'priority' => $priority,
+                        'tradecode' => $tradecode,
+                        'level' => $level,
+                        'timecreated' => time(),
+                    ]);
+                    $updateid = (int) $existing->id;
+                }
             }
+
+            if ($updateid === null) {
+                $update = new stdClass();
+                $update->schoolid = $schoolid;
+                $update->updatetype = $type;
+                $update->action = $action;
+                $update->objecttable = $objecttable;
+                $update->objectid = $objectid;
+                $update->payload = json_encode($data);
+                $update->priority = $priority;
+                $update->tradecode = $tradecode;
+                $update->level = $level;
+                $update->timecreated = time();
+
+                $updateid = $DB->insert_record(self::TABLE, $update);
+            }
+
+            $this->publish_to_outbox($schoolid, $type, $action, $data);
+
+            $transaction->allow_commit();
+            return $updateid;
+        } catch (\Throwable $e) {
+            $transaction->rollback($e);
+        }
+    }
+
+    /**
+     * Dual-write a queued legacy update into the v2 sequenced outbox.
+     *
+     * Step-1 scope: central-owned content entities only (course, category,
+     * course_content) — user/enrolment updates stay legacy-only until the
+     * roster stream exists. Rows are inserted with seq = NULL inside the
+     * caller's transaction; the sequencer assigns seq post-commit. The v2
+     * payload is the exact legacy payload so school appliers can be reused.
+     *
+     * @param string|null $schoolid Target school (null = broadcast).
+     * @param string $type Legacy update type.
+     * @param string $action Legacy action (create, update, delete).
+     * @param array $data Legacy update payload.
+     */
+    protected function publish_to_outbox(?string $schoolid, string $type, string $action, array $data): void {
+        global $DB;
+
+        // Same central test the legacy capture surfaces use (courses.php, catalog.php).
+        if (get_config('local_syncqueue', 'mode') !== 'central') {
+            return;
+        }
+        // A box still on the pre-outbox schema keeps the legacy flow untouched.
+        if (!$DB->get_manager()->table_exists('local_syncqueue_outbox')) {
+            return;
+        }
+        if (!in_array($type, ['course', 'category', 'course_content'], true)) {
+            return;
+        }
+        $objectid = (int) ($data['id'] ?? 0);
+        if ($objectid <= 0) {
+            return;
+        }
+        if ($schoolid !== null) {
+            // Step-1 partitions (content:global / content:course:*) cannot target a
+            // single school; school-scoped updates ship via the legacy channel only.
+            debugging("Syncqueue outbox: school-scoped {$type} update for {$schoolid} not published to v2",
+                DEBUG_DEVELOPER);
+            return;
         }
 
-        $update = new stdClass();
-        $update->schoolid = $schoolid;
-        $update->updatetype = $type;
-        $update->action = $action;
-        $update->objecttable = $objecttable;
-        $update->objectid = $objectid;
-        $update->payload = json_encode($data);
-        $update->priority = $priority;
-        $update->tradecode = $tradecode;
-        $update->level = $level;
-        $update->timecreated = time();
+        $v2action = ($action === 'delete') ? 'delete' : 'upsert';
 
-        return $DB->insert_record(self::TABLE, $update);
+        if ($type === 'category') {
+            publisher::publish('category', 'category:' . $objectid, $v2action, $data, 'content:global');
+            return;
+        }
+
+        $coursekey = 'course:' . $objectid;
+        $partitionkey = 'content:course:' . $coursekey;
+
+        if ($type === 'course') {
+            publisher::publish('course', $coursekey, $v2action, $data, $partitionkey);
+        }
+
+        // A backup publication (or an explicit course_content update) also emits a
+        // course_content publish row carrying the bumped .mbz publication version.
+        if ($v2action !== 'delete' && ($type === 'course_content' || !empty($data['backup']['has_backup']))) {
+            $contentkey = 'coursecontent:' . $objectid;
+            $state = applied_state::get('course_content', $contentkey);
+            // Matches the entityversion publish() assigns next: content publishes are
+            // serialized per course through the push_courses adhoc task, so the
+            // unlocked pre-read cannot race another publisher of the same course.
+            $contentversion = $state ? ((int) $state->entityversion + 1) : 1;
+            publisher::publish('course_content', $contentkey, 'publish', $data, $partitionkey, $contentversion);
+        }
     }
 
     /**

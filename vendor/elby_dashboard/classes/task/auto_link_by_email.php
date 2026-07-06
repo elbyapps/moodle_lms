@@ -50,6 +50,14 @@ class auto_link_by_email extends \core\task\scheduled_task {
     public function execute(): void {
         global $DB;
 
+        // Central-only: on school instances accounts link at signup/onboarding against
+        // the offline roster; running this here fires a central-proxy lookup per
+        // unlinked user (up to 200 a day), each failing individually while offline.
+        if (get_config('local_elby_dashboard', 'tdmp_proxy_mode')) {
+            mtrace('Auto-link by email skipped: school instance (TDMP proxy mode on).');
+            return;
+        }
+
         $syncservice = new \local_elby_dashboard\sync_service();
 
         // Find unlinked users with RTB emails (numeric prefix only).
@@ -123,13 +131,9 @@ class auto_link_by_email extends \core\task\scheduled_task {
                     $detail .= ' [debug: ' . $e->debuginfo . ']';
                 }
                 mtrace("  Failed to link user {$user->id} ({$user->email}): " . $detail);
-
-                // Flag users that got HTTP 500 so they're not retried.
-                if ($e instanceof \moodle_exception && !empty($e->debuginfo)
-                        && strpos($e->debuginfo, 'HTTP 500') !== false) {
-                    $this->flag_failed_user($user->id, $sdmscode, $detail);
-                    $flagged++;
-                }
+                // Exceptions are server errors, timeouts or transport failures —
+                // all transient, so never flag permanently; retry on the next run.
+                // Only a genuine not-found (link_user returning false) flags above.
             }
         }
         mtrace("Auto-link by email: {$linked} linked, {$failed} failed, {$skippedduplicates} duplicate-code skipped, {$flagged} flagged out of " . count($users) . " unlinked users.");

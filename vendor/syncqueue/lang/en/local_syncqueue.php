@@ -43,6 +43,8 @@ $string['schoolid'] = 'School identifier';
 $string['schoolid_desc'] = 'Unique identifier for this school instance (e.g., school_kigali_001).';
 $string['centralserver'] = 'Central server URL';
 $string['centralserver_desc'] = 'The URL of the central Moodle server to sync with.';
+$string['allow_insecure_central'] = 'Allow non-HTTPS central URL';
+$string['allow_insecure_central_desc'] = 'Permit a plain http:// central server URL (credentials sent in cleartext). Leave OFF unless the link is a trusted private network or VPN. Loopback dev URLs are always allowed.';
 $string['wstoken'] = 'Web service token';
 $string['wstoken_desc'] = 'The Moodle web service token from the central server. Create a token for the "Sync Queue Service" on the central server.';
 $string['apikey'] = 'School API key';
@@ -70,6 +72,16 @@ $string['maxfilesize_desc'] = 'Maximum file size (in bytes) to include inline wi
 $string['debug'] = 'Debug mode';
 $string['debug_desc'] = 'Enable verbose logging for troubleshooting sync issues.';
 
+// Settings - ELMS Sync v2 migration toggles.
+$string['v2settings'] = 'ELMS Sync v2 (migration)';
+$string['v2settings_desc'] = 'Per-school activation of the sequenced v2 sync channels. Leave off until this school has been migrated; the legacy sync keeps running when off.';
+$string['pull_v2'] = 'Enable v2 downstream (pull) stream';
+$string['pull_v2_desc'] = 'When enabled, this school pulls the sequenced update stream from central instead of the legacy download path.';
+$string['push_v2'] = 'Enable v2 upstream (push) capture';
+$string['push_v2_desc'] = 'When enabled, learner facts (grades, submissions, quiz attempts, completions, enrolments, accounts) for SDMS-linked users are captured to the sequenced outbox for push instead of the legacy queue. Unlinked users stay on the legacy queue.';
+$string['tenure_enforce'] = 'Enforce home tenure on inbound facts (central)';
+$string['tenure_enforce_desc'] = 'When enabled, central rejects a learner fact whose origin school did not hold home tenure for that learner at the fact\'s roster generation. Leave off until every school has synced a roster at least once under Option B (so facts are stamped in central\'s roster-generation space); central records and observes tenure intervals regardless of this switch.';
+
 // Queue statuses.
 $string['status_pending'] = 'Pending';
 $string['status_processing'] = 'Processing';
@@ -90,6 +102,18 @@ $string['eventtype_completion'] = 'Activity completion';
 $string['task_processqueue'] = 'Process sync queue';
 $string['task_downloadupdates'] = 'Download updates from central server';
 $string['task_cleanup'] = 'Clean up old sync records';
+$string['task_sequencer'] = 'Assign sequence numbers to sync outbox rows (v2)';
+$string['task_pullstream'] = 'Pull sequenced updates from central server (v2)';
+$string['task_pushstream'] = 'Push sequenced upstream facts to central server (v2)';
+$string['task_applyingest'] = 'Apply buffered upstream ingest facts (v2)';
+$string['task_historyrepublish'] = 'Republish learner history to a new school (v2 seeding)';
+$string['task_seedhandover'] = 'Release seeded grades to local evidence (v2 handover)';
+$string['task_antientropy'] = 'Converge replicated content via applied-state digest (v2 anti-entropy)';
+$string['task_capturescan'] = 'Regenerate never-captured learner facts from source tables (v2 capture-scan)';
+$string['task_upstreamantientropy'] = 'Re-queue facts central is missing via fact digest (v2 upstream anti-entropy)';
+$string['task_content_change_scan'] = 'Flag published courses whose content has drifted (v2 versioned publication)';
+$string['task_ship_files'] = 'Ship pending submission blobs to central (v2 file channel)';
+$string['task_prune_outbox'] = 'Prune superseded content rows and expired manifests (v2 retention)';
 
 // Admin page.
 $string['queuestatus'] = 'Queue status';
@@ -107,6 +131,11 @@ $string['error_syncfailed'] = 'Synchronization failed: {$a}';
 $string['error_invalidresponse'] = 'Invalid response from central server: {$a}';
 $string['error_conflict'] = 'Data conflict detected for {$a}';
 $string['error_notconfigured'] = 'Sync queue is not properly configured';
+$string['error_notcentral'] = 'This endpoint is only available on the central server';
+$string['error_disabled'] = 'The sync queue is disabled on this server';
+$string['error_insecurecentral'] = 'Refusing to send credentials to a non-HTTPS central server URL. Use https://, or set allow_insecure_central for a trusted private-network deployment.';
+$string['error_schoolinactive'] = 'This school is not active';
+$string['error_invalidpayload'] = 'Invalid or malformed sync payload';
 
 // Dashboard.
 $string['dashboard'] = 'Dashboard';

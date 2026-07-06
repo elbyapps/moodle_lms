@@ -93,10 +93,14 @@ class signup extends external_api {
         }
 
         try {
+            // Constructed unconditionally for the live-lookup fallback and the
+            // school-name fetch (construction is cheap, network only on call).
+            $client = new \local_elby_dashboard\tdmp_client();
+
             // Offline-first: resolve from the cached roster, fall back to a live lookup.
             $data = (new \local_elby_dashboard\roster_manager())->get_record($sdmscode, $usertype);
+            $fromcache = ($data !== null);
             if ($data === null) {
-                $client = new \local_elby_dashboard\tdmp_client();
                 $data = ($usertype === 'student')
                     ? $client->get_student($sdmscode)
                     : $client->get_teacher($sdmscode);
@@ -121,16 +125,24 @@ class signup extends external_api {
                 return self::empty_lookup_result(get_string('signup_wrong_school', 'local_elby_dashboard'));
             }
 
-            // Fetch school name via school API (student endpoint only has schoolCode).
+            // School name (student endpoint only has schoolCode): local cache first —
+            // an offline school box must not stall the signup AJAX for the connect
+            // timeout on a proxy call to unreachable central just for a display name.
             $schoolname = $data->schoolName ?? '';
             if (empty($schoolname) && !empty($schoolcode)) {
-                try {
-                    $schooldata = $client->get_school($schoolcode);
-                    if ($schooldata) {
-                        $schoolname = $schooldata->schoolName ?? '';
+                $schoolname = (string) $DB->get_field('elby_schools', 'school_name',
+                    ['school_code' => $schoolcode]);
+                if (empty($schoolname) && !$fromcache) {
+                    // The user record itself just came over the wire, so the
+                    // gateway is reachable right now — safe to fetch live.
+                    try {
+                        $schooldata = $client->get_school($schoolcode);
+                        if ($schooldata) {
+                            $schoolname = $schooldata->schoolName ?? '';
+                        }
+                    } catch (\Exception $e) {
+                        // Non-fatal: school name just won't be displayed.
                     }
-                } catch (\Exception $e) {
-                    // Non-fatal: school name just won't be displayed.
                 }
             }
 

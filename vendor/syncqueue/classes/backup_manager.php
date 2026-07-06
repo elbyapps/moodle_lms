@@ -110,7 +110,16 @@ class backup_manager {
                 mkdir($backupdir, 0777, true);
             }
 
-            $filename = 'course_' . $courseid . '_' . time() . '.mbz';
+            // Second-granular timestamp, but guaranteed unique: two backups of the
+            // same course within one second must not collide (that would overwrite
+            // the first artifact AND make the filename-keyed content-version dedup
+            // silently keep the old version). Advance the stamp until the name is free.
+            // The name stays course_<id>_<int>.mbz so the filename parsers still hold.
+            $ts = time();
+            while (file_exists($backupdir . '/course_' . $courseid . '_' . $ts . '.mbz')) {
+                $ts++;
+            }
+            $filename = 'course_' . $courseid . '_' . $ts . '.mbz';
             $filepath = $backupdir . '/' . $filename;
 
             // Copy file content to our directory.
