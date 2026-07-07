@@ -1971,6 +1971,53 @@ function SmsSummaryTile({ label, value, tone, active, onClick }: {
     );
 }
 
+function SmsDetailModal({ row, campaignName, onClose }: { row: RiseSmsLogRow; campaignName: string; onClose: () => void }) {
+    const sm = SMS_STATUS_META[row.status] || { label: row.status, bg: '#f1f3f6', fg: '#5a616e', dot: '#9aa0ab' };
+    const field = (label: string, value: any) => (
+        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 12, padding: '9px 0', borderTop: '1px solid #f2f3f5' }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.3px', color: '#8a909c', textTransform: 'uppercase' }}>{label}</div>
+            <div style={{ fontSize: 13, color: '#1f2430', wordBreak: 'break-word' }}>{value}</div>
+        </div>
+    );
+    return (
+        <div className="fixed inset-0 z-[2100] flex items-center justify-center p-4" style={{ background: 'rgba(17,24,39,.5)', backdropFilter: 'blur(3px)' }} onClick={onClose}>
+            <div onClick={(e) => e.stopPropagation()}
+                style={{ width: 560, maxWidth: '100%', maxHeight: '85vh', overflowY: 'auto', background: '#fff', borderRadius: 16, boxShadow: '0 24px 70px rgba(20,28,46,.28)', padding: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 14 }}>
+                    <div>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: '#161b26', letterSpacing: '-.2px' }}>{row.fullname || row.applicantid || 'Notification'}</div>
+                        <div style={{ marginTop: 6 }}>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 11px', borderRadius: 999, background: sm.bg, color: sm.fg, fontSize: 11, fontWeight: 700 }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.dot }} />{sm.label}
+                            </span>
+                        </div>
+                    </div>
+                    <button onClick={onClose} aria-label="Close"
+                        style={{ flex: '0 0 auto', width: 30, height: 30, border: 'none', borderRadius: 8, background: '#f3f4f7', color: '#6b7280', fontSize: 16, cursor: 'pointer', lineHeight: 1 }}>✕</button>
+                </div>
+
+                {/* The message body as sent to the gateway. */}
+                <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.3px', color: '#8a909c', textTransform: 'uppercase', marginBottom: 7 }}>Message sent</div>
+                <div style={{ border: '1px solid #ecedf1', background: '#f8f9fb', borderRadius: 12, padding: '13px 15px', fontSize: 13.5, lineHeight: 1.55, color: '#1f2430', whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 18 }}>
+                    {row.message || <span style={{ color: '#9aa0ab' }}>No message body recorded.</span>}
+                </div>
+
+                <div>
+                    {field('Type', SMS_PURPOSE_LABEL[row.purpose] || row.purpose)}
+                    {field('Phone', row.phone || '-')}
+                    {field('Sent at', formatUnix(row.timecreated))}
+                    {field('Campaign', campaignName)}
+                    {field('Applicant', row.applicantid || '-')}
+                    {row.error && field('Detail', <span style={{ color: row.status === 'sent' ? '#1f2430' : '#b42318' }}>{row.error}</span>)}
+                    {row.userid ? field('Account',
+                        <a href={`/user/profile.php?id=${row.userid}`} target="_blank" rel="noopener noreferrer"
+                            style={{ color: '#005198', fontWeight: 600, textDecoration: 'none' }}>View Moodle profile ›</a>) : null}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function NotificationsReport({ onBack }: { onBack: () => void }) {
     const [campaigns, setCampaigns] = useState<RiseCampaign[]>([]);
     const [campaignId, setCampaignId] = useState('');
@@ -1985,6 +2032,7 @@ function NotificationsReport({ onBack }: { onBack: () => void }) {
     const [data, setData] = useState<RiseSmsLogResponse | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [selected, setSelected] = useState<RiseSmsLogRow | null>(null);
 
     // Campaign dropdown source (best-effort; a failure just leaves "All campaigns").
     useEffect(() => {
@@ -2108,11 +2156,14 @@ function NotificationsReport({ onBack }: { onBack: () => void }) {
                 ) : rows.map((r: RiseSmsLogRow) => {
                     const sm = SMS_STATUS_META[r.status] || { label: r.status, bg: '#f1f3f6', fg: '#5a616e', dot: '#9aa0ab' };
                     return (
-                        <div key={r.id} style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 920, alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f3f4f7' }}>
+                        <div key={r.id} onClick={() => setSelected(r)} title="Click to view the message that was sent"
+                            style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 920, alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f3f4f7', cursor: 'pointer' }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f7f9fb'; }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff'; }}>
                             <div style={{ fontSize: 12.5, color: '#5a616e', fontVariantNumeric: 'tabular-nums' }}>{formatUnix(r.timecreated)}</div>
                             <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {r.userid ? (
-                                    <a href={`/user/profile.php?id=${r.userid}`} target="_blank" rel="noopener noreferrer"
+                                    <a href={`/user/profile.php?id=${r.userid}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}
                                         style={{ fontSize: 13, fontWeight: 600, color: '#005198', textDecoration: 'none' }}>{r.fullname || r.applicantid}</a>
                                 ) : (
                                     <span style={{ fontSize: 13, fontWeight: 600, color: '#1f2430' }}>{r.fullname || r.applicantid || '-'}</span>
@@ -2131,6 +2182,10 @@ function NotificationsReport({ onBack }: { onBack: () => void }) {
                     );
                 })}
             </div>
+
+            {selected && (
+                <SmsDetailModal row={selected} campaignName={campaignName(selected.campaignid)} onClose={() => setSelected(null)} />
+            )}
 
             {/* PAGINATION */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 16 }}>

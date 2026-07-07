@@ -1050,7 +1050,7 @@ class rise extends external_api {
         $total = (int) $DB->count_records_sql("SELECT COUNT(*) $from WHERE 1=1 $where", $whereparams);
         $records = $DB->get_records_sql(
             "SELECT l.id, l.campaignid, l.applicantid, l.userid, l.phone, l.purpose,
-                    l.status, l.error, l.timecreated, r.fullname
+                    l.status, l.error, l.message, l.timecreated, r.fullname
                $from WHERE 1=1 $where
              ORDER BY l.timecreated DESC, l.id DESC",
             $whereparams, ($page - 1) * $limit, $limit);
@@ -1067,6 +1067,8 @@ class rise extends external_api {
                 'purpose' => $rec->purpose,
                 'status' => $rec->status,
                 'error' => (string) ($rec->error ?? ''),
+                // Body as sent (raw deep-link tokens are already redacted at insert).
+                'message' => (string) ($rec->message ?? ''),
                 'timecreated' => (int) $rec->timecreated,
             ];
         }

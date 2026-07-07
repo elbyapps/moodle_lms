@@ -231,6 +231,7 @@ export interface RiseSmsLogRow {
     purpose: 'welcome' | 'action' | 'correction' | string;
     status: 'sent' | 'failed' | 'skipped' | string;
     error: string;
+    message: string;
     timecreated: number;
 }
 
