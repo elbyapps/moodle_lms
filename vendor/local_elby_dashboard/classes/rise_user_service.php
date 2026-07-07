@@ -329,6 +329,84 @@ class rise_user_service {
     }
 
     // =========================================================================
+    // Backlog notifications (reviews decided before the notification feature).
+    // =========================================================================
+
+    /**
+     * The notification backlog: reviews decided as action_requested/rejected
+     * whose learner was never notified (pre-feature rows, or rows whose
+     * delivery never recorded). Privacy-erased (anonymized) rows are excluded.
+     *
+     * Single source of truth for both the CLI (queue_backlog_notifications.php)
+     * and the admin-panel trigger.
+     *
+     * @param string $campaignid Optional campaign filter.
+     * @param int $limit Cap (0 = no cap).
+     * @return array Review records: id, campaignid, applicantid, nesastatus, timemodified.
+     */
+    public function backlog_reviews(string $campaignid = '', int $limit = 0): array {
+        global $DB;
+        [$where, $params] = $this->backlog_where($campaignid);
+        return $DB->get_records_select('elby_rise_reviews', $where, $params, 'id ASC',
+            'id, campaignid, applicantid, nesastatus, timemodified', 0, $limit ?: 0);
+    }
+
+    /**
+     * Cheap count of the notification backlog — no rows materialized. Used for
+     * the admin-panel preview so opening the panel is O(1) regardless of size.
+     *
+     * @param string $campaignid Optional campaign filter.
+     * @return int
+     */
+    public function backlog_count(string $campaignid = ''): int {
+        global $DB;
+        [$where, $params] = $this->backlog_where($campaignid);
+        return (int) $DB->count_records_select('elby_rise_reviews', $where, $params);
+    }
+
+    /**
+     * Shared WHERE for the backlog selection (single source of truth).
+     *
+     * @param string $campaignid Optional campaign filter.
+     * @return array{0: string, 1: array} [sql, params]
+     */
+    private function backlog_where(string $campaignid): array {
+        global $DB;
+        $where = "nesastatus IN ('action_requested', 'rejected')
+                  AND (lastnotifiedhash IS NULL OR lastnotifiedhash = '')
+                  AND " . $DB->sql_like('applicantid', ':anonpat', true, true, true);
+        $params = ['anonpat' => 'anon%'];
+        if ($campaignid !== '') {
+            $where .= ' AND campaignid = :campaignid';
+            $params['campaignid'] = $campaignid;
+        }
+        return [$where, $params];
+    }
+
+    /**
+     * Queue one deduped ad-hoc notification task per backlog review. Re-running
+     * never double-queues (queue_adhoc_task skips an identical pending task).
+     *
+     * @param array $reviews Review records from backlog_reviews().
+     * @return array{queued: int, duplicates: int}
+     */
+    public function queue_backlog(array $reviews): array {
+        $queued = 0;
+        $duplicates = 0;
+        foreach ($reviews as $review) {
+            $task = new \local_elby_dashboard\task\notify_backlog_adhoc();
+            $task->set_custom_data(['reviewid' => (int) $review->id]);
+            $task->set_component('local_elby_dashboard');
+            if (\core\task\manager::queue_adhoc_task($task, true)) {
+                $queued++;
+            } else {
+                $duplicates++;
+            }
+        }
+        return ['queued' => $queued, 'duplicates' => $duplicates];
+    }
+
+    // =========================================================================
     // Provisioning.
     // =========================================================================
 

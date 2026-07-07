@@ -297,6 +297,22 @@ $functions = [
         'ajax'         => true,
         'capabilities' => 'local/elby_dashboard:manageriseusers',
     ],
+    'local_elby_dashboard_rise_get_sms_log' => [
+        'classname'    => 'local_elby_dashboard\external\rise',
+        'methodname'   => 'get_sms_log',
+        'description'  => 'Get the paginated, filterable RISE SMS notification log with status summary',
+        'type'         => 'read',
+        'ajax'         => true,
+        'capabilities' => 'local/elby_dashboard:manageriseusers',
+    ],
+    'local_elby_dashboard_rise_queue_backlog' => [
+        'classname'    => 'local_elby_dashboard\external\rise',
+        'methodname'   => 'queue_backlog',
+        'description'  => 'Preview or queue backlog learner notifications (reviews decided before the feature existed)',
+        'type'         => 'write',
+        'ajax'         => true,
+        'capabilities' => 'local/elby_dashboard:manageriseusers',
+    ],
 
     // SDMS self-link API (for logged-in users linking their own account).
     'local_elby_dashboard_self_link_sdms' => [
@@ -456,6 +472,8 @@ $services = [
             'local_elby_dashboard_rise_validate_nid',
             'local_elby_dashboard_rise_get_user_status',
             'local_elby_dashboard_rise_create_user',
+            'local_elby_dashboard_rise_get_sms_log',
+            'local_elby_dashboard_rise_queue_backlog',
         ],
         'restrictedusers' => 0,
         'enabled'         => 1,

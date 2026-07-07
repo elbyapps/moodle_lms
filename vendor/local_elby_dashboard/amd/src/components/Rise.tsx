@@ -30,6 +30,7 @@ import type {
     RiseCampaign, RiseApplicant, RisePagination, RiseAttachment,
     NesaStatus, RiseNesaReview, RiseNidValidation, RiseNidField,
     RiseNesaCounts, RiseNesaStatsMap, RiseUserStatus, UserData,
+    RiseSmsLogRow, RiseSmsLogResponse,
 } from '../types';
 
 // @ts-ignore — Moodle AMD loader global.
@@ -113,6 +114,7 @@ function ajaxCall(methodname: string, args: Record<string, any>): Promise<any> {
 // document preview are all linkable, shareable and survive a reload.
 
 interface RiseUrlState {
+    view: string;
     campaignid: string;
     applicantid: string;
     doc: string;
@@ -125,9 +127,9 @@ interface RiseUrlState {
     page: string;
 }
 
-const RISE_URL_KEYS: (keyof RiseUrlState)[] = ['campaignid', 'applicantid', 'doc', 'status', 'gender', 'district', 'q', 'nesa', 'nida', 'page'];
+const RISE_URL_KEYS: (keyof RiseUrlState)[] = ['view', 'campaignid', 'applicantid', 'doc', 'status', 'gender', 'district', 'q', 'nesa', 'nida', 'page'];
 
-const EMPTY_URL: RiseUrlState = { campaignid: '', applicantid: '', doc: '', status: '', gender: '', district: '', q: '', nesa: '', nida: '', page: '' };
+const EMPTY_URL: RiseUrlState = { view: '', campaignid: '', applicantid: '', doc: '', status: '', gender: '', district: '', q: '', nesa: '', nida: '', page: '' };
 
 function readRiseUrlState(): RiseUrlState {
     const p = new URLSearchParams(window.location.search);
@@ -415,7 +417,7 @@ function NesaMiniStat({ status, value }: { status: NesaStatus; value: number }) 
     );
 }
 
-function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
+function CampaignList({ onSelect, onViewNotifications, canViewNotifications }: { onSelect: (c: RiseCampaign) => void; onViewNotifications: () => void; canViewNotifications: boolean }) {
     const [campaigns, setCampaigns] = useState<RiseCampaign[]>([]);
     const [nesaStats, setNesaStats] = useState<RiseNesaStatsMap>({});
     const [loading, setLoading] = useState(true);
@@ -469,9 +471,17 @@ function CampaignList({ onSelect }: { onSelect: (c: RiseCampaign) => void }) {
 
     return (
         <div style={{ padding: 'clamp(16px, 3vw, 30px) clamp(16px, 3vw, 34px) 40px' }}>
-            <div style={{ marginBottom: 6 }}>
-                <h1 style={{ margin: '0 0 5px', fontSize: 28, fontWeight: 700, letterSpacing: '-.5px', color: '#161b26' }}>RISE</h1>
-                <p style={{ margin: 0, fontSize: 14, color: '#6b7280' }}>Recruitment &amp; enrolment campaigns across the RISE programme.</p>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 6 }}>
+                <div>
+                    <h1 style={{ margin: '0 0 5px', fontSize: 28, fontWeight: 700, letterSpacing: '-.5px', color: '#161b26' }}>RISE</h1>
+                    <p style={{ margin: 0, fontSize: 14, color: '#6b7280' }}>Recruitment &amp; enrolment campaigns across the RISE programme.</p>
+                </div>
+                {canViewNotifications && (
+                    <button onClick={onViewNotifications}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 11, border: '1px solid #e7e9ee', background: '#fff', color: '#005198', fontFamily: 'inherit', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(20,28,46,.04)' }}>
+                        <span style={{ fontSize: 15 }}>✉</span> SMS notifications
+                    </button>
+                )}
             </div>
 
             {loading ? (
@@ -1917,6 +1927,225 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
 
 // ---- Root -----------------------------------------------------------------
 
+// ---- SMS notification log report -----------------------------------------
+
+const SMS_STATUS_META: Record<string, { label: string; bg: string; fg: string; dot: string }> = {
+    sent: { label: 'Sent', bg: '#e6f4ec', fg: '#1a7f43', dot: '#1a9c52' },
+    failed: { label: 'Failed', bg: '#fbe0de', fg: '#b42318', dot: '#d4462f' },
+    skipped: { label: 'Skipped', bg: '#fff1e0', fg: '#b5660b', dot: '#f79222' },
+};
+
+const SMS_PURPOSE_LABEL: Record<string, string> = {
+    welcome: 'Welcome / set password',
+    action: 'Action needed',
+    correction: 'Correction',
+};
+
+function formatUnix(ts: number): string {
+    if (!ts) return '-';
+    const d = new Date(ts * 1000);
+    return isNaN(d.getTime()) ? '-' : d.toLocaleString();
+}
+
+// A clickable summary tile that also acts as the status filter.
+function SmsSummaryTile({ label, value, tone, active, onClick }: {
+    label: string; value: number; tone: 'blue' | 'green' | 'red' | 'amber'; active: boolean; onClick: () => void;
+}) {
+    const palette = {
+        blue: { bg: '#f1f6fb', border: '#cfe0f2', fg: '#005198', dot: '#005198' },
+        green: { bg: '#f0f9f3', border: '#cfe9d9', fg: '#1a7f43', dot: '#1a9c52' },
+        red: { bg: '#fdf3f3', border: '#f3c9c9', fg: '#b42318', dot: '#d4462f' },
+        amber: { bg: '#fff8ee', border: '#f3e1c0', fg: '#b5660b', dot: '#f79222' },
+    }[tone];
+    return (
+        <button onClick={onClick}
+            style={{ textAlign: 'left', background: palette.bg, border: `1.5px solid ${active ? palette.fg : palette.border}`,
+                borderRadius: 12, padding: '13px 16px', cursor: 'pointer', fontFamily: 'inherit',
+                boxShadow: active ? `0 0 0 1px ${palette.fg}` : 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: palette.dot }} />
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.4px', textTransform: 'uppercase', color: palette.fg }}>{label}</span>
+            </div>
+            <div style={{ fontSize: 23, fontWeight: 800, color: palette.fg, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{num(value)}</div>
+        </button>
+    );
+}
+
+function NotificationsReport({ onBack }: { onBack: () => void }) {
+    const [campaigns, setCampaigns] = useState<RiseCampaign[]>([]);
+    const [campaignId, setCampaignId] = useState('');
+    const [status, setStatus] = useState('');
+    const [purpose, setPurpose] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [searchInput, setSearchInput] = useState('');
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
+
+    const [data, setData] = useState<RiseSmsLogResponse | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
+
+    // Campaign dropdown source (best-effort; a failure just leaves "All campaigns").
+    useEffect(() => {
+        (async () => {
+            try {
+                const raw = await ajaxCall('local_elby_dashboard_rise_get_campaigns', {});
+                setCampaigns(JSON.parse(raw).campaigns || []);
+            } catch (e) { console.error('RISE campaigns load failed:', e); }
+        })();
+    }, []);
+
+    // Debounce the free-text search.
+    useEffect(() => {
+        const h = window.setTimeout(() => { setSearch(searchInput); setPage(1); }, 300);
+        return () => window.clearTimeout(h);
+    }, [searchInput]);
+
+    const dateToTs = (v: string, endOfDay = false): number => {
+        if (!v) return 0;
+        const d = new Date(v + 'T00:00:00');
+        if (isNaN(d.getTime())) return 0;
+        return Math.floor(d.getTime() / 1000) + (endOfDay ? 86400 : 0);
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            try {
+                setLoading(true); setError('');
+                const raw = await ajaxCall('local_elby_dashboard_rise_get_sms_log', {
+                    campaignid: campaignId, status, purpose,
+                    datefrom: dateToTs(dateFrom), dateto: dateToTs(dateTo, true),
+                    search, page, limit: 50,
+                });
+                if (!cancelled) setData(JSON.parse(raw));
+            } catch (e) {
+                console.error('RISE SMS log load failed:', e);
+                if (!cancelled) setError('Failed to load the notification log.');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, [campaignId, status, purpose, dateFrom, dateTo, search, page]);
+
+    const onFilter = (setter: (v: string) => void) => (v: string) => { setter(v); setPage(1); };
+    const summary = data?.summary || { sent: 0, failed: 0, skipped: 0, total: 0 };
+    const rows = data?.rows || [];
+    const pag = data?.pagination || { page: 1, limit: 50, total: 0, totalPages: 1 };
+    const campaignName = (id: string) => campaigns.find((c) => c._id === id)?.name || id;
+
+    const GRID = '1.4fr 1.7fr 1.1fr 1.2fr 0.9fr 2fr';
+    const headCell = { fontSize: 10.5, fontWeight: 700, letterSpacing: '.7px', color: '#8a909c' } as const;
+
+    return (
+        <div className="p-4 sm:p-6" style={{ padding: 'clamp(16px, 3vw, 30px) clamp(16px, 3vw, 34px) 40px' }}>
+            <button onClick={onBack} className="flex items-center gap-1 text-sm text-blue-600 hover:underline mb-3"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: 'none', background: 'none', color: '#005198', cursor: 'pointer', fontSize: 13.5, marginBottom: 12 }}>
+                <span style={{ fontSize: 15 }}>‹</span> Back to campaigns
+            </button>
+
+            <div style={{ marginBottom: 18 }}>
+                <h1 style={{ margin: '0 0 5px', fontSize: 26, fontWeight: 800, letterSpacing: '-.5px', color: '#161b26' }}>SMS notifications</h1>
+                <p style={{ margin: 0, fontSize: 13.5, color: '#6b7280' }}>
+                    Delivery log of welcome, action-needed and correction messages. <b>Sent</b> means the gateway accepted the message (not a handset delivery receipt); <b>failed</b> is retried nightly; <b>skipped</b> is a permanent no-send (bad/missing phone or the gateway is off).
+                </p>
+            </div>
+
+            {/* SUMMARY TILES (also act as the status filter) */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
+                <SmsSummaryTile label="Total" value={summary.total} tone="blue" active={status === ''} onClick={() => onFilter(setStatus)('')} />
+                <SmsSummaryTile label="Sent" value={summary.sent} tone="green" active={status === 'sent'} onClick={() => onFilter(setStatus)(status === 'sent' ? '' : 'sent')} />
+                <SmsSummaryTile label="Failed" value={summary.failed} tone="red" active={status === 'failed'} onClick={() => onFilter(setStatus)(status === 'failed' ? '' : 'failed')} />
+                <SmsSummaryTile label="Skipped" value={summary.skipped} tone="amber" active={status === 'skipped'} onClick={() => onFilter(setStatus)(status === 'skipped' ? '' : 'skipped')} />
+            </div>
+
+            {/* FILTER BAR */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, marginBottom: 16, flexWrap: 'wrap' }}>
+                <Select value={campaignId} onChange={onFilter(setCampaignId)} minWidth={200}>
+                    <option value="">All campaigns</option>
+                    {campaigns.map((c) => <option value={c._id}>{c.name}</option>)}
+                </Select>
+                <Select value={purpose} onChange={onFilter(setPurpose)} minWidth={170}>
+                    <option value="">All types</option>
+                    <option value="welcome">Welcome / set password</option>
+                    <option value="action">Action needed</option>
+                    <option value="correction">Correction</option>
+                </Select>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#6b7280' }}>
+                    From <input type="date" value={dateFrom} onInput={(e) => onFilter(setDateFrom)((e.target as HTMLInputElement).value)}
+                        style={{ padding: '9px 10px', border: '1px solid #e2e5ea', borderRadius: 9, fontFamily: 'inherit', fontSize: 13 }} />
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#6b7280' }}>
+                    To <input type="date" value={dateTo} onInput={(e) => onFilter(setDateTo)((e.target as HTMLInputElement).value)}
+                        style={{ padding: '9px 10px', border: '1px solid #e2e5ea', borderRadius: 9, fontFamily: 'inherit', fontSize: 13 }} />
+                </label>
+                <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180, maxWidth: 320 }}>
+                    <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#b6bcc6', fontSize: 13 }}>⌕</span>
+                    <input value={searchInput} placeholder="Phone, applicant or name…"
+                        onInput={(e) => setSearchInput((e.target as HTMLInputElement).value)}
+                        style={{ padding: '10px 14px 10px 34px', border: '1px solid #e2e5ea', borderRadius: 10, background: '#fff', fontFamily: 'inherit', fontSize: 13, color: '#1f2430', width: '100%', boxSizing: 'border-box', outline: 'none' }} />
+                </div>
+            </div>
+
+            {/* TABLE */}
+            <div style={{ background: '#fff', border: '1px solid #ecedf1', borderRadius: 14, overflowX: 'auto', boxShadow: '0 1px 2px rgba(20,28,46,.04)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 920, alignItems: 'center', padding: '0 20px', height: 46, background: '#fafbfc', borderBottom: '1px solid #eceef2' }}>
+                    <div style={headCell}>TIME</div>
+                    <div style={headCell}>LEARNER</div>
+                    <div style={headCell}>PHONE</div>
+                    <div style={headCell}>TYPE</div>
+                    <div style={headCell}>STATUS</div>
+                    <div style={headCell}>DETAIL</div>
+                </div>
+                {loading ? (
+                    <div style={{ padding: 46, textAlign: 'center', color: '#9aa0ab', fontSize: 13.5 }}>Loading…</div>
+                ) : error ? (
+                    <div style={{ padding: 46, textAlign: 'center', color: '#b42318', fontSize: 13.5 }}>{error}</div>
+                ) : rows.length === 0 ? (
+                    <div style={{ padding: 46, textAlign: 'center', color: '#9aa0ab', fontSize: 13.5 }}>No notifications match these filters.</div>
+                ) : rows.map((r: RiseSmsLogRow) => {
+                    const sm = SMS_STATUS_META[r.status] || { label: r.status, bg: '#f1f3f6', fg: '#5a616e', dot: '#9aa0ab' };
+                    return (
+                        <div key={r.id} style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 920, alignItems: 'center', padding: '11px 20px', borderBottom: '1px solid #f3f4f7' }}>
+                            <div style={{ fontSize: 12.5, color: '#5a616e', fontVariantNumeric: 'tabular-nums' }}>{formatUnix(r.timecreated)}</div>
+                            <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {r.userid ? (
+                                    <a href={`/user/profile.php?id=${r.userid}`} target="_blank" rel="noopener noreferrer"
+                                        style={{ fontSize: 13, fontWeight: 600, color: '#005198', textDecoration: 'none' }}>{r.fullname || r.applicantid}</a>
+                                ) : (
+                                    <span style={{ fontSize: 13, fontWeight: 600, color: '#1f2430' }}>{r.fullname || r.applicantid || '-'}</span>
+                                )}
+                                {campaignId === '' && <div style={{ fontSize: 11, color: '#9aa0ab', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{campaignName(r.campaignid)}</div>}
+                            </div>
+                            <div style={{ fontSize: 12.5, color: '#3b424f', fontVariantNumeric: 'tabular-nums' }}>{r.phone || '-'}</div>
+                            <div style={{ fontSize: 12.5, color: '#5a616e' }}>{SMS_PURPOSE_LABEL[r.purpose] || r.purpose}</div>
+                            <div>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 999, background: sm.bg, color: sm.fg, fontSize: 10.5, fontWeight: 700 }}>
+                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: sm.dot }} />{sm.label}
+                                </span>
+                            </div>
+                            <div title={r.error} style={{ fontSize: 12, color: r.status === 'sent' ? '#9aa0ab' : '#b42318', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.error || (r.status === 'sent' ? 'Delivered to gateway' : '-')}</div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {/* PAGINATION */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, marginTop: 16 }}>
+                <div style={{ fontSize: 13, color: '#8a909c' }}>Page <b style={{ color: '#5a616e' }}>{pag.page}</b> of {pag.totalPages} · {pag.total.toLocaleString()} messages</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        style={{ padding: '9px 16px', border: '1px solid #e2e5ea', borderRadius: 9, background: '#fff', fontFamily: 'inherit', fontSize: 13, color: page <= 1 ? '#b6bcc6' : '#3b424f', cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>‹ Previous</button>
+                    <button disabled={page >= pag.totalPages} onClick={() => setPage((p) => p + 1)}
+                        style={{ padding: '9px 16px', border: '1px solid #005198', borderRadius: 9, background: page >= pag.totalPages ? '#a6c0d6' : '#005198', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, color: '#fff', cursor: page >= pag.totalPages ? 'not-allowed' : 'pointer' }}>Next ›</button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function Rise({ user }: { user?: UserData }) {
     const [campaign, setCampaign] = useState<RiseCampaign | null>(null);
     const [urlState, setUrlState] = useState<RiseUrlState>(readRiseUrlState);
@@ -1965,6 +2194,11 @@ export default function Rise({ user }: { user?: UserData }) {
         setCampaign(null);
         setUrlState(EMPTY_URL); writeRiseUrl(EMPTY_URL);
     };
+    const openNotifications = () => {
+        setCampaign(null);
+        const ns: RiseUrlState = { ...EMPTY_URL, view: 'notifications' };
+        setUrlState(ns); writeRiseUrl(ns);
+    };
     const selectApplicant = (id: string | null) => {
         setUrlState((s) => { const ns = { ...s, applicantid: id || '', doc: '' }; writeRiseUrl({ applicantid: id || '', doc: '' }); return ns; });
     };
@@ -1972,6 +2206,9 @@ export default function Rise({ user }: { user?: UserData }) {
         setUrlState((s) => { const ns = { ...s, doc: label || '' }; writeRiseUrl({ doc: label || '' }); return ns; });
     };
 
+    if (urlState.view === 'notifications' && user?.canManageRiseUsers) {
+        return <NotificationsReport onBack={backToCampaigns} />;
+    }
     if (campaign) {
         return <ApplicantList
             key={campaign._id}
@@ -1987,5 +2224,5 @@ export default function Rise({ user }: { user?: UserData }) {
     if (resolving && urlState.campaignid) {
         return <div style={{ padding: 46, color: '#9aa0ab', fontSize: 14 }}>Loading campaign…</div>;
     }
-    return <CampaignList onSelect={openCampaign} />;
+    return <CampaignList onSelect={openCampaign} onViewNotifications={openNotifications} canViewNotifications={!!user?.canManageRiseUsers} />;
 }

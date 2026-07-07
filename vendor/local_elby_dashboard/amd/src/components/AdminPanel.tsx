@@ -597,6 +597,131 @@ function EnrollmentLogsSection() {
     );
 }
 
+// Must match rise::BACKLOG_BATCH — the max notifications the web endpoint queues
+// per request (larger backlogs queue across repeated clicks, or via the CLI).
+const RISE_BACKLOG_BATCH = 500;
+
+function RiseBacklogSection() {
+    const [count, setCount] = useState<number | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [confirming, setConfirming] = useState(false);
+    const [queuing, setQueuing] = useState(false);
+    const [result, setResult] = useState<{ queued: number; duplicates: number; remaining: number } | null>(null);
+    const [error, setError] = useState('');
+
+    async function loadCount() {
+        try {
+            setLoading(true); setError('');
+            const raw = await ajaxCall('local_elby_dashboard_rise_queue_backlog', { campaignid: '', execute: false });
+            setCount(JSON.parse(raw).count ?? 0);
+        } catch (e: any) {
+            setError(e?.message || 'Failed to load the backlog count.');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    useEffect(() => { loadCount(); }, []);
+
+    async function queue() {
+        setQueuing(true); setError(''); setResult(null);
+        try {
+            const raw = await ajaxCall('local_elby_dashboard_rise_queue_backlog', { campaignid: '', execute: true });
+            const r = JSON.parse(raw);
+            setResult({ queued: r.queued, duplicates: r.duplicates, remaining: r.remaining ?? 0 });
+            setConfirming(false);
+            loadCount();
+        } catch (e: any) {
+            setError(e?.message || 'Failed to queue the notifications.');
+        } finally {
+            setQueuing(false);
+        }
+    }
+
+    return (
+        <div className="bg-white rounded-xl p-6 shadow-sm mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">RISE notification backlog</h3>
+            <p className="text-sm text-gray-500 mb-4">
+                Learners whose NESA review was decided (<b>action requested</b> or <b>rejected</b>) before the SMS/bell
+                notification feature existed were never told. Queue them to each receive one SMS — the reviewer comment plus
+                a correction link — on the next cron run. Safe to run repeatedly: already-queued and already-notified
+                learners are skipped, and privacy-erased learners are never contacted.
+            </p>
+
+            {error && (
+                <div className="mb-3 px-4 py-3 rounded-lg text-sm bg-red-50 text-red-800 border border-red-200">
+                    {error}
+                    <button onClick={() => setError('')} className="float-right text-lg leading-none opacity-60 hover:opacity-100">&times;</button>
+                </div>
+            )}
+            {result && (
+                <div className="mb-3 px-4 py-3 rounded-lg text-sm bg-green-50 text-green-800 border border-green-200">
+                    Queued {result.queued} notification{result.queued !== 1 ? 's' : ''}
+                    {result.duplicates ? ` (${result.duplicates} already queued, skipped)` : ''}. Cron will deliver them shortly.
+                    {result.remaining > 0 && (
+                        <span className="block mt-1 text-green-900">
+                            {result.remaining} more not yet queued — queue them again once this batch is delivered, or run <code>make rise-backlog-notify</code> for the full set in one go.
+                        </span>
+                    )}
+                    <button onClick={() => setResult(null)} className="float-right text-lg leading-none opacity-60 hover:opacity-100">&times;</button>
+                </div>
+            )}
+
+            {loading ? (
+                <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    Checking the backlog…
+                </div>
+            ) : count === null ? (
+                null
+            ) : count === 0 ? (
+                <div className="px-4 py-3 rounded-lg text-sm bg-gray-50 text-gray-600 border border-gray-200">
+                    No pending backlog — every reviewed learner has already been notified.
+                </div>
+            ) : !confirming ? (
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="text-sm text-gray-700">
+                        <b className="text-gray-900">{count}</b> learner{count !== 1 ? 's' : ''} waiting to be notified
+                        {count > RISE_BACKLOG_BATCH && <span className="text-gray-500"> · queued {RISE_BACKLOG_BATCH} at a time</span>}.
+                    </div>
+                    <button
+                        onClick={() => { setConfirming(true); setResult(null); }}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+                    >
+                        {count > RISE_BACKLOG_BATCH
+                            ? `Queue ${RISE_BACKLOG_BATCH} of ${count}`
+                            : `Queue ${count} notification${count !== 1 ? 's' : ''}`}
+                    </button>
+                </div>
+            ) : (
+                <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
+                    <p className="text-sm text-amber-900 mb-3">
+                        This sends a real SMS to <b>{Math.min(count, RISE_BACKLOG_BATCH)}</b> learner{Math.min(count, RISE_BACKLOG_BATCH) !== 1 ? 's' : ''} on the next cron run
+                        {count > RISE_BACKLOG_BATCH && <> — the other {count - RISE_BACKLOG_BATCH} queue on the next click once this batch is delivered, or run <code>make rise-backlog-notify</code> for the full set</>}. Continue?
+                    </p>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={queue}
+                            disabled={queuing}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
+                        >
+                            {queuing && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                            {queuing ? 'Queuing…' : 'Confirm & queue'}
+                        </button>
+                        <button
+                            onClick={() => setConfirming(false)}
+                            disabled={queuing}
+                            className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function AdminPanel() {
     const [stats, setStats] = useState<AdminStats | null>(null);
     const [logs, setLogs] = useState<SyncLogEntry[]>([]);
@@ -731,6 +856,9 @@ export default function AdminPanel() {
 
             {/* Auto-enrollment Logs */}
             <EnrollmentLogsSection />
+
+            {/* RISE notification backlog trigger */}
+            <RiseBacklogSection />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Manual Sync Triggers */}

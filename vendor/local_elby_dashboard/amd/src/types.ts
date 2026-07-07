@@ -220,6 +220,26 @@ export interface RiseUserStatus {
     correction?: RiseCorrection | null;
 }
 
+// A single RISE SMS-notification log entry (admin visibility of delivery).
+export interface RiseSmsLogRow {
+    id: number;
+    campaignid: string;
+    applicantid: string;
+    userid: number;
+    fullname: string;
+    phone: string;
+    purpose: 'welcome' | 'action' | 'correction' | string;
+    status: 'sent' | 'failed' | 'skipped' | string;
+    error: string;
+    timecreated: number;
+}
+
+export interface RiseSmsLogResponse {
+    rows: RiseSmsLogRow[];
+    pagination: RisePagination;
+    summary: { sent: number; failed: number; skipped: number; total: number };
+}
+
 export interface RiseNidField {
     field: string;
     app: string;

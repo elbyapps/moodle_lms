@@ -238,6 +238,9 @@ class rise extends external_api {
     /** @var string[] Allowed NESA review decisions. */
     private const NESA_STATUSES = ['approved', 'rejected', 'action_requested', 'pending'];
 
+    /** @var int Max backlog notifications queued per web request (unbounded via CLI). */
+    private const BACKLOG_BATCH = 500;
+
     /**
      * Parameters for get_reviews.
      */
@@ -930,5 +933,227 @@ class rise extends external_api {
      */
     public static function create_user_returns(): external_value {
         return new external_value(PARAM_RAW, 'JSON provisioning result');
+    }
+
+    // =========================================================================
+    // SMS notification log (admin visibility of sent / failed / skipped).
+    // =========================================================================
+
+    /**
+     * Parameters for get_sms_log.
+     */
+    public static function get_sms_log_parameters(): external_function_parameters {
+        return new external_function_parameters([
+            'campaignid' => new external_value(PARAM_ALPHANUM, 'Campaign filter (empty = all)', VALUE_DEFAULT, ''),
+            'status' => new external_value(PARAM_ALPHA, 'Status filter: sent|failed|skipped (empty = all)', VALUE_DEFAULT, ''),
+            'purpose' => new external_value(PARAM_ALPHA, 'Purpose filter: welcome|action|correction (empty = all)', VALUE_DEFAULT, ''),
+            'datefrom' => new external_value(PARAM_INT, 'Only rows at/after this unix ts (0 = no bound)', VALUE_DEFAULT, 0),
+            'dateto' => new external_value(PARAM_INT, 'Only rows before this unix ts (0 = no bound)', VALUE_DEFAULT, 0),
+            'search' => new external_value(PARAM_TEXT, 'Free-text search (phone / applicant id / learner name)', VALUE_DEFAULT, ''),
+            'page' => new external_value(PARAM_INT, 'Page (1-based)', VALUE_DEFAULT, 1),
+            'limit' => new external_value(PARAM_INT, 'Rows per page', VALUE_DEFAULT, 50),
+        ]);
+    }
+
+    /**
+     * Paginated, filterable SMS notification log with per-status summary counts.
+     *
+     * @param string $campaignid Campaign filter.
+     * @param string $status Status filter.
+     * @param string $purpose Purpose filter.
+     * @param int $datefrom Lower time bound.
+     * @param int $dateto Upper time bound.
+     * @param string $search Free-text search.
+     * @param int $page Page number.
+     * @param int $limit Rows per page.
+     * @return string JSON { rows, pagination, summary }.
+     */
+    public static function get_sms_log(string $campaignid = '', string $status = '', string $purpose = '',
+            int $datefrom = 0, int $dateto = 0, string $search = '', int $page = 1, int $limit = 50): string {
+        global $DB;
+
+        $context = context_system::instance();
+        self::validate_context($context);
+        // The bulk delivery log exposes learner phone numbers and message state
+        // across all campaigns — a RISE-management view, not a report-viewer one.
+        // Gate it on the same capability as account provisioning, not viewreports.
+        require_capability('local/elby_dashboard:manageriseusers', $context);
+
+        $params = self::validate_parameters(self::get_sms_log_parameters(), [
+            'campaignid' => $campaignid, 'status' => $status, 'purpose' => $purpose,
+            'datefrom' => $datefrom, 'dateto' => $dateto, 'search' => $search,
+            'page' => $page, 'limit' => $limit,
+        ]);
+
+        $page = max(1, $params['page']);
+        $limit = min(200, max(1, $params['limit']));
+
+        // Shared filters (everything except the status filter — the summary is
+        // computed over this so the status tiles stay meaningful when a status
+        // filter is applied to the table).
+        $base = [];
+        $baseparams = [];
+        if ($params['campaignid'] !== '') {
+            $base[] = 'l.campaignid = :campaignid';
+            $baseparams['campaignid'] = $params['campaignid'];
+        }
+        if (in_array($params['purpose'], ['welcome', 'action', 'correction'], true)) {
+            $base[] = 'l.purpose = :purpose';
+            $baseparams['purpose'] = $params['purpose'];
+        }
+        if ($params['datefrom'] > 0) {
+            $base[] = 'l.timecreated >= :datefrom';
+            $baseparams['datefrom'] = $params['datefrom'];
+        }
+        if ($params['dateto'] > 0) {
+            $base[] = 'l.timecreated < :dateto';
+            $baseparams['dateto'] = $params['dateto'];
+        }
+        $needle = trim($params['search']);
+        if ($needle !== '') {
+            $like = '%' . $DB->sql_like_escape($needle) . '%';
+            $searchparts = [];
+            foreach (['l.phone', 'l.applicantid', 'r.fullname'] as $i => $col) {
+                $pn = 'srch' . $i;
+                $searchparts[] = $DB->sql_like($col, ':' . $pn, false);
+                $baseparams[$pn] = $like;
+            }
+            $base[] = '(' . implode(' OR ', $searchparts) . ')';
+        }
+        $basesql = $base ? (' AND ' . implode(' AND ', $base)) : '';
+
+        // Join the review row (best-effort) for the learner name; NULL-safe.
+        $from = "FROM {elby_rise_sms_log} l
+            LEFT JOIN {elby_rise_reviews} r
+                   ON r.campaignid = l.campaignid AND r.applicantid = l.applicantid";
+
+        // Summary per status over the base filter.
+        $summary = ['sent' => 0, 'failed' => 0, 'skipped' => 0, 'total' => 0];
+        $rs = $DB->get_recordset_sql(
+            "SELECT l.status, COUNT(*) AS cnt $from WHERE 1=1 $basesql GROUP BY l.status", $baseparams);
+        foreach ($rs as $row) {
+            if (isset($summary[$row->status])) {
+                $summary[$row->status] = (int) $row->cnt;
+            }
+            $summary['total'] += (int) $row->cnt;
+        }
+        $rs->close();
+
+        // Table: base filter + optional status filter, paginated.
+        $where = $basesql;
+        $whereparams = $baseparams;
+        if (in_array($params['status'], ['sent', 'failed', 'skipped'], true)) {
+            $where .= ' AND l.status = :status';
+            $whereparams['status'] = $params['status'];
+        }
+
+        $total = (int) $DB->count_records_sql("SELECT COUNT(*) $from WHERE 1=1 $where", $whereparams);
+        $records = $DB->get_records_sql(
+            "SELECT l.id, l.campaignid, l.applicantid, l.userid, l.phone, l.purpose,
+                    l.status, l.error, l.timecreated, r.fullname
+               $from WHERE 1=1 $where
+             ORDER BY l.timecreated DESC, l.id DESC",
+            $whereparams, ($page - 1) * $limit, $limit);
+
+        $rows = [];
+        foreach ($records as $rec) {
+            $rows[] = [
+                'id' => (int) $rec->id,
+                'campaignid' => $rec->campaignid,
+                'applicantid' => $rec->applicantid,
+                'userid' => (int) $rec->userid,
+                'fullname' => (string) ($rec->fullname ?? ''),
+                'phone' => $rec->phone,
+                'purpose' => $rec->purpose,
+                'status' => $rec->status,
+                'error' => (string) ($rec->error ?? ''),
+                'timecreated' => (int) $rec->timecreated,
+            ];
+        }
+
+        return json_encode([
+            'rows' => $rows,
+            'pagination' => [
+                'page' => $page,
+                'limit' => $limit,
+                'total' => $total,
+                'totalPages' => max(1, (int) ceil($total / $limit)),
+            ],
+            'summary' => $summary,
+        ]);
+    }
+
+    /**
+     * Return value for get_sms_log.
+     */
+    public static function get_sms_log_returns(): external_value {
+        return new external_value(PARAM_RAW, 'JSON SMS log payload');
+    }
+
+    // =========================================================================
+    // Backlog notification trigger (admin panel).
+    // =========================================================================
+
+    /**
+     * Parameters for queue_backlog.
+     */
+    public static function queue_backlog_parameters(): external_function_parameters {
+        return new external_function_parameters([
+            'campaignid' => new external_value(PARAM_ALPHANUM, 'Campaign filter (empty = all)', VALUE_DEFAULT, ''),
+            'execute' => new external_value(PARAM_BOOL, 'false = preview count only; true = queue the tasks',
+                VALUE_DEFAULT, false),
+        ]);
+    }
+
+    /**
+     * Preview or queue the backlog of learner notifications for reviews decided
+     * before the notification feature existed (action_requested/rejected that
+     * never notified the learner). Queuing sends real SMS, so it is gated on the
+     * manage capability and the caller (admin panel) confirms before executing.
+     *
+     * @param string $campaignid Campaign filter.
+     * @param bool $execute Whether to actually queue (default: preview).
+     * @return string JSON { count, executed, queued, duplicates }.
+     */
+    public static function queue_backlog(string $campaignid = '', bool $execute = false): string {
+        $context = context_system::instance();
+        self::validate_context($context);
+        require_capability('local/elby_dashboard:viewreports', $context);
+        require_capability('local/elby_dashboard:manageriseusers', $context);
+
+        $params = self::validate_parameters(self::queue_backlog_parameters(), [
+            'campaignid' => $campaignid,
+            'execute' => $execute,
+        ]);
+
+        $service = new rise_user_service();
+        // Cheap count — never materialize the whole backlog just to size it.
+        $count = $service->backlog_count($params['campaignid']);
+
+        if (!$params['execute']) {
+            return json_encode(['count' => $count, 'executed' => false,
+                'queued' => 0, 'duplicates' => 0, 'remaining' => $count]);
+        }
+
+        // Bound the web request: queue at most one batch per call (one DB insert +
+        // dedup check per learner). Larger backlogs are queued across repeated
+        // clicks (once cron delivers a batch, those rows leave the selection), or
+        // in one shot via the unbounded CLI (make rise-backlog-notify).
+        $batch = $service->backlog_reviews($params['campaignid'], self::BACKLOG_BATCH);
+        $result = $service->queue_backlog($batch);
+        return json_encode([
+            'count' => $count,
+            'executed' => true,
+            'queued' => $result['queued'],
+            'duplicates' => $result['duplicates'],
+            'remaining' => max(0, $count - self::BACKLOG_BATCH),
+        ]);
+    }
+
+    /**
+     * Return value for queue_backlog.
+     */
+    public static function queue_backlog_returns(): external_value {
+        return new external_value(PARAM_RAW, 'JSON backlog queue result');
     }
 }

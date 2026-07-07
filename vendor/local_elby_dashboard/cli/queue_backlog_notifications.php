@@ -71,28 +71,16 @@ Options:
     exit(0);
 }
 
-// The backlog: learner-action decisions whose notification never went out.
-// - lastnotifiedhash empty  = notify_learner() never recorded a delivery
-//   (pre-feature rows, or rows whose transient failures are anyway owned by
-//   the nightly retry — queueing them again is harmless: the task re-checks).
-// - anonymized rows are privacy-erased learners and must never be contacted.
-$where = "nesastatus IN ('action_requested', 'rejected')
-          AND (lastnotifiedhash IS NULL OR lastnotifiedhash = '')
-          AND " . $DB->sql_like('applicantid', ':anonpat', true, true, true);
-$params = ['anonpat' => 'anon%'];
-if ($options['campaign'] !== '') {
-    $where .= ' AND campaignid = :campaignid';
-    $params['campaignid'] = $options['campaign'];
-}
-
 // Strict validation: a typo like --limit=1oo must never silently mean
 // "no cap" and queue the whole backlog.
 if (!preg_match('/^\d+$/', (string) $options['limit'])) {
     cli_error('--limit must be a non-negative integer (0 = no cap).');
 }
 $limit = (int) $options['limit'];
-$reviews = $DB->get_records_select('elby_rise_reviews', $where, $params, 'id ASC',
-    'id, campaignid, applicantid, nesastatus, phone, comment, timemodified', 0, $limit ?: 0);
+
+// The backlog selection lives in the service, shared with the admin-panel trigger.
+$service = new \local_elby_dashboard\rise_user_service();
+$reviews = $service->backlog_reviews((string) $options['campaign'], $limit);
 
 if (!$reviews) {
     cli_writeln('Backlog is empty — no reviews need queueing.');
@@ -118,20 +106,9 @@ if (!$options['execute']) {
     exit(0);
 }
 
-$queued = 0;
-$duplicates = 0;
-foreach ($reviews as $review) {
-    $task = new \local_elby_dashboard\task\notify_backlog_adhoc();
-    $task->set_custom_data(['reviewid' => (int) $review->id]);
-    $task->set_component('local_elby_dashboard');
-    // true = skip when an identical task (same class + custom data) is already
-    // queued, so re-running this script never double-queues a learner.
-    if (\core\task\manager::queue_adhoc_task($task, true)) {
-        $queued++;
-    } else {
-        $duplicates++;
-    }
-}
+$result = $service->queue_backlog($reviews);
+$queued = $result['queued'];
+$duplicates = $result['duplicates'];
 
 cli_writeln("Queued {$queued} notification task(s)"
     . ($duplicates ? " ({$duplicates} already queued, skipped)" : '') . '.');

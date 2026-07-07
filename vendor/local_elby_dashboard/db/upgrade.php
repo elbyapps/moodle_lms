@@ -273,5 +273,19 @@ function xmldb_local_elby_dashboard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026070703, 'local', 'elby_dashboard');
     }
 
+    if ($oldversion < 2026070704) {
+        // No schema change — this savepoint exists so the version bump runs the
+        // upgrade path, which re-reads db/services.php and registers the new
+        // RISE web-service functions (rise_get_sms_log, rise_queue_backlog).
+        // Keeps the last savepoint aligned with $plugin->version.
+        upgrade_plugin_savepoint(true, 2026070704, 'local', 'elby_dashboard');
+    }
+
+    if ($oldversion < 2026070705) {
+        // No schema change — re-register services so rise_get_sms_log picks up its
+        // tightened capability (viewreports -> manageriseusers).
+        upgrade_plugin_savepoint(true, 2026070705, 'local', 'elby_dashboard');
+    }
+
     return true;
 }
