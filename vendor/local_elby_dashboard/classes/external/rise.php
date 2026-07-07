@@ -172,6 +172,10 @@ class rise extends external_api {
             $where[] = 'applicantstatus = :astatus';
             $sqlparams['astatus'] = $params['status'];
         }
+        if ($params['provincecode'] !== '') {
+            $where[] = 'provincecode = :provincecode';
+            $sqlparams['provincecode'] = $params['provincecode'];
+        }
         if ($params['gender'] !== '') {
             $where[] = 'gender = :gender';
             $sqlparams['gender'] = $params['gender'];
@@ -375,6 +379,15 @@ class rise extends external_api {
         if (!in_array($params['nesastatus'], self::NESA_STATUSES, true)) {
             throw new \invalid_parameter_exception('Invalid NESA status: ' . $params['nesastatus']);
         }
+        // Approval is the only decision that leads to account creation (immediately
+        // for a manage-capable reviewer, or later via the backfill task). To keep
+        // account creation unreachable with report-only access, recording an
+        // 'approved' decision requires the manage capability. Other decisions
+        // (pending / rejected / action_requested) never create accounts and stay
+        // available to reviewers with viewreports.
+        if ($params['nesastatus'] === 'approved') {
+            require_capability('local/elby_dashboard:manageriseusers', $context);
+        }
         if ($params['nesastatus'] === 'approved' && trim($params['nesaindexnumber']) === '') {
             throw new \invalid_parameter_exception('NESA index number is required for approved learners.');
         }
@@ -424,6 +437,7 @@ class rise extends external_api {
                     'gender' => (string) ($snapshot['gender'] ?? ''),
                     'phone' => (string) ($snapshot['phone'] ?? ''),
                     'district' => (string) ($location['districtName'] ?? $snapshot['district'] ?? ''),
+                    'provincecode' => (string) ($location['provinceCode'] ?? ''),
                     'applicantstatus' => (string) ($snapshot['status'] ?? ''),
                     'applicantdata' => $params['applicantdata'] !== '' ? $params['applicantdata'] : null,
                     'nesastatus' => $params['nesastatus'],
@@ -583,7 +597,31 @@ class rise extends external_api {
         }
 
         $client = new tmis_client();
-        $citizen = $client->get_citizen($nid);
+        try {
+            $citizen = $client->get_citizen($nid);
+        } catch (\moodle_exception $e) {
+            // A NID that NIDA has no record of is a normal "not found" outcome, not
+            // an AJAX error. Persist a non-verified (mismatch) state and report it.
+            if ($e->errorcode === 'tmisnotfound') {
+                $svc = new rise_user_service();
+                $cid = $params['campaignid'];
+                $aid = $params['applicantid'];
+                $rvid = (int) $USER->id;
+                $svc->with_applicant_lock($cid, $aid, function () use ($cid, $aid, $applicant, $rvid) {
+                    self::set_nid_status($cid, $aid, json_encode($applicant), $rvid, 'mismatch');
+                });
+                return json_encode([
+                    'found' => false,
+                    'match' => false,
+                    'namematch' => false,
+                    'dobmatch' => null,
+                    'fields' => [
+                        ['field' => 'National ID', 'app' => $nid, 'nida' => '', 'status' => 'diff'],
+                    ],
+                ]);
+            }
+            throw $e;
+        }
 
         // Unwrap a single envelope if the payload nests the record.
         $record = $citizen;
@@ -605,8 +643,20 @@ class rise extends external_api {
         // Overall match: names must match, and DOB must match when both sides have a value.
         $match = $namematch && ($dobmatch !== false);
 
-        self::set_nid_status($params['campaignid'], $params['applicantid'], json_encode($applicant), $USER->id,
-            $match ? 'verified' : 'mismatch');
+        // Persist the NIDA outcome under the per-applicant lock so it can't
+        // interleave with provisioning's approval/action evaluation (which reads
+        // nidstatus). Otherwise a concurrent provision could persist
+        // provisioningaction='ok' against a nidstatus this call is flipping to
+        // 'mismatch'.
+        $service = new rise_user_service();
+        $campaignid = $params['campaignid'];
+        $applicantid = $params['applicantid'];
+        $userid = (int) $USER->id;
+        $service->with_applicant_lock($campaignid, $applicantid,
+            function () use ($campaignid, $applicantid, $applicant, $userid, $match) {
+                self::set_nid_status($campaignid, $applicantid, json_encode($applicant), $userid,
+                    $match ? 'verified' : 'mismatch');
+            });
 
         // Application-side values for the field-by-field comparison table (all
         // server-fetched from RISE).
@@ -696,6 +746,7 @@ class rise extends external_api {
             'gender' => (string) ($snapshot['gender'] ?? ''),
             'phone' => (string) ($snapshot['phone'] ?? ''),
             'district' => (string) ($location['districtName'] ?? $snapshot['district'] ?? ''),
+            'provincecode' => (string) ($location['provinceCode'] ?? ''),
             'applicantstatus' => (string) ($snapshot['status'] ?? ''),
             'applicantdata' => $applicantdata !== '' ? $applicantdata : null,
             'nesastatus' => 'pending',

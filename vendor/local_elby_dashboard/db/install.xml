@@ -358,6 +358,7 @@
         <FIELD NAME="gender" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="phone" TYPE="char" LENGTH="30" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="district" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="provincecode" TYPE="char" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="RISE location.provinceCode snapshot, for the DB-backed applicant list filter"/>
         <FIELD NAME="applicantstatus" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="RISE applicant status snapshot (e.g. SHORTLISTED)"/>
         <FIELD NAME="applicantdata" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Full JSON snapshot of the RISE applicant payload"/>
         <FIELD NAME="nesastatus" TYPE="char" LENGTH="32" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="NESA decision: approved, rejected, action_requested, pending"/>

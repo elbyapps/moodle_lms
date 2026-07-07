@@ -67,22 +67,34 @@ class rise_token {
             $ttl = $purpose === self::PURPOSE_SETPASSWORD ? self::TTL_SETPASSWORD : self::TTL_CORRECTION;
         }
 
-        // Revoke prior unused tokens for this purpose + applicant.
-        $DB->delete_records_select('elby_rise_tokens',
-            'purpose = :purpose AND campaignid = :campaignid AND applicantid = :applicantid AND usedat = 0',
-            ['purpose' => $purpose, 'campaignid' => $campaignid, 'applicantid' => $applicantid]);
+        // Serialize the revoke-then-insert per purpose+applicant so two concurrent
+        // sends can't both revoke, both insert and leave two live links (only one
+        // of which the learner's SMS points at).
+        $lockfactory = \core\lock\lock_config::get_lock_factory('local_elby_dashboard_token');
+        $lock = $lockfactory->get_lock(sha1('mint:' . $purpose . ':' . $campaignid . ':' . $applicantid), 10);
+        if (!$lock) {
+            throw new \moodle_exception('riseprovisionlocktimeout', 'local_elby_dashboard');
+        }
+        try {
+            // Revoke prior unused tokens for this purpose + applicant.
+            $DB->delete_records_select('elby_rise_tokens',
+                'purpose = :purpose AND campaignid = :campaignid AND applicantid = :applicantid AND usedat = 0',
+                ['purpose' => $purpose, 'campaignid' => $campaignid, 'applicantid' => $applicantid]);
 
-        $raw = bin2hex(random_bytes(32));
-        $DB->insert_record('elby_rise_tokens', (object) [
-            'purpose' => $purpose,
-            'tokenhash' => hash('sha256', $raw),
-            'campaignid' => $campaignid,
-            'applicantid' => $applicantid,
-            'userid' => $userid,
-            'expires' => time() + $ttl,
-            'usedat' => 0,
-            'timecreated' => time(),
-        ]);
+            $raw = bin2hex(random_bytes(32));
+            $DB->insert_record('elby_rise_tokens', (object) [
+                'purpose' => $purpose,
+                'tokenhash' => hash('sha256', $raw),
+                'campaignid' => $campaignid,
+                'applicantid' => $applicantid,
+                'userid' => $userid,
+                'expires' => time() + $ttl,
+                'usedat' => 0,
+                'timecreated' => time(),
+            ]);
+        } finally {
+            $lock->release();
+        }
 
         return $raw;
     }

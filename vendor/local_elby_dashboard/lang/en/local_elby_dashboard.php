@@ -496,6 +496,7 @@ $string['privacy:metadata:smslog:userid'] = 'The user the SMS was sent to (when 
 $string['privacy:metadata:smslog:phone'] = 'The recipient phone number.';
 $string['privacy:metadata:smslog:message'] = 'The message body as sent.';
 $string['privacy:metadata:smslog:status'] = 'Whether the message was sent, failed or skipped.';
+$string['privacy:metadata:smslog:error'] = 'Failure detail, which may include the recipient phone number.';
 $string['privacy:metadata:files'] = 'Uploaded ID-card and NESA-result documents are stored with the Moodle file API.';
 $string['privacy:metadata:rise'] = 'The RISE recruitment platform: the Moodle user id is written back to the applicant record, and corrected names/NIDs are pushed upstream.';
 $string['privacy:metadata:rise:linkeduserid'] = 'The Moodle user id linked to the applicant.';

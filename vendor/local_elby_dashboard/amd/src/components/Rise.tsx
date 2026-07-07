@@ -735,11 +735,12 @@ function Collapsible({ title, count, children }: { title: string; count: number;
 
 // ---- NESA eligibility review (sticky footer) -----------------------------
 
-function NesaReviewSection({ applicant, campaignId, review, nidValidated, onSaved }: {
+function NesaReviewSection({ applicant, campaignId, review, nidValidated, canManageRiseUsers, onSaved }: {
     applicant: RiseApplicant;
     campaignId: string;
     review?: RiseNesaReview;
     nidValidated?: boolean;
+    canManageRiseUsers: boolean;
     onSaved: (applicantId: string, review: RiseNesaReview) => void;
 }) {
     const [status, setStatus] = useState<NesaStatus>(review?.nesastatus || 'pending');
@@ -827,15 +828,16 @@ function NesaReviewSection({ applicant, campaignId, review, nidValidated, onSave
             <div style={{ flex: '0 0 auto', borderTop: '1px solid #eceef2', background: '#fbfbfc', padding: '20px 26px 20px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 15 }}>
                     <div style={{ fontSize: 13.5, fontWeight: 800, letterSpacing: '.5px', color: '#161b26' }}>NESA ELIGIBILITY REVIEW</div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#3b424f', userSelect: 'none' }}
-                           onClick={() => setNidVerified((v) => !v)}>
-                        <span style={{
-                            width: 18, height: 18, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#fff', fontSize: 11, lineHeight: 1,
-                            border: `1.5px solid ${nidVerified ? BRAND : '#c4c8d0'}`, background: nidVerified ? BRAND : '#fff',
-                        }}>{nidVerified ? '✓' : ''}</span>
-                        National ID verified
-                    </label>
+                    {/* Read-only: NIDA verification is server-derived (from the National ID
+                        check above), never toggled by the reviewer. */}
+                    <span title="National ID verification is set automatically by the NIDA check — it can't be toggled manually."
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 700,
+                                   padding: '4px 11px', borderRadius: 999,
+                                   background: nidVerified ? '#e6f4ec' : '#f1f3f6',
+                                   color: nidVerified ? '#1a7f43' : '#6b7280' }}>
+                        <span style={{ fontSize: 12, lineHeight: 1 }}>{nidVerified ? '✓' : '◷'}</span>
+                        {nidVerified ? 'National ID verified' : 'National ID not verified'}
+                    </span>
                 </div>
 
                 <label style={{ display: 'block', fontSize: 11.5, fontWeight: 800, letterSpacing: '.6px', color: '#6b7280', marginBottom: 7 }}>
@@ -851,15 +853,21 @@ function NesaReviewSection({ applicant, campaignId, review, nidValidated, onSave
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 11 }}>
                     {decisions.map((d) => {
                         const selected = status === d.key;
+                        // Approval creates the Moodle account, so it needs the manage capability.
+                        const locked = d.key === 'approved' && !canManageRiseUsers;
                         return (
                             <button
                                 key={d.key}
-                                onClick={() => setStatus((s) => (s === d.key ? 'pending' : d.key))}
+                                disabled={locked}
+                                title={locked ? 'You need the "Provision RISE users" capability to approve.' : undefined}
+                                onClick={() => { if (!locked) setStatus((s) => (s === d.key ? 'pending' : d.key)); }}
                                 style={{
-                                    padding: '12px 8px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                                    padding: '12px 8px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+                                    cursor: locked ? 'not-allowed' : 'pointer',
                                     border: `1.5px solid ${selected ? d.solid : d.tint}`,
                                     background: selected ? d.solid : '#fff',
                                     color: selected ? '#fff' : d.accent,
+                                    opacity: locked ? 0.45 : 1,
                                 }}
                             >{d.label}</button>
                         );
@@ -1220,6 +1228,7 @@ function ApplicantDetail({ applicant, campaignId, review, accountStatus, canMana
                     campaignId={campaignId}
                     review={review}
                     nidValidated={nidVal.status === 'done' && nidVal.result?.match === true}
+                    canManageRiseUsers={canManageRiseUsers}
                     onSaved={onReviewSaved}
                 />
             </div>

@@ -89,6 +89,7 @@ class provider implements
             'phone' => 'privacy:metadata:smslog:phone',
             'message' => 'privacy:metadata:smslog:message',
             'status' => 'privacy:metadata:smslog:status',
+            'error' => 'privacy:metadata:smslog:error',
         ], 'privacy:metadata:smslog');
 
         $collection->add_subsystem_link('core_files', [], 'privacy:metadata:files');
@@ -253,9 +254,36 @@ class provider implements
                         'purpose' => $log->purpose,
                         'message' => $log->message,
                         'status' => $log->status,
+                        // May contain the recipient phone (e.g. "Invalid ... number: <phone>").
+                        'error' => $log->error,
                         'timecreated' => transform::datetime($log->timecreated),
                     ];
                 }, $smslogs)),
+            ]);
+        }
+
+        // Deep-link tokens: issued for the user directly, or for the applicants of
+        // their linked reviews. Only non-secret fields are exported (never the hash).
+        $tokens = $DB->get_records_sql(
+            "SELECT t.id, t.purpose, t.expires, t.usedat, t.timecreated
+               FROM {elby_rise_tokens} t
+              WHERE t.userid = :userid
+                 OR EXISTS (SELECT 1
+                              FROM {elby_rise_reviews} r
+                             WHERE r.userid = :userid2
+                               AND r.campaignid = t.campaignid
+                               AND r.applicantid = t.applicantid)",
+            ['userid' => $userid, 'userid2' => $userid]);
+        if ($tokens) {
+            writer::with_context($syscontext)->export_data(array_merge($subcontext, ['tokens']), (object) [
+                'tokens' => array_values(array_map(function ($token) {
+                    return [
+                        'purpose' => $token->purpose,
+                        'expires' => transform::datetime($token->expires),
+                        'used' => $token->usedat ? transform::datetime($token->usedat) : '',
+                        'timecreated' => transform::datetime($token->timecreated),
+                    ];
+                }, $tokens)),
             ]);
         }
     }

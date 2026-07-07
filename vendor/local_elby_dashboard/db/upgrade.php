@@ -245,5 +245,33 @@ function xmldb_local_elby_dashboard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026070701, 'local', 'elby_dashboard');
     }
 
+    if ($oldversion < 2026070703) {
+        // Store the RISE province code on the review snapshot so the DB-backed
+        // applicant-list path can honour the province filter (previously only the
+        // remote RISE path filtered by province). Backfill from applicantdata in
+        // PHP (no DB JSON functions needed). This savepoint also realigns the
+        // stored plugin version with version.php (2026070703).
+        $table = new xmldb_table('elby_rise_reviews');
+        $field = new xmldb_field('provincecode', XMLDB_TYPE_CHAR, '10', null, null, null, null, 'district');
+        if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        $rs = $DB->get_recordset_select('elby_rise_reviews',
+            "applicantdata IS NOT NULL AND (provincecode IS NULL OR provincecode = '')",
+            [], '', 'id, applicantdata');
+        foreach ($rs as $row) {
+            $snapshot = json_decode($row->applicantdata, true);
+            $code = is_array($snapshot) && isset($snapshot['location']['provinceCode'])
+                ? (string) $snapshot['location']['provinceCode'] : '';
+            if ($code !== '') {
+                $DB->set_field('elby_rise_reviews', 'provincecode', $code, ['id' => $row->id]);
+            }
+        }
+        $rs->close();
+
+        upgrade_plugin_savepoint(true, 2026070703, 'local', 'elby_dashboard');
+    }
+
     return true;
 }

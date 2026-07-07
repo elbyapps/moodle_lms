@@ -1200,10 +1200,18 @@ class rise_user_service {
         }
 
         // Users matched by NID for pairs without a link.
+        //
+        // Disclosure boundary: the NID travels from the browser (already visible
+        // to a viewreports reviewer in the applicant list), so we harden two ways.
+        // Only well-formed 16-digit NIDs are looked up (no probing with partial or
+        // garbage values), and only genuine RISE-shaped learner accounts are ever
+        // revealed as an account below (is_linkable) — a staff/admin/SDMS account
+        // that happens to share a NID resolves to a duplicate_nid conflict with no
+        // userid/username/profile disclosed.
         $nids = [];
         foreach ($pairs as $p) {
             $nid = trim((string) ($p['nid'] ?? ''));
-            if ($nid !== '') {
+            if ($nid !== '' && self::is_valid_nid($nid)) {
                 $nids[] = $nid;
             }
         }

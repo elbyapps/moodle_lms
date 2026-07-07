@@ -105,6 +105,16 @@ if (!$user) {
         get_string('rise_token_invalid', 'local_elby_dashboard'));
 }
 
+// The welcome token sets the FIRST password only. Once the learner has set a
+// password or logged in through any path, the token is spent even if unused —
+// don't let a leftover welcome link reset an established account's password.
+$mustchange = (int) get_user_preferences('auth_forcepasswordchange', 0, $user->id) === 1;
+if (!$mustchange || (int) $user->firstaccess > 0) {
+    rise_token::consume($record->id);
+    local_elby_dashboard_rise_card(get_string('rise_setpassword_title', 'local_elby_dashboard'),
+        get_string('rise_token_used', 'local_elby_dashboard'));
+}
+
 $errors = [];
 if (data_submitted() && optional_param('submitted', 0, PARAM_INT)) {
     $password = (string) optional_param('password', '', PARAM_RAW);
