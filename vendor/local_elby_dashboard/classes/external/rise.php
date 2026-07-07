@@ -36,8 +36,11 @@ require_once($CFG->libdir . '/externallib.php');
 
 use core_external\external_api;
 use core_external\external_function_parameters;
+use core_external\external_multiple_structure;
+use core_external\external_single_structure;
 use core_external\external_value;
 use local_elby_dashboard\rise_client;
+use local_elby_dashboard\rise_user_service;
 use local_elby_dashboard\tmis_client;
 use context_system;
 
@@ -387,52 +390,123 @@ class rise extends external_api {
         $location = isset($snapshot['location']) && is_array($snapshot['location']) ? $snapshot['location'] : [];
         $now = time();
 
-        $record = $DB->get_record('elby_rise_reviews', [
-            'campaignid' => $params['campaignid'],
-            'applicantid' => $params['applicantid'],
-        ]);
+        // The decision write shares the per-applicant provisioning lock, so a
+        // reviewer save can never change nesastatus while provision() is between
+        // its locked approval re-check and the account create/link.
+        $service = new rise_user_service();
+        $data = $service->with_applicant_lock($params['campaignid'], $params['applicantid'],
+            function () use ($params, $indexnumber, $snapshot, $location, $now) {
+                global $DB, $USER;
 
-        if ($indexnumber !== '') {
-            $duplicateparams = ['indexnumber' => $indexnumber];
-            $duplicatesql = 'nesaindexnumber = :indexnumber';
-            if ($record) {
-                $duplicatesql .= ' AND id <> :currentid';
-                $duplicateparams['currentid'] = $record->id;
+                $record = $DB->get_record('elby_rise_reviews', [
+                    'campaignid' => $params['campaignid'],
+                    'applicantid' => $params['applicantid'],
+                ]);
+
+                if ($indexnumber !== '') {
+                    $duplicateparams = ['indexnumber' => $indexnumber];
+                    $duplicatesql = 'nesaindexnumber = :indexnumber';
+                    if ($record) {
+                        $duplicatesql .= ' AND id <> :currentid';
+                        $duplicateparams['currentid'] = $record->id;
+                    }
+                    if ($DB->record_exists_select('elby_rise_reviews', $duplicatesql, $duplicateparams)) {
+                        throw new \invalid_parameter_exception(
+                            'This NESA index number is already assigned to another learner.');
+                    }
+                }
+
+                $data = (object) [
+                    'campaignid' => $params['campaignid'],
+                    'applicantid' => $params['applicantid'],
+                    'fullname' => (string) ($snapshot['fullName'] ?? ''),
+                    'nid' => (string) ($snapshot['nid'] ?? ''),
+                    'gender' => (string) ($snapshot['gender'] ?? ''),
+                    'phone' => (string) ($snapshot['phone'] ?? ''),
+                    'district' => (string) ($location['districtName'] ?? $snapshot['district'] ?? ''),
+                    'applicantstatus' => (string) ($snapshot['status'] ?? ''),
+                    'applicantdata' => $params['applicantdata'] !== '' ? $params['applicantdata'] : null,
+                    'nesastatus' => $params['nesastatus'],
+                    'nesaindexnumber' => $indexnumber !== '' ? $indexnumber : null,
+                    // NIDA verification is server-authoritative: only the validate_nid
+                    // endpoint and provisioning's server-side re-check write it. The
+                    // browser-supplied nidverified flag is ignored — it must never
+                    // mint 'verified' state.
+                    'nidstatus' => $record->nidstatus ?? 'pending',
+                    'nidverified' => (int) ($record->nidverified ?? 0),
+                    'comment' => $params['comment'],
+                    'reviewedby' => $USER->id,
+                    'timemodified' => $now,
+                ];
+
+                if ($record) {
+                    $data->id = $record->id;
+                    // Don't blank an existing snapshot if none was sent this time.
+                    if ($data->applicantdata === null) {
+                        unset($data->applicantdata);
+                    }
+                    $DB->update_record('elby_rise_reviews', $data);
+                } else {
+                    $data->timecreated = $now;
+                    $data->id = $DB->insert_record('elby_rise_reviews', $data);
+                }
+
+                // Saving a decision closes the resubmission loop: the learner's
+                // correction has now been (re-)reviewed.
+                if ($record && ($record->correctionstatus ?? '') === 'resubmitted') {
+                    $DB->set_field('elby_rise_reviews', 'correctionstatus', 'reviewed', ['id' => $data->id]);
+                    $DB->execute("UPDATE {elby_rise_corrections}
+                                     SET status = 'reviewed', reviewedby = :reviewedby, reviewedat = :reviewedat
+                                   WHERE campaignid = :campaignid AND applicantid = :applicantid
+                                     AND status = 'pending'", [
+                        'reviewedby' => $USER->id,
+                        'reviewedat' => $now,
+                        'campaignid' => $params['campaignid'],
+                        'applicantid' => $params['applicantid'],
+                    ]);
+                }
+
+                return $data;
+            });
+
+        // Provisioning / learner notification — outside the lock (provision() and
+        // the revocation/notify helpers re-read state and re-acquire it themselves;
+        // the lock is not reentrant). Failures never roll back the saved decision:
+        // provisioning is retriable (backfill task + manual button).
+        $autoprovision = get_config('local_elby_dashboard', 'rise_autoprovision');
+        $autoprovision = $autoprovision === false ? true : (bool) $autoprovision;
+
+        if ($params['nesastatus'] === 'approved' && $autoprovision
+                && has_capability('local/elby_dashboard:manageriseusers', $context)) {
+            // Account creation needs the manage capability: reviewers without it can
+            // still record the decision — the backfill task provisions it later.
+            try {
+                $service->provision($params['campaignid'], $params['applicantid']);
+            } catch (\Throwable $e) {
+                debugging('RISE provisioning failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
             }
-            if ($DB->record_exists_select('elby_rise_reviews', $duplicatesql, $duplicateparams)) {
-                throw new \invalid_parameter_exception('This NESA index number is already assigned to another learner.');
+        } else if (in_array($params['nesastatus'], ['rejected', 'action_requested'], true)) {
+            // SMS + bell with the reviewer's comment and a correction-form link.
+            // Under the applicant lock with a fresh row read, so the dedupe
+            // decision can't race a concurrent cron/backlog notification.
+            try {
+                $service->with_applicant_lock($params['campaignid'], $params['applicantid'],
+                    function () use ($DB, $data, $service) {
+                        $review = $DB->get_record('elby_rise_reviews', ['id' => $data->id], '*', MUST_EXIST);
+                        $service->notify_learner($review);
+                    });
+            } catch (\Throwable $e) {
+                debugging('RISE learner notification failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
             }
         }
 
-        $data = (object) [
-            'campaignid' => $params['campaignid'],
-            'applicantid' => $params['applicantid'],
-            'fullname' => (string) ($snapshot['fullName'] ?? ''),
-            'nid' => (string) ($snapshot['nid'] ?? ''),
-            'gender' => (string) ($snapshot['gender'] ?? ''),
-            'phone' => (string) ($snapshot['phone'] ?? ''),
-            'district' => (string) ($location['districtName'] ?? $snapshot['district'] ?? ''),
-            'applicantstatus' => (string) ($snapshot['status'] ?? ''),
-            'applicantdata' => $params['applicantdata'] !== '' ? $params['applicantdata'] : null,
-            'nesastatus' => $params['nesastatus'],
-            'nesaindexnumber' => $indexnumber !== '' ? $indexnumber : null,
-            'nidstatus' => $params['nidverified'] ? 'verified' : ($record->nidstatus ?? 'pending'),
-            'nidverified' => $params['nidverified'] ? 1 : 0,
-            'comment' => $params['comment'],
-            'reviewedby' => $USER->id,
-            'timemodified' => $now,
-        ];
-
-        if ($record) {
-            $data->id = $record->id;
-            // Don't blank an existing snapshot if none was sent this time.
-            if ($data->applicantdata === null) {
-                unset($data->applicantdata);
-            }
-            $DB->update_record('elby_rise_reviews', $data);
-        } else {
-            $data->timecreated = $now;
-            $data->id = $DB->insert_record('elby_rise_reviews', $data);
+        // Every resolution path revokes now-purposeless correction links, including
+        // saves where provisioning does not run (deferred approval, pending resets).
+        try {
+            $service->revoke_correction_tokens_if_resolved(
+                $DB->get_record('elby_rise_reviews', ['id' => $data->id], '*', MUST_EXIST));
+        } catch (\Throwable $e) {
+            debugging('RISE token revocation failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
 
         return json_encode([
@@ -440,7 +514,7 @@ class rise extends external_api {
             'nesastatus' => $data->nesastatus,
             'nesaindexnumber' => $data->nesaindexnumber ?? '',
             'nidstatus' => $data->nidstatus,
-            'nidverified' => (int) ($params['nidverified'] ? 1 : 0),
+            'nidverified' => (int) $data->nidverified,
             'comment' => $data->comment,
             'reviewedby' => (int) $USER->id,
             'timemodified' => $now,
@@ -461,28 +535,21 @@ class rise extends external_api {
         return new external_function_parameters([
             'campaignid' => new external_value(PARAM_ALPHANUM, 'Campaign id'),
             'applicantid' => new external_value(PARAM_ALPHANUM, 'Applicant id'),
-            'nid' => new external_value(PARAM_ALPHANUM, 'National ID to validate'),
-            'fullname' => new external_value(PARAM_TEXT, 'Expected full name (from RISE)'),
-            'dateofbirth' => new external_value(PARAM_TEXT, 'Expected date of birth (from RISE)', VALUE_DEFAULT, ''),
-            'applicantdata' => new external_value(PARAM_RAW, 'Full applicant JSON snapshot', VALUE_DEFAULT, ''),
         ]);
     }
 
     /**
      * Validate a learner's National ID against TMIS/NIDA and compare name + DOB.
      *
-     * On a successful match the review row's nidverified flag is set.
+     * Server-authoritative: takes only ids — the NID, name and DOB compared
+     * against NIDA are re-fetched from the RISE API, never taken from the
+     * browser. On a successful match the review row's nidverified flag is set.
      *
      * @param string $campaignid Campaign id.
      * @param string $applicantid Applicant id.
-     * @param string $nid National ID.
-     * @param string $fullname Expected full name from RISE.
-     * @param string $dateofbirth Expected DOB from RISE.
-     * @param string $applicantdata Full applicant JSON snapshot.
      * @return string JSON comparison result.
      */
-    public static function validate_nid(string $campaignid, string $applicantid, string $nid,
-            string $fullname, string $dateofbirth = '', string $applicantdata = ''): string {
+    public static function validate_nid(string $campaignid, string $applicantid): string {
         global $DB, $USER;
 
         $context = context_system::instance();
@@ -492,14 +559,31 @@ class rise extends external_api {
         $params = self::validate_parameters(self::validate_nid_parameters(), [
             'campaignid' => $campaignid,
             'applicantid' => $applicantid,
-            'nid' => $nid,
-            'fullname' => $fullname,
-            'dateofbirth' => $dateofbirth,
-            'applicantdata' => $applicantdata,
         ]);
 
+        // Identity comes from RISE, fail closed on any id/campaign mismatch
+        // (same validation point as provisioning/sync/notifications).
+        $applicant = (new rise_user_service())->fetch_applicant($params['campaignid'], $params['applicantid']);
+
+        $nid = trim((string) ($applicant['nid'] ?? ''));
+        $fullname = (string) ($applicant['fullName'] ?? '');
+        $dateofbirth = trim((string) ($applicant['dateOfBirth'] ?? ''));
+        if ($dateofbirth !== '') {
+            // Drop any time component for display; comparisons normalize anyway.
+            $dateofbirth = preg_split('/[T ]/', $dateofbirth)[0];
+        }
+        if ($nid === '') {
+            return json_encode([
+                'found' => false,
+                'match' => false,
+                'namematch' => false,
+                'dobmatch' => null,
+                'fields' => [],
+            ]);
+        }
+
         $client = new tmis_client();
-        $citizen = $client->get_citizen($params['nid']);
+        $citizen = $client->get_citizen($nid);
 
         // Unwrap a single envelope if the payload nests the record.
         $record = $citizen;
@@ -513,21 +597,20 @@ class rise extends external_api {
         $citizenname = self::extract_citizen_name($citizen);
         $citizendob = self::extract_citizen_dob($citizen);
 
-        $namematch = self::names_match($params['fullname'], $citizenname);
-        $dobmatch = $params['dateofbirth'] === '' || $citizendob === ''
+        $namematch = self::names_match($fullname, $citizenname);
+        $dobmatch = $dateofbirth === '' || $citizendob === ''
             ? null
-            : (self::normalize_dob($params['dateofbirth']) === self::normalize_dob($citizendob));
+            : (self::normalize_dob($dateofbirth) === self::normalize_dob($citizendob));
 
         // Overall match: names must match, and DOB must match when both sides have a value.
         $match = $namematch && ($dobmatch !== false);
 
-        self::set_nid_status($params['campaignid'], $params['applicantid'], $params['applicantdata'], $USER->id,
+        self::set_nid_status($params['campaignid'], $params['applicantid'], json_encode($applicant), $USER->id,
             $match ? 'verified' : 'mismatch');
 
-        // Application-side values for the field-by-field comparison table.
-        $snapshot = json_decode($params['applicantdata'], true);
-        $snapshot = is_array($snapshot) ? $snapshot : [];
-        $appgender = (string) ($snapshot['gender'] ?? '');
+        // Application-side values for the field-by-field comparison table (all
+        // server-fetched from RISE).
+        $appgender = (string) ($applicant['gender'] ?? '');
         $citizengender = (string) ($record['gender'] ?? '');
         $gendermatch = ($appgender === '' || $citizengender === '') ? 'na'
             : (strcasecmp($appgender, $citizengender) === 0 ? 'match' : 'diff');
@@ -538,10 +621,10 @@ class rise extends external_api {
         }
 
         $fields = [
-            ['field' => 'Name', 'app' => $params['fullname'], 'nida' => $citizenname,
+            ['field' => 'Name', 'app' => $fullname, 'nida' => $citizenname,
                 'status' => $namematch ? 'match' : 'diff'],
-            ['field' => 'National ID', 'app' => $params['nid'], 'nida' => $params['nid'], 'status' => 'match'],
-            ['field' => 'Date of birth', 'app' => $params['dateofbirth'], 'nida' => $citizendob,
+            ['field' => 'National ID', 'app' => $nid, 'nida' => $nid, 'status' => 'match'],
+            ['field' => 'Date of birth', 'app' => $dateofbirth, 'nida' => $citizendob,
                 'status' => $dobmatch === null ? 'na' : ($dobmatch ? 'match' : 'diff')],
             ['field' => 'Gender', 'app' => $appgender, 'nida' => $citizengender, 'status' => $gendermatch],
         ];
@@ -632,30 +715,7 @@ class rise extends external_api {
      * @return string Best-effort full name.
      */
     private static function extract_citizen_name(array $citizen): string {
-        // Unwrap a single 'data'/'user'/'citizen' envelope if present.
-        foreach (['data', 'user', 'citizen', 'result'] as $wrap) {
-            if (isset($citizen[$wrap]) && is_array($citizen[$wrap])) {
-                $citizen = $citizen[$wrap];
-                break;
-            }
-        }
-
-        $get = function (array $keys) use ($citizen): string {
-            foreach ($keys as $k) {
-                if (!empty($citizen[$k]) && is_string($citizen[$k])) {
-                    return $citizen[$k];
-                }
-            }
-            return '';
-        };
-
-        $full = $get(['fullName', 'fullNames', 'names', 'name']);
-        if ($full !== '') {
-            return $full;
-        }
-        $fore = $get(['foreName', 'firstName', 'givenName', 'firstNames']);
-        $sur = $get(['surname', 'lastName', 'familyName']);
-        return trim($fore . ' ' . $sur);
+        return rise_user_service::extract_citizen_name($citizen);
     }
 
     /**
@@ -665,18 +725,7 @@ class rise extends external_api {
      * @return string Best-effort DOB string.
      */
     private static function extract_citizen_dob(array $citizen): string {
-        foreach (['data', 'user', 'citizen', 'result'] as $wrap) {
-            if (isset($citizen[$wrap]) && is_array($citizen[$wrap])) {
-                $citizen = $citizen[$wrap];
-                break;
-            }
-        }
-        foreach (['dateOfBirth', 'dob', 'birthDate', 'dateNaissance'] as $k) {
-            if (!empty($citizen[$k]) && is_string($citizen[$k])) {
-                return $citizen[$k];
-            }
-        }
-        return '';
+        return rise_user_service::extract_citizen_dob($citizen);
     }
 
     /**
@@ -687,27 +736,7 @@ class rise extends external_api {
      * @return bool True if they plausibly refer to the same person.
      */
     private static function names_match(string $a, string $b): bool {
-        $tokens = function (string $s): array {
-            $s = strtoupper(trim($s));
-            // Strip accents to ASCII where possible.
-            $s = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
-            $s = preg_replace('/[^A-Z ]+/', ' ', $s);
-            $parts = preg_split('/\s+/', trim($s), -1, PREG_SPLIT_NO_EMPTY);
-            return array_values(array_unique($parts));
-        };
-        $ta = $tokens($a);
-        $tb = $tokens($b);
-        if (empty($ta) || empty($tb)) {
-            return false;
-        }
-        // All tokens of the shorter set must appear in the longer set.
-        [$short, $long] = count($ta) <= count($tb) ? [$ta, $tb] : [$tb, $ta];
-        foreach ($short as $t) {
-            if (!in_array($t, $long, true)) {
-                return false;
-            }
-        }
-        return true;
+        return rise_user_service::names_match($a, $b);
     }
 
     /**
@@ -717,16 +746,138 @@ class rise extends external_api {
      * @return string Normalized date, or the digits-only fallback.
      */
     private static function normalize_dob(string $value): string {
-        $value = trim($value);
-        if ($value === '') {
-            return '';
+        return rise_user_service::normalize_dob($value);
+    }
+
+    // =========================================================================
+    // Account provisioning endpoints.
+    // =========================================================================
+
+    /**
+     * Parameters for get_user_status.
+     */
+    public static function get_user_status_parameters(): external_function_parameters {
+        return new external_function_parameters([
+            'campaignid' => new external_value(PARAM_ALPHANUM, 'Campaign id'),
+            'pairs' => new external_multiple_structure(
+                new external_single_structure([
+                    'applicantid' => new external_value(PARAM_ALPHANUM, 'Applicant id'),
+                    'nid' => new external_value(PARAM_TEXT, 'National ID shown in the applicant list',
+                        VALUE_DEFAULT, ''),
+                ]),
+                'Applicant/NID pairs to resolve'
+            ),
+        ]);
+    }
+
+    /**
+     * Resolve Moodle account status for a batch of applicants.
+     *
+     * The NID travels with each pair so existing accounts resolve by
+     * user.idnumber even for learners without a review row.
+     *
+     * @param string $campaignid Campaign id.
+     * @param array $pairs Array of ['applicantid' => ..., 'nid' => ...].
+     * @return string JSON object keyed by applicant id.
+     */
+    public static function get_user_status(string $campaignid, array $pairs): string {
+        $context = context_system::instance();
+        self::validate_context($context);
+        require_capability('local/elby_dashboard:viewreports', $context);
+
+        $params = self::validate_parameters(self::get_user_status_parameters(), [
+            'campaignid' => $campaignid,
+            'pairs' => $pairs,
+        ]);
+
+        $service = new rise_user_service();
+        return json_encode((object) $service->status_for($params['pairs'], $params['campaignid']));
+    }
+
+    /**
+     * Return value for get_user_status.
+     */
+    public static function get_user_status_returns(): external_value {
+        return new external_value(PARAM_RAW, 'JSON object of account status keyed by applicant id');
+    }
+
+    /**
+     * Parameters for create_user.
+     */
+    public static function create_user_parameters(): external_function_parameters {
+        return new external_function_parameters([
+            'campaignid' => new external_value(PARAM_ALPHANUM, 'Campaign id'),
+            'applicantid' => new external_value(PARAM_ALPHANUM, 'Applicant id'),
+        ]);
+    }
+
+    /**
+     * Manually provision the Moodle account for a RISE learner.
+     *
+     * Takes only ids: identity is re-fetched server-side from the RISE API and
+     * the request fails closed when that fetch fails — browser-supplied
+     * identity data is never used.
+     *
+     * @param string $campaignid Campaign id.
+     * @param string $applicantid Applicant id.
+     * @return string JSON {success, userid, username, action, created, message}.
+     */
+    public static function create_user(string $campaignid, string $applicantid): string {
+        global $DB;
+
+        $context = context_system::instance();
+        self::validate_context($context);
+        require_capability('local/elby_dashboard:viewreports', $context);
+        require_capability('local/elby_dashboard:manageriseusers', $context);
+
+        $params = self::validate_parameters(self::create_user_parameters(), [
+            'campaignid' => $campaignid,
+            'applicantid' => $applicantid,
+        ]);
+
+        // Provisioning follows the approval-centred model: manual create is a
+        // recovery path for an approved review, never a way around the review.
+        $review = $DB->get_record('elby_rise_reviews', [
+            'campaignid' => $params['campaignid'],
+            'applicantid' => $params['applicantid'],
+        ]);
+        if (!$review || $review->nesastatus !== 'approved') {
+            return json_encode([
+                'success' => false, 'userid' => 0, 'username' => '', 'action' => '', 'created' => false,
+                'message' => get_string('rise_create_requires_approval', 'local_elby_dashboard'),
+            ]);
         }
-        // Drop any time component.
-        $datepart = preg_split('/[T ]/', $value)[0];
-        $ts = strtotime($datepart);
-        if ($ts !== false) {
-            return date('Y-m-d', $ts);
+
+        $service = new rise_user_service();
+        try {
+            $result = $service->provision($params['campaignid'], $params['applicantid']);
+        } catch (\Throwable $e) {
+            return json_encode([
+                'success' => false, 'userid' => 0, 'username' => '', 'action' => '', 'created' => false,
+                'message' => $e instanceof \moodle_exception ? $e->getMessage() : get_string('riseapierror', 'local_elby_dashboard'),
+            ]);
         }
-        return preg_replace('/\D+/', '', $value);
+
+        $message = '';
+        if ($result['blocked']) {
+            $message = ($result['blockedreason'] ?? '') === 'not_approved'
+                ? get_string('rise_create_requires_approval', 'local_elby_dashboard')
+                : get_string('rise_action_duplicate_nid', 'local_elby_dashboard');
+        }
+        return json_encode([
+            'success' => !$result['blocked'],
+            'userid' => $result['userid'],
+            'username' => $result['username'],
+            'action' => $result['action'],
+            'created' => $result['created'],
+            'message' => $message,
+        ]);
+    }
+
+    /**
+     * Return value for create_user.
+     */
+    public static function create_user_returns(): external_value {
+        return new external_value(PARAM_RAW, 'JSON provisioning result');
     }
 }

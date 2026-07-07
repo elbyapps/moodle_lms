@@ -29,7 +29,7 @@ import { useState, useEffect } from 'preact/hooks';
 import type {
     RiseCampaign, RiseApplicant, RisePagination, RiseAttachment,
     NesaStatus, RiseNesaReview, RiseNidValidation, RiseNidField,
-    RiseNesaCounts, RiseNesaStatsMap,
+    RiseNesaCounts, RiseNesaStatsMap, RiseUserStatus, UserData,
 } from '../types';
 
 // @ts-ignore — Moodle AMD loader global.
@@ -76,6 +76,16 @@ const NESA_PILL: Record<NesaStatus, { label: string; bg: string; fg: string; dot
 };
 
 type NidaStatus = 'pending' | 'verified' | 'mismatch';
+
+// Provisioning action codes the learner can fix themselves.
+const FIXABLE_ACTIONS = ['nid_missing', 'nid_invalid', 'details_mismatch'];
+
+const ACTION_NOTES: Record<string, string> = {
+    nid_missing: 'National ID is missing — the learner must add it before they can be verified.',
+    nid_invalid: 'National ID is not a valid 16-digit number — needs fixing before verification.',
+    details_mismatch: "Details don't match NIDA records — the learner must correct their names or NID.",
+    duplicate_nid: 'Another Moodle account already uses this National ID — resolve manually before provisioning.',
+};
 
 const NIDA_PILL: Record<NidaStatus, { label: string; bg: string; fg: string; icon: string }> = {
     verified: { label: 'Verified', bg: '#e6f4ec', fg: '#1a7f43', icon: '✓' },
@@ -277,6 +287,9 @@ function excelCell(cell: ExcelCell, fallbackStyle = 'Cell'): string {
 
 function downloadExcelWorkbook(filename: string, title: string, subtitle: string, headers: string[], rows: ExcelCell[][]) {
     const columns = [230, 86, 122, 120, 112, 68, 126, 112, 124, 142, 154, 114];
+    while (columns.length < headers.length) columns.push(130);
+    columns.length = headers.length;
+    const colcount = headers.length;
     const headerXml = headers.map((h) => excelCell({ value: h, style: 'Header' })).join('');
     const rowXml = rows.map((row, i) => `
         <Row ss:Height="32">
@@ -317,10 +330,10 @@ function downloadExcelWorkbook(filename: string, title: string, subtitle: string
         <Style ss:ID="Muted"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Inter" ss:Size="10" ss:Bold="1" ss:Color="#AEB4BE"/><Interior ss:Color="#FFFFFF" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#EEF0F4"/></Borders></Style>
     </Styles>
     <Worksheet ss:Name="Applicants">
-        <Table ss:ExpandedColumnCount="12" ss:ExpandedRowCount="${rows.length + 4}" x:FullColumns="1" x:FullRows="1">
+        <Table ss:ExpandedColumnCount="${colcount}" ss:ExpandedRowCount="${rows.length + 4}" x:FullColumns="1" x:FullRows="1">
             ${columns.map((w) => `<Column ss:Width="${w}"/>`).join('')}
-            <Row ss:Height="36"><Cell ss:MergeAcross="11" ss:StyleID="Title"><Data ss:Type="String">${escapeXml(title)}</Data></Cell></Row>
-            <Row ss:Height="24"><Cell ss:MergeAcross="11" ss:StyleID="Subtitle"><Data ss:Type="String">${escapeXml(subtitle)}</Data></Cell></Row>
+            <Row ss:Height="36"><Cell ss:MergeAcross="${colcount - 1}" ss:StyleID="Title"><Data ss:Type="String">${escapeXml(title)}</Data></Cell></Row>
+            <Row ss:Height="24"><Cell ss:MergeAcross="${colcount - 1}" ss:StyleID="Subtitle"><Data ss:Type="String">${escapeXml(subtitle)}</Data></Cell></Row>
             <Row ss:Height="10"></Row>
             <Row ss:Height="34">${headerXml}</Row>
             ${rowXml}
@@ -909,14 +922,20 @@ function NesaReviewSection({ applicant, campaignId, review, nidValidated, onSave
 
 // ---- Applicant detail drawer ---------------------------------------------
 
-function ApplicantDetail({ applicant, campaignId, review, onClose, onPreview, onReviewSaved }: {
+function ApplicantDetail({ applicant, campaignId, review, accountStatus, canManageRiseUsers, creatingAccount, createError, onCreateAccount, onClose, onPreview, onReviewSaved }: {
     applicant: RiseApplicant;
     campaignId: string;
     review?: RiseNesaReview;
+    accountStatus?: RiseUserStatus;
+    canManageRiseUsers: boolean;
+    creatingAccount: boolean;
+    createError?: string;
+    onCreateAccount: () => void;
     onClose: () => void;
     onPreview: (a: RiseAttachment) => void;
     onReviewSaved: (applicantId: string, review: RiseNesaReview) => void;
 }) {
+    const [confirmCreateOpen, setConfirmCreateOpen] = useState(false);
     const attachments = extractAttachments(applicant);
     const responses = applicant.formResponses || {};
     const responseKeys = Object.keys(responses);
@@ -954,13 +973,11 @@ function ApplicantDetail({ applicant, campaignId, review, onClose, onPreview, on
 
         let cancelled = false;
         setNidVal({ status: 'loading' });
+        // Ids only: the backend re-fetches the applicant's NID/name/DOB from RISE
+        // server-side — browser state never feeds the NIDA comparison.
         ajaxCall('local_elby_dashboard_rise_validate_nid', {
             campaignid: campaignId,
             applicantid: applicant._id,
-            nid: applicant.nid,
-            fullname: applicant.fullName || '',
-            dateofbirth: formatDateOnly(applicant.dateOfBirth),
-            applicantdata: JSON.stringify(applicant),
         }).then((raw: string) => {
             if (cancelled) return;
             const result = JSON.parse(raw) as RiseNidValidation;
@@ -1020,6 +1037,112 @@ function ApplicantDetail({ applicant, campaignId, review, onClose, onPreview, on
                 {/* SCROLL BODY */}
                 <div style={{ flex: '1 1 auto', overflowY: 'auto', padding: '18px 26px 24px' }}>
                     <NidaSection nid={applicant.nid} state={nidVal} />
+
+                    {/* MOODLE ACCOUNT */}
+                    <div style={sectionLabel}>MOODLE ACCOUNT</div>
+                    <div style={{ border: '1px solid #ecedf1', borderRadius: 12, padding: '14px 16px', marginBottom: 24 }}>
+                        {accountStatus?.hasaccount ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                                <div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: '#161b26' }}>
+                                        {accountStatus.username}
+                                        {accountStatus.suspended && (
+                                            <span style={{ marginLeft: 8, padding: '2px 9px', borderRadius: 999, background: '#fff1e0', color: '#b5660b', fontSize: 10.5, fontWeight: 700 }}>Suspended</span>
+                                        )}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: '#9aa0ab', marginTop: 2 }}>
+                                        {accountStatus.linked ? 'Linked to this applicant' : 'Matched by National ID (not yet linked)'}
+                                    </div>
+                                </div>
+                                <a href={accountStatus.profileurl} target="_blank" rel="noopener noreferrer"
+                                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, background: '#e6f4ec', color: '#1a7f43', fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}>
+                                    View profile ›
+                                </a>
+                            </div>
+                        ) : accountStatus?.provisioningaction === 'duplicate_nid' ? (
+                            <div style={{ fontSize: 13, color: '#b42318', fontWeight: 600 }}>{ACTION_NOTES.duplicate_nid}</div>
+                        ) : canManageRiseUsers && review?.nesastatus === 'approved' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                                <div style={{ fontSize: 13, color: '#6b7280' }}>No Moodle account yet.</div>
+                                <button onClick={() => setConfirmCreateOpen(true)} disabled={creatingAccount}
+                                    style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: creatingAccount ? '#a6c0d6' : BRAND, color: '#fff', fontSize: 13, fontWeight: 700, cursor: creatingAccount ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+                                    {creatingAccount ? 'Creating…' : 'Create Moodle account'}
+                                </button>
+                            </div>
+                        ) : canManageRiseUsers ? (
+                            <div style={{ fontSize: 13, color: '#9aa0ab' }}>
+                                No Moodle account yet. Accounts are created once the NESA review is <b>approved</b>.
+                            </div>
+                        ) : (
+                            <div style={{ fontSize: 13, color: '#9aa0ab' }}>No Moodle account yet.</div>
+                        )}
+                        {createError && (
+                            <div style={{ marginTop: 12, padding: '10px 13px', border: '1px solid #f3c9c9', background: '#fdf3f3', borderRadius: 10, fontSize: 12.5, color: '#b42318' }}>
+                                ✕ {createError}
+                            </div>
+                        )}
+                        {accountStatus && FIXABLE_ACTIONS.includes(accountStatus.provisioningaction) && (
+                            <div style={{ marginTop: 12, padding: '10px 13px', border: '1px solid #f3e1c0', background: '#fff8ee', borderRadius: 10, fontSize: 12.5, color: '#8a5a08' }}>
+                                ⚠ {ACTION_NOTES[accountStatus.provisioningaction]}
+                            </div>
+                        )}
+                        {accountStatus?.risesync === 'conflict' && (
+                            <div style={{ marginTop: 12, padding: '10px 13px', border: '1px solid #f3c9c9', background: '#fdf3f3', borderRadius: 10, fontSize: 12.5, color: '#b42318' }}>
+                                ⚠ RISE already reports a different linked user for this applicant — resolve the conflict manually before relying on the link.
+                            </div>
+                        )}
+                        {accountStatus?.correctionstatus === 'resubmitted' && (
+                            <div style={{ marginTop: 12, padding: '12px 14px', border: '1px solid #e3d1f2', background: '#f8f3fd', borderRadius: 10, fontSize: 12.5, color: '#4a3060' }}>
+                                <div style={{ fontWeight: 800, color: '#7b3fb0', marginBottom: 8 }}>Learner resubmitted corrected details — please re-review</div>
+                                {accountStatus.correction ? (
+                                    <>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '4px 12px', marginBottom: 8 }}>
+                                            <span style={{ color: '#8a6aa8', fontWeight: 700 }}>Name</span>
+                                            <span>{accountStatus.correction.lastname} {accountStatus.correction.firstname}</span>
+                                            <span style={{ color: '#8a6aa8', fontWeight: 700 }}>National ID</span>
+                                            <span style={{ fontVariantNumeric: 'tabular-nums' }}>{accountStatus.correction.nid || '—'}</span>
+                                            {accountStatus.correction.note && (<>
+                                                <span style={{ color: '#8a6aa8', fontWeight: 700 }}>Note</span>
+                                                <span>{accountStatus.correction.note}</span>
+                                            </>)}
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                                            {accountStatus.correction.idcardurl && (
+                                                <a href={accountStatus.correction.idcardurl} target="_blank" rel="noopener noreferrer"
+                                                   style={{ padding: '5px 11px', borderRadius: 999, background: '#fff', border: '1px solid #d9c4ee', color: '#7b3fb0', fontSize: 11.5, fontWeight: 700, textDecoration: 'none' }}>▣ ID document</a>
+                                            )}
+                                            {accountStatus.correction.nesaresulturl && (
+                                                <a href={accountStatus.correction.nesaresulturl} target="_blank" rel="noopener noreferrer"
+                                                   style={{ padding: '5px 11px', borderRadius: 999, background: '#fff', border: '1px solid #d9c4ee', color: '#7b3fb0', fontSize: 11.5, fontWeight: 700, textDecoration: 'none' }}>▣ NESA result</a>
+                                            )}
+                                            <span style={{ fontSize: 11, color: accountStatus.correction.risesynced ? '#1a7f43' : '#b5660b', fontWeight: 700 }}>
+                                                {accountStatus.correction.risesynced ? '✓ Pushed to RISE' : '⚠ Stored locally only (RISE not updated)'}
+                                            </span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div>Correction details could not be loaded.</div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {confirmCreateOpen && (
+                        <div className="fixed inset-0 z-[2300]" style={{ background: 'rgba(17,24,39,.48)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                            <div style={{ width: 380, maxWidth: '100%', borderRadius: 17, background: '#fff', boxShadow: '0 24px 70px rgba(20,28,46,.28)', padding: 24 }}>
+                                <div style={{ fontSize: 18, fontWeight: 800, color: '#161b26', marginBottom: 6 }}>Create Moodle account?</div>
+                                <div style={{ fontSize: 13.5, color: '#6b7280', lineHeight: 1.4, marginBottom: 18 }}>
+                                    An account will be created (or linked) for <b>{applicant.fullName || 'this learner'}</b> and a welcome SMS with a set-password link will be sent to their phone.
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.35fr', gap: 12 }}>
+                                    <button onClick={() => setConfirmCreateOpen(false)}
+                                        style={{ padding: '12px 14px', borderRadius: 11, border: '1px solid #dfe3ea', background: '#fff', color: '#3b424f', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Cancel</button>
+                                    <button onClick={() => { setConfirmCreateOpen(false); onCreateAccount(); }}
+                                        style={{ padding: '12px 14px', borderRadius: 11, border: 'none', background: BRAND, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Confirm &amp; create</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* APPLICANT DETAILS */}
                     <div style={sectionLabel}>APPLICANT DETAILS</div>
@@ -1155,16 +1278,92 @@ function NidaStatusPill({ status }: { status: NidaStatus }) {
     );
 }
 
+// ---- Moodle account column -------------------------------------------------
+
+function accountActionLabel(st: RiseUserStatus): string {
+    if (st.correctionstatus === 'resubmitted') return 'Resubmitted';
+    if (st.suspended) return 'Suspended';
+    if (st.risesync === 'conflict') return 'RISE conflict';
+    if (FIXABLE_ACTIONS.includes(st.provisioningaction)) return 'Action needed';
+    if (st.provisioningaction === 'duplicate_nid') return 'Duplicate NID';
+    return '';
+}
+
+function AccountCell({ st, canManage, approved, busy, error, onCreate }: {
+    st?: RiseUserStatus;
+    canManage: boolean;
+    approved: boolean;
+    busy: boolean;
+    error?: string;
+    onCreate: (e: Event) => void;
+}) {
+    if (!st) {
+        return <span style={{ fontSize: 12, color: '#c0c4cc' }}>…</span>;
+    }
+    const flag = accountActionLabel(st);
+    if (st.hasaccount) {
+        return (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }} onClick={(e) => e.stopPropagation()}>
+                <a href={st.profileurl} target="_blank" rel="noopener noreferrer" title={`Open profile of ${st.username}`}
+                   style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 999, background: '#e6f4ec', color: '#1a7f43', fontSize: 10.5, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    ✓ {st.username}
+                </a>
+                {flag && (
+                    <span title={ACTION_NOTES[st.provisioningaction] || flag}
+                          style={{ display: 'inline-flex', padding: '4px 9px', borderRadius: 999, background: flag === 'Resubmitted' ? '#f3eafa' : '#fff1e0', color: flag === 'Resubmitted' ? '#7b3fb0' : '#b5660b', fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {flag}
+                    </span>
+                )}
+            </span>
+        );
+    }
+    if (st.provisioningaction === 'duplicate_nid') {
+        return (
+            <span title={ACTION_NOTES.duplicate_nid}
+                  style={{ display: 'inline-flex', padding: '4px 11px', borderRadius: 999, background: '#fbe0de', color: '#b42318', fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                Duplicate NID
+            </span>
+        );
+    }
+    if (!canManage) {
+        return <span style={{ fontSize: 12, color: '#9aa0ab' }}>No account</span>;
+    }
+    if (!approved) {
+        // Accounts are created on NESA approval; manual create is a recovery
+        // path for approved reviews only.
+        return (
+            <span title="Approve the NESA review first — accounts are only created for approved learners."
+                  style={{ fontSize: 12, color: '#9aa0ab', cursor: 'help' }}>Approve first</span>
+        );
+    }
+    return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <button
+                onClick={(e) => { e.stopPropagation(); onCreate(e); }}
+                disabled={busy}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 999, border: `1px solid ${error ? '#b42318' : BRAND}`, background: busy ? '#a6c0d6' : '#fff', color: busy ? '#fff' : (error ? '#b42318' : BRAND), fontSize: 11, fontWeight: 700, cursor: busy ? 'wait' : 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
+                {busy ? 'Creating…' : (error ? 'Retry create' : '+ Create account')}
+            </button>
+            {error && (
+                <span title={error} onClick={(e) => e.stopPropagation()}
+                      style={{ fontSize: 12, color: '#b42318', fontWeight: 800, cursor: 'help' }}>⚠</span>
+            )}
+        </span>
+    );
+}
+
 // ---- Applicants view ------------------------------------------------------
 
-function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApplicant, onSelectDoc }: {
+function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSelectApplicant, onSelectDoc }: {
     campaign: RiseCampaign;
+    user?: UserData;
     onBack: () => void;
     deepApplicantId: string;
     deepDoc: string;
     onSelectApplicant: (id: string | null) => void;
     onSelectDoc: (label: string | null) => void;
 }) {
+    const canManageRiseUsers = !!user?.canManageRiseUsers;
     const [applicants, setApplicants] = useState<RiseApplicant[]>([]);
     const [allApplicants, setAllApplicants] = useState<RiseApplicant[]>([]);
     const [pagination, setPagination] = useState<RisePagination>({ page: 1, limit: 10, total: 0, totalPages: 0 });
@@ -1187,8 +1386,67 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
     const [selected, setSelected] = useState<RiseApplicant | null>(null);
     const [preview, setPreview] = useState<RiseAttachment | null>(null);
     const [reviews, setReviews] = useState<Record<string, RiseNesaReview>>({});
+    const [userStatus, setUserStatus] = useState<Record<string, RiseUserStatus>>({});
+    const [creating, setCreating] = useState<Record<string, boolean>>({});
+    const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
     const [sortKey, setSortKey] = useState<'name' | 'score' | null>(null);
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+    // Fetch account status for a set of applicants and merge it into state.
+    async function fetchUserStatus(rows: RiseApplicant[]): Promise<Record<string, RiseUserStatus>> {
+        const merged: Record<string, RiseUserStatus> = {};
+        // Batch in chunks so an export-sized set stays within request limits.
+        for (let i = 0; i < rows.length; i += 100) {
+            const pairs = rows.slice(i, i + 100).map((a) => ({ applicantid: a._id, nid: a.nid || '' }));
+            const raw = await ajaxCall('local_elby_dashboard_rise_get_user_status', {
+                campaignid: campaign._id,
+                pairs,
+            });
+            Object.assign(merged, JSON.parse(raw) || {});
+        }
+        setUserStatus((prev) => ({ ...prev, ...merged }));
+        return merged;
+    }
+
+    // Account status for the visible page (re-fetched whenever the page data changes).
+    useEffect(() => {
+        if (!applicants.length) return;
+        fetchUserStatus(applicants).catch((e) => console.error('RISE user status load failed:', e));
+    }, [applicants]);
+
+    async function createAccount(a: RiseApplicant) {
+        if (creating[a._id]) return;
+        setCreating((prev) => ({ ...prev, [a._id]: true }));
+        setCreateErrors((prev) => ({ ...prev, [a._id]: '' }));
+        try {
+            const raw = await ajaxCall('local_elby_dashboard_rise_create_user', {
+                campaignid: campaign._id,
+                applicantid: a._id,
+            });
+            const result = JSON.parse(raw);
+            if (!result.success) {
+                setCreateErrors((prev) => ({
+                    ...prev,
+                    [a._id]: result.message || 'Could not create the account. Please try again.',
+                }));
+            }
+        } catch (e: any) {
+            console.error('RISE create user failed:', e);
+            setCreateErrors((prev) => ({
+                ...prev,
+                [a._id]: e?.message || 'Could not create the account. Please try again.',
+            }));
+        } finally {
+            // Always re-resolve from the backend so the pill reflects stored state
+            // (created, linked, blocked on duplicate NID, ...).
+            try {
+                await fetchUserStatus([a]);
+            } catch (e) {
+                console.error('RISE user status refresh failed:', e);
+            }
+            setCreating((prev) => ({ ...prev, [a._id]: false }));
+        }
+    }
 
     useEffect(() => {
         // Skip the initial run (and any no-op) so a deep-linked page/search isn't reset.
@@ -1220,6 +1478,15 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
 
     function onReviewSaved(applicantId: string, review: RiseNesaReview) {
         setReviews((prev) => ({ ...prev, [applicantId]: review }));
+        // Saving an approved review may auto-provision the account server-side —
+        // re-resolve this applicant's status so the ACCOUNT pill doesn't go stale.
+        if (review.nesastatus === 'approved') {
+            const pool = allApplicants.length ? allApplicants : applicants;
+            const a = pool.find((x) => x._id === applicantId);
+            if (a) {
+                fetchUserStatus([a]).catch((e) => console.error('RISE user status refresh failed:', e));
+            }
+        }
     }
 
     // Open/close the applicant drawer to match the URL (deep link + back/forward).
@@ -1353,12 +1620,22 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
                 search,
             });
             const rows = sortApplicants(source);
+            // The export set is built independently of the visible page, so fetch
+            // account status for every exported row (not just the loaded page).
+            let exportStatus: Record<string, RiseUserStatus> = {};
+            let statusFetchFailed = false;
+            try {
+                exportStatus = await fetchUserStatus(rows);
+            } catch (e) {
+                console.error('RISE export status fetch failed:', e);
+                statusFetchFailed = true;
+            }
             const exportedAt = new Date().toLocaleString();
             downloadExcelWorkbook(
                 `RISE-applicants-${filenameTimestamp()}.xls`,
                 campaign.name || 'RISE applicants',
                 `${rows.length.toLocaleString()} exported rows · Generated ${exportedAt}`,
-                ['Name', 'Gender', 'District', 'Sector', 'Phone', 'Score', 'Status', 'NIDA', 'NESA', 'NESA index number', 'National ID', 'Date of birth'],
+                ['Name', 'Gender', 'District', 'Sector', 'Phone', 'Score', 'Status', 'NIDA', 'NESA', 'NESA index number', 'National ID', 'Date of birth', 'Account', 'Account action'],
                 rows.map((a) => {
                     const rev = reviews[a._id];
                     const nida = nidaStatus(rev);
@@ -1368,6 +1645,11 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
                         : nesa === 'rejected' ? 'PillRed'
                             : (nesa === 'action_requested' || nesa === 'pending') ? 'PillAmber' : 'Muted';
                     const nidaStyle = nida === 'verified' ? 'PillGreen' : nida === 'mismatch' ? 'PillRed' : 'PillAmber';
+                    const st = exportStatus[a._id];
+                    // A failed status fetch must export as unknown, never as "No account".
+                    const accountLabel = st ? (st.hasaccount ? st.username : 'No account')
+                        : (statusFetchFailed ? 'Unknown' : '—');
+                    const accountAction = st ? accountActionLabel(st) : '';
                     return [
                         { value: a.fullName || '', style: 'NameCell' },
                         { value: a.gender || '' },
@@ -1380,7 +1662,9 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
                         { value: nesaLabel, style: nesaStyle },
                         { value: rev?.nesaindexnumber || '', type: 'String' },
                         { value: a.nid || '', type: 'String' },
-                        { value: formatDateOnly(a.dateOfBirth), type: 'String' }
+                        { value: formatDateOnly(a.dateOfBirth), type: 'String' },
+                        { value: accountLabel, style: st?.hasaccount ? 'PillGreen' : 'Muted', type: 'String' },
+                        { value: accountAction, style: accountAction ? 'PillAmber' : 'Muted', type: 'String' }
                     ];
                 })
             );
@@ -1399,7 +1683,7 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
     const arrow = (k: 'name' | 'score') => (sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕');
     const arrowColor = (k: 'name' | 'score') => (sortKey === k ? '#005198' : '#c4c8d0');
 
-    const GRID = '2.3fr 0.85fr 1.05fr 1.2fr 0.75fr 1.1fr 1.05fr 1.05fr';
+    const GRID = '2.3fr 0.85fr 1.05fr 1.2fr 0.75fr 1.1fr 1.05fr 1.45fr 1.05fr';
     const headCell = { fontSize: 10.5, fontWeight: 700, letterSpacing: '.7px', color: '#8a909c' } as const;
 
     return (
@@ -1512,7 +1796,7 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
 
             {/* TABLE */}
             <div style={{ background: '#fff', border: '1px solid #ecedf1', borderRadius: 14, overflowX: 'auto', boxShadow: '0 1px 2px rgba(20,28,46,.04), 0 6px 24px rgba(20,28,46,.05)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 840, alignItems: 'center', padding: '0 22px', height: 46, background: '#fafbfc', borderBottom: '1px solid #eceef2' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 980, alignItems: 'center', padding: '0 22px', height: 46, background: '#fafbfc', borderBottom: '1px solid #eceef2' }}>
                     <button onClick={() => toggleSort('name')} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', ...headCell }}>
                         NAME <span style={{ fontSize: 9, color: arrowColor('name') }}>{arrow('name')}</span>
                     </button>
@@ -1524,6 +1808,7 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
                     </button>
                     <div style={headCell}>STATUS</div>
                     <div style={headCell}>NIDA</div>
+                    <div style={headCell}>ACCOUNT</div>
                     <div style={headCell}>NESA</div>
                 </div>
 
@@ -1543,7 +1828,7 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
                     const nida = nidaStatus(rev);
                     return (
                         <div key={a._id} onClick={() => openApplicant(a)}
-                            style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 840, alignItems: 'center', padding: '0 22px', minHeight: 56, borderBottom: '1px solid #f3f4f7', cursor: 'pointer', background: isSel ? '#f1f6fb' : '#fff', boxShadow: isSel ? 'inset 3px 0 0 #005198' : 'none' }}
+                            style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 980, alignItems: 'center', padding: '0 22px', minHeight: 56, borderBottom: '1px solid #f3f4f7', cursor: 'pointer', background: isSel ? '#f1f6fb' : '#fff', boxShadow: isSel ? 'inset 3px 0 0 #005198' : 'none' }}
                             onMouseEnter={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#f7f9fb'; }}
                             onMouseLeave={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#fff'; }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, paddingRight: 14 }}>
@@ -1563,6 +1848,16 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
                                 <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 11px', borderRadius: 999, background: '#e8f0f8', color: '#005198', fontSize: 10.5, fontWeight: 600, letterSpacing: '.2px' }}>{a.status || '-'}</span>
                             </div>
                             <div><NidaStatusPill status={nida} /></div>
+                            <div style={{ paddingRight: 10 }}>
+                                <AccountCell
+                                    st={userStatus[a._id]}
+                                    canManage={canManageRiseUsers}
+                                    approved={rev?.nesastatus === 'approved'}
+                                    busy={!!creating[a._id]}
+                                    error={createErrors[a._id]}
+                                    onCreate={() => createAccount(a)}
+                                />
+                            </div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                                 {np ? (
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 999, background: np.bg, color: np.fg, fontSize: 10.5, fontWeight: 600 }}>
@@ -1594,6 +1889,11 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
                     applicant={selected}
                     campaignId={campaign._id}
                     review={reviews[selected._id]}
+                    accountStatus={userStatus[selected._id]}
+                    canManageRiseUsers={canManageRiseUsers}
+                    creatingAccount={!!creating[selected._id]}
+                    createError={createErrors[selected._id]}
+                    onCreateAccount={() => createAccount(selected)}
                     onClose={() => { setSelected(null); onSelectApplicant(null); }}
                     onPreview={(att) => { setPreview(att); onSelectDoc(att.label); }}
                     onReviewSaved={onReviewSaved}
@@ -1608,7 +1908,7 @@ function ApplicantList({ campaign, onBack, deepApplicantId, deepDoc, onSelectApp
 
 // ---- Root -----------------------------------------------------------------
 
-export default function Rise() {
+export default function Rise({ user }: { user?: UserData }) {
     const [campaign, setCampaign] = useState<RiseCampaign | null>(null);
     const [urlState, setUrlState] = useState<RiseUrlState>(readRiseUrlState);
     const [resolving, setResolving] = useState<boolean>(!!readRiseUrlState().campaignid);
@@ -1667,6 +1967,7 @@ export default function Rise() {
         return <ApplicantList
             key={campaign._id}
             campaign={campaign}
+            user={user}
             onBack={backToCampaigns}
             deepApplicantId={urlState.applicantid}
             deepDoc={urlState.doc}

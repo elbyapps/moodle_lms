@@ -65,6 +65,16 @@ $tasks = [
         'month'     => '*',
         'dayofweek' => '*',
     ],
+    // Daily at 1:45 AM — provision RISE learner accounts (backfill + RISE sync retry).
+    [
+        'classname' => 'local_elby_dashboard\task\ensure_rise_users',
+        'blocking'  => 0,
+        'minute'    => '45',
+        'hour'      => '1',
+        'day'       => '*',
+        'month'     => '*',
+        'dayofweek' => '*',
+    ],
     // Weekly Sunday at 4:00 AM — purge old metrics and logs.
     [
         'classname' => 'local_elby_dashboard\task\cleanup_old_metrics',

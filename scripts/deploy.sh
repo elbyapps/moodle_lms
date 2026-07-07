@@ -8,8 +8,9 @@
 #             at the end; nginx is a single instance so expect a brief (~5s)
 #             window where users might see a 502.
 #   upgrade   Maintenance-mode upgrade for Moodle core / plugin DB migrations.
-#             Enables Moodle maintenance mode, rebuilds, recreates all
-#             containers, runs admin/cli/upgrade.php, then drops maintenance.
+#             Builds images first, then enables Moodle maintenance mode,
+#             recreates containers, runs admin/cli/upgrade.php, then drops
+#             maintenance.
 #
 # Usage:
 #   scripts/deploy.sh code [--no-cache]
@@ -149,22 +150,52 @@ cmd_code() {
 cmd_upgrade() {
     echo "== Full upgrade (DB migration) =="
 
-    # First-time bring-up: with no php replicas running there is no live site to put
-    # into maintenance mode, and exec-ing into a container would fail. Build, start
-    # the stack at the configured replica count, then run the upgrade against it.
+    # No running php replicas: build first, start PHP privately (without nginx),
+    # then enable maintenance mode before exposing public services. On a brand-new
+    # uninstalled DB, maintenance.php may not be runnable yet; in that case keep
+    # nginx down until after upgrade.php completes so users never hit a half-upgraded
+    # site.
     if [ -z "$("${COMPOSE[@]}" ps -q php || true)" ]; then
-        echo "No running php replicas — first-time bring-up."
+        local maintenance_enabled=false
+
+        echo "No running php replicas — bringing up PHP after build to enable maintenance mode."
         if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
             echo "Building images (${BUILD_ARGS[*]})..."
         else
             echo "Building images..."
         fi
         "${COMPOSE[@]}" build "${BUILD_ARGS[@]}"
-        "${COMPOSE[@]}" up -d --scale "php=$REPLICAS"
+
+        echo "Ensuring public services are stopped before maintenance mode is enabled..."
+        "${COMPOSE[@]}" stop nginx cron >/dev/null 2>&1 || true
+
+        echo "Starting PHP privately (nginx remains stopped)..."
+        "${COMPOSE[@]}" up -d --scale "php=$REPLICAS" php
         wait_healthy php
+
+        echo "Enabling Moodle maintenance mode..."
+        if php_exec php /var/www/html/moodle_app/admin/cli/maintenance.php --enable; then
+            maintenance_enabled=true
+            echo "Starting public services in maintenance mode..."
+            "${COMPOSE[@]}" up -d --scale "php=$REPLICAS"
+            wait_healthy php
+        else
+            echo "WARNING: maintenance mode could not be enabled; keeping public services stopped until after upgrade." >&2
+        fi
+
         echo "Running Moodle upgrade..."
         php_exec php /var/www/html/moodle_app/admin/cli/upgrade.php --non-interactive --allow-unstable
-        echo "Upgrade complete (first-time bring-up)."
+
+        if $maintenance_enabled; then
+            echo "Disabling maintenance mode..."
+            php_exec php /var/www/html/moodle_app/admin/cli/maintenance.php --disable
+        else
+            echo "Starting public services after upgrade..."
+            "${COMPOSE[@]}" up -d --scale "php=$REPLICAS"
+            wait_healthy php
+        fi
+
+        echo "Upgrade complete."
         return 0
     fi
 

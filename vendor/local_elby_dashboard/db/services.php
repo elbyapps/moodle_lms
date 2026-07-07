@@ -281,6 +281,22 @@ $functions = [
         'ajax'         => true,
         'capabilities' => 'local/elby_dashboard:viewreports',
     ],
+    'local_elby_dashboard_rise_get_user_status' => [
+        'classname'    => 'local_elby_dashboard\external\rise',
+        'methodname'   => 'get_user_status',
+        'description'  => 'Resolve Moodle account status for a batch of RISE applicants',
+        'type'         => 'read',
+        'ajax'         => true,
+        'capabilities' => 'local/elby_dashboard:viewreports',
+    ],
+    'local_elby_dashboard_rise_create_user' => [
+        'classname'    => 'local_elby_dashboard\external\rise',
+        'methodname'   => 'create_user',
+        'description'  => 'Provision the Moodle account for a RISE learner (identity re-fetched server-side)',
+        'type'         => 'write',
+        'ajax'         => true,
+        'capabilities' => 'local/elby_dashboard:manageriseusers',
+    ],
 
     // SDMS self-link API (for logged-in users linking their own account).
     'local_elby_dashboard_self_link_sdms' => [
@@ -438,6 +454,8 @@ $services = [
             'local_elby_dashboard_rise_get_nesa_stats',
             'local_elby_dashboard_rise_save_review',
             'local_elby_dashboard_rise_validate_nid',
+            'local_elby_dashboard_rise_get_user_status',
+            'local_elby_dashboard_rise_create_user',
         ],
         'restrictedusers' => 0,
         'enabled'         => 1,

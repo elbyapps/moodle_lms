@@ -390,22 +390,7 @@ class signup extends external_api {
      * @return array ['firstname' => string, 'lastname' => string]
      */
     private static function parse_sdms_names(string $names): array {
-        $names = trim($names);
-        if (empty($names)) {
-            return ['firstname' => '', 'lastname' => ''];
-        }
-
-        $parts = preg_split('/\s+/', $names);
-
-        $lastname = ucfirst(strtolower(array_shift($parts)));
-        $firstname = '';
-        if (!empty($parts)) {
-            $firstname = implode(' ', array_map(function($part) {
-                return ucfirst(strtolower($part));
-            }, $parts));
-        }
-
-        return ['firstname' => $firstname, 'lastname' => $lastname];
+        return \local_elby_dashboard\rise_user_service::split_name($names);
     }
 
     /**
@@ -414,20 +399,7 @@ class signup extends external_api {
      * @throws \moodle_exception If rate limit exceeded.
      */
     private static function rate_limit_check(): void {
-        $cache = \cache::make('local_elby_dashboard', 'signup_ratelimit');
-        $ip = getremoteaddr();
-        $key = 'signup_' . md5($ip);
-
-        $attempts = $cache->get($key);
-        if ($attempts === false) {
-            $attempts = 0;
-        }
-
-        if ($attempts >= 10) {
-            throw new \moodle_exception('sdms_rate_limited', 'local_elby_dashboard');
-        }
-
-        $cache->set($key, $attempts + 1);
+        \local_elby_dashboard\rate_limiter::check('signup');
     }
 
     /**

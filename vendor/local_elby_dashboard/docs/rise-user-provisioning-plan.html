@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RISE Learner → Moodle User Provisioning — Implementation Plan</title>
+<style>
+  :root{
+    --brand:#005198; --brand-2:#337a43; --ink:#161b26; --muted:#6b7280; --line:#ecedf1;
+    --bg:#f6f8fb; --card:#fff; --amber:#b5660b; --amber-bg:#fff8ee; --amber-line:#f3e1c0;
+    --green:#1a7f43; --green-bg:#f0f9f3; --green-line:#cfe9d9; --red:#b42318; --red-bg:#fdf3f3; --red-line:#f3c9c9;
+    --code:#0f172a;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 22px 90px}
+  header.hero{background:linear-gradient(135deg,#003a6e,#005198 55%,#0a6bbd);color:#fff;padding:46px 22px 40px;margin-bottom:0}
+  header.hero .inner{max-width:1080px;margin:0 auto}
+  .kicker{font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#bcd6ee;margin:0 0 10px}
+  h1{margin:0 0 12px;font-size:33px;font-weight:800;letter-spacing:-.6px;line-height:1.15}
+  header.hero p{margin:0;max-width:720px;color:#e3eefa;font-size:15.5px}
+  .meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+  .meta span{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.22);border-radius:999px;padding:6px 13px;font-size:12.5px;font-weight:600}
+  nav.toc{position:sticky;top:0;z-index:5;background:rgba(246,248,251,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 0;margin-bottom:30px}
+  nav.toc .inner{max-width:1080px;margin:0 auto;padding:0 22px;display:flex;flex-wrap:wrap;gap:6px}
+  nav.toc a{font-size:12.5px;font-weight:600;color:var(--muted);text-decoration:none;padding:5px 11px;border-radius:8px;border:1px solid transparent}
+  nav.toc a:hover{color:var(--brand);border-color:#d6e3f0;background:#fff}
+  section{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:26px 28px;margin:0 0 20px;box-shadow:0 1px 2px rgba(20,28,46,.04)}
+  h2{font-size:21px;font-weight:800;letter-spacing:-.3px;margin:0 0 6px;display:flex;align-items:center;gap:11px}
+  h2 .n{flex:0 0 auto;width:30px;height:30px;border-radius:9px;background:#e8f0f8;color:var(--brand);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800}
+  h2 + .lead{margin:0 0 20px;color:var(--muted);font-size:14.5px}
+  h3{font-size:15.5px;font-weight:800;margin:24px 0 9px;color:#1f2430}
+  h3:first-of-type{margin-top:6px}
+  p{margin:0 0 12px}
+  ul,ol{margin:0 0 12px;padding-left:22px}
+  li{margin:5px 0}
+  code{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.8px;background:#eef2f7;color:#0b3a63;padding:1.5px 6px;border-radius:5px}
+  pre{background:var(--code);color:#e6edf3;border-radius:12px;padding:16px 18px;overflow-x:auto;font-family:'JetBrains Mono',ui-monospace,Menlo,monospace;font-size:12.6px;line-height:1.55;margin:0 0 14px}
+  pre .c{color:#7d8aa0}.pre .k{color:#79c0ff}
+  table{width:100%;border-collapse:collapse;margin:0 0 14px;font-size:13.4px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid #eef0f4;vertical-align:top}
+  th{font-size:11px;letter-spacing:.5px;text-transform:uppercase;color:#8a909c;font-weight:800;background:#fafbfc}
+  tr:last-child td{border-bottom:none}
+  .tag{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.3px;padding:2px 9px;border-radius:999px}
+  .t-new{background:#e6f4ec;color:var(--green)}
+  .t-edit{background:#e8f0f8;color:var(--brand)}
+  .t-db{background:#f3eafa;color:#7b3fb0}
+  .callout{border:1px solid var(--line);border-left-width:4px;border-radius:10px;padding:13px 16px;margin:0 0 14px;font-size:13.6px}
+  .callout.amber{background:var(--amber-bg);border-color:var(--amber-line);border-left-color:var(--amber)}
+  .callout.green{background:var(--green-bg);border-color:var(--green-line);border-left-color:var(--green)}
+  .callout.red{background:var(--red-bg);border-color:var(--red-line);border-left-color:var(--red)}
+  .callout.blue{background:#eef5fc;border-color:#cfe0f2;border-left-color:var(--brand)}
+  .callout b{color:var(--ink)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.grid2{grid-template-columns:1fr}}
+  .file{font-family:'JetBrains Mono',Menlo,monospace;font-size:12.5px;color:var(--brand);font-weight:700}
+  .chk{list-style:none;padding-left:0}
+  .chk li{padding-left:28px;position:relative}
+  .chk li::before{content:'';position:absolute;left:0;top:4px;width:16px;height:16px;border:2px solid #c4c8d0;border-radius:5px}
+  .phase{display:flex;gap:14px;padding:14px 0;border-top:1px solid #f0f1f4}
+  .phase:first-child{border-top:none}
+  .phase .badge{flex:0 0 auto;width:44px;height:44px;border-radius:11px;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+  .phase .body{flex:1 1 auto}
+  .phase h4{margin:2px 0 4px;font-size:15px;font-weight:800}
+  .phase p{margin:0;font-size:13.5px;color:var(--muted)}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:999px}
+  .pill.g{background:#e6f4ec;color:var(--green)}.pill.a{background:#fff1e0;color:var(--amber)}.pill.r{background:#fbe0de;color:var(--red)}.pill.b{background:#e8f0f8;color:var(--brand)}
+  footer{color:#9aa0ab;font-size:12.5px;text-align:center;margin-top:34px}
+  .anchor{position:relative;top:-70px;visibility:hidden}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="inner">
+    <p class="kicker">local_elby_dashboard · RISE</p>
+    <h1>RISE Learner → Moodle User Provisioning</h1>
+    <p>Turn NESA-approved RISE applicants into real Moodle accounts — keeping the existing sequential <code>{type}{yy}{seq}</code> username and writing the NID into <code>idnumber</code> — then SMS the learner a password-reset link, alert them by SMS when their identity data needs fixing, expose account state and a manual "create account" action in the learners table, and badge RISE learners on their profile page. Course enrolment is deferred.</p>
+    <div class="meta">
+      <span>📦 Plugin: local_elby_dashboard</span>
+      <span>🧩 Moodle 5.0+</span>
+      <span>⚛ Preact + PHP external API</span>
+      <span>🗓 Plan drafted 2026-07-07</span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="inner">
+    <a href="#goals">Goals</a>
+    <a href="#current">Current state</a>
+    <a href="#model">Data model</a>
+    <a href="#provisioning">Provisioning rules</a>
+    <a href="#backend">Backend API</a>
+    <a href="#approval">Approval hook</a>
+    <a href="#notify">Notifications</a>
+    <a href="#form">Correction form</a>
+    <a href="#profile">Profile badge</a>
+    <a href="#frontend">Frontend</a>
+    <a href="#strings">Lang &amp; config</a>
+    <a href="#phases">Delivery</a>
+    <a href="#testing">Testing</a>
+    <a href="#open">Open questions</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <span class="anchor" id="goals"></span>
+  <section>
+    <h2><span class="n">◎</span>Goals &amp; requirement mapping</h2>
+    <p class="lead">Each requirement maps to a concrete, testable piece of work.</p>
+    <table>
+      <thead><tr><th style="width:40%">Requirement</th><th>Solution</th><th style="width:14%">Where</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>Enrolled RISE students must have a Moodle account with <code>user.idnumber = nid</code>.</td>
+          <td>Provisioning service creates/links a Moodle user, writing the NID into <code>user.idnumber</code>. Backfill task sweeps existing enrolled/approved learners.</td>
+          <td><span class="tag t-new">service</span> <span class="tag t-new">task</span></td>
+        </tr>
+        <tr>
+          <td>A user sees a notification when action is needed (fix NID, details not matching).</td>
+          <td>Provisioning evaluates action codes and sends the learner an <b>SMS</b> (phone from the RISE record) with a link to fix their data; a welcome SMS carries a password-reset link.</td>
+          <td><span class="tag t-new">service</span> <span class="tag t-new">SMS</span></td>
+        </tr>
+        <tr>
+          <td>A RISE user is created on NESA review approval.</td>
+          <td><code>save_review()</code> triggers provisioning when <code>nesastatus === 'approved'</code>.</td>
+          <td><span class="tag t-edit">external/rise.php</span></td>
+        </tr>
+        <tr>
+          <td>Manual "create user" action from the learners table + show whether a learner already has an account.</td>
+          <td>New <code>ACCOUNT</code> column in the applicants table with status pill + "Create account" button, backed by two new web-service endpoints.</td>
+          <td><span class="tag t-edit">Rise.tsx</span> <span class="tag t-new">endpoints</span></td>
+        </tr>
+        <tr>
+          <td>Add a badge on the user profile page.</td>
+          <td><code>local_elby_dashboard_myprofile_navigation()</code> renders a "RISE Learner" badge with verification state + a "Fix your details" link when action is pending.</td>
+          <td><span class="tag t-edit">lib.php</span></td>
+        </tr>
+        <tr>
+          <td>Learner can fix names/NID and upload ID + NESA result; SMS on review-save carries the reviewer comment + form link.</td>
+          <td>Public token-gated correction page <code>rise_action.php</code> (form-POST upload) + <code>elby_rise_corrections</code> + <code>elby_rise_tokens</code>; re-review loop feeds back to the reviewer.</td>
+          <td><span class="tag t-new">rise_action.php</span> <span class="tag t-new">endpoint</span> <span class="tag t-db">table</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <span class="anchor" id="current"></span>
+  <section>
+    <h2><span class="n">▤</span>Current state (what we build on)</h2>
+    <div class="grid2">
+      <div>
+        <h3>RISE review pipeline</h3>
+        <ul>
+          <li><span class="file">rise.php</span> hosts a Preact SPA (<span class="file">amd/src/components/Rise.tsx</span>).</li>
+          <li>NESA reviews live in <code>elby_rise_reviews</code> (unique on <code>campaignid+applicantid</code>), carrying a full JSON snapshot of the applicant plus <code>nesastatus</code>, <code>nesaindexnumber</code>, <code>nidstatus</code>, <code>nidverified</code>, <code>nid</code>, <code>fullname</code>.</li>
+          <li>Approvals flow through <code>external\rise::save_review()</code>; NIDA identity comparison through <code>validate_nid()</code>.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Existing account-creation pattern</h3>
+        <ul>
+          <li><code>external\signup::register_sdms_user()</code> already creates Moodle users via <code>user_create_user()</code> — reuse its shape (username, firstname/lastname split, <code>auth='manual'</code>, <code>confirmed=1</code>, <code>mnethostid</code>).</li>
+          <li>Rwandan name convention helper <code>parse_sdms_names()</code> (first token = lastname) is reusable.</li>
+          <li>Frontend talks to the backend only via <code>ajaxCall(methodname, args)</code> → <code>core/ajax</code>; the API key never reaches the browser.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout blue"><b>Key insight:</b> the review row is already the per-applicant system-of-record on the Moodle side. It is the natural place to store the resulting <code>userid</code>, making "does this learner have an account?" a single indexed lookup.</div>
+    <div class="callout green"><b>Production reality (confirmed):</b> many learners <em>already have Moodle accounts</em> with <code>idnumber</code> set to their NID but <b>not linked</b> to any RISE review row. So the dominant operation is <b>link an existing user by NID</b>, not create a new one — matching-by-<code>idnumber</code> is the primary path (below), and the backfill task is mostly a linking sweep.</div>
+  </section>
+
+  <span class="anchor" id="model"></span>
+  <section>
+    <h2><span class="n">▦</span>Data model changes</h2>
+    <p class="lead">One new column links a review to its provisioned Moodle user; plus lightweight action-state tracking.</p>
+
+    <h3><span class="tag t-db">install.xml + upgrade.php</span> New fields on <code>elby_rise_reviews</code></h3>
+    <p>State is split into distinct fields (per review) so provisioning state, correction state and notification-dedupe state never overload one column:</p>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>userid</code></td><td>int(10), null, FK → user.id</td><td>Provisioned/linked Moodle user. <code>NULL</code> = no account yet.</td></tr>
+        <tr><td><code>provisioningaction</code></td><td>char(32), null</td><td>Learner-facing provisioning state: <code>ok</code>, <code>nid_missing</code>, <code>nid_invalid</code>, <code>details_mismatch</code>, <code>duplicate_nid</code>.</td></tr>
+        <tr><td><code>correctionstatus</code></td><td>char(20), null</td><td>Reviewer-facing correction state: <code>none</code> → <code>resubmitted</code> → <code>reviewed</code>.</td></tr>
+        <tr><td><code>lastnotifiedhash</code></td><td>char(40), null</td><td>SHA-1 of the last notification payload <code>(nesastatus, comment, provisioningaction)</code> — dedupes <em>payloads</em>, but must be combined with an active-token check (a resend is forced when no unexpired, unused correction token exists, even if the hash is unchanged).</td></tr>
+        <tr><td><code>lastnotifiedat</code></td><td>int(10), default 0</td><td>When the last SMS/bell notification was sent.</td></tr>
+        <tr><td><code>userprovisionedat</code></td><td>int(10), default 0</td><td>Timestamp the account was created/linked.</td></tr>
+        <tr><td><code>risesyncstatus</code></td><td>char(20), default 'ok'</td><td>RISE <code>linkedUserId</code> back-write state: <code>ok</code>, <code>pending</code>, <code>error</code>, <code>conflict</code> — the backfill task retries <code>pending</code>/<code>error</code>.</td></tr>
+        <tr><td><code>risesyncerror</code></td><td>text, null</td><td>Last RISE PATCH error detail (audit/diagnostics).</td></tr>
+        <tr><td><code>risesyncedat</code></td><td>int(10), default 0</td><td>When the <code>linkedUserId</code> back-write last succeeded.</td></tr>
+        <tr><td><code>riselinkeduserid</code></td><td>char(32), null</td><td>What RISE currently reports as <code>linkedUserId</code> (detects conflicts before overwriting).</td></tr>
+      </tbody>
+    </table>
+    <h3><span class="tag t-db">new table</span> <code>elby_rise_tokens</code> (set-password &amp; correction links)</h3>
+    <p>One table backs both the set-password link and the correction deep link. <b>Only a hash of the token is stored</b>; the raw token travels in the SMS URL and is looked up by hash — so tokens are secure-random, single-use, time-limited and revocable.</p>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>int, PK</td><td>—</td></tr>
+        <tr><td><code>purpose</code></td><td>char(20)</td><td><code>setpassword</code> | <code>correction</code></td></tr>
+        <tr><td><code>tokenhash</code></td><td>char(64), unique</td><td>SHA-256 of the secure-random raw token (never the raw value).</td></tr>
+        <tr><td><code>campaignid</code> / <code>applicantid</code></td><td>char</td><td>Who the link is for.</td></tr>
+        <tr><td><code>userid</code></td><td>int, null</td><td>Set for <code>setpassword</code> tokens.</td></tr>
+        <tr><td><code>expires</code></td><td>int(10)</td><td>Hard expiry (e.g. +72h for correction, +24h for set-password).</td></tr>
+        <tr><td><code>usedat</code></td><td>int(10), default 0</td><td>Non-zero once consumed — enforces single-use.</td></tr>
+        <tr><td><code>timecreated</code></td><td>int(10)</td><td>Audit.</td></tr>
+      </tbody>
+    </table>
+
+    <h3><span class="tag t-db">new table</span> <code>elby_rise_username_seq</code> (portable, collision-free sequence)</h3>
+    <p>Replaces the non-portable <code>CAST(username AS UNSIGNED)</code> / <code>MAX()+1</code> approach. One row per <code>{type}{yy}</code> prefix; incremented inside a Moodle <b>Lock</b> so concurrent approvals never mint the same username, on any DB engine.</p>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>seqkey</code></td><td>char(8), unique</td><td>Prefix, e.g. <code>126</code> (learner+2026).</td></tr>
+        <tr><td><code>nextval</code></td><td>int(10)</td><td>Next sequence number to assign.</td></tr>
+      </tbody>
+    </table>
+    <div class="callout amber"><b>One-time seed (portable):</b> the upgrade step seeds <code>nextval</code> per prefix without DB-specific casts — fetch candidate usernames with <code>username LIKE '126%'</code> and parse the numeric suffix in <b>PHP</b> to find the max, then <code>nextval = max+1</code>. No <code>CAST(... AS UNSIGNED)</code> in the seed either.</div>
+
+    <h3><span class="tag t-db">new table</span> <code>elby_rise_corrections</code> (learner re-submissions)</h3>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>id</code></td><td>int, PK</td><td>— (also the file itemid for the two uploads)</td></tr>
+        <tr><td><code>campaignid</code> / <code>applicantid</code></td><td>char</td><td>Ties the correction to the RISE applicant + its review row.</td></tr>
+        <tr><td><code>firstname</code> / <code>lastname</code> / <code>nid</code></td><td>char</td><td>Learner-corrected values.</td></tr>
+        <tr><td><code>note</code></td><td>text, null</td><td>Learner's reply to the reviewer.</td></tr>
+        <tr><td><code>status</code></td><td>char(20)</td><td><code>pending</code> → <code>reviewed</code>; drives the "resubmitted" pill.</td></tr>
+        <tr><td><code>reviewedby</code> / <code>reviewedat</code></td><td>int, null</td><td>Who cleared the resubmission and when (audit).</td></tr>
+        <tr><td><code>timecreated</code> / <code>timemodified</code></td><td>int</td><td>Uploaded files live in fileareas <code>rise_idcard</code> / <code>rise_nesaresult</code>, itemid = this id.</td></tr>
+      </tbody>
+    </table>
+    <pre><span class="c">&lt;!-- db/install.xml — add inside &lt;FIELDS&gt; --&gt;</span>
+&lt;FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"
+       COMMENT="Provisioned Moodle user for this RISE learner"/&gt;
+&lt;FIELD NAME="provisioningaction" TYPE="char" LENGTH="32" NOTNULL="false" SEQUENCE="false"
+       COMMENT="Learner-facing provisioning state"/&gt;
+&lt;FIELD NAME="correctionstatus" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false"/&gt;
+&lt;FIELD NAME="lastnotifiedhash" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false"/&gt;
+&lt;FIELD NAME="lastnotifiedat" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/&gt;
+&lt;FIELD NAME="userprovisionedat" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/&gt;
+&lt;FIELD NAME="risesyncstatus" TYPE="char" LENGTH="20" NOTNULL="false" DEFAULT="ok" SEQUENCE="false"/&gt;
+&lt;FIELD NAME="risesyncerror" TYPE="text" NOTNULL="false" SEQUENCE="false"/&gt;
+&lt;FIELD NAME="risesyncedat" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/&gt;
+&lt;FIELD NAME="riselinkeduserid" TYPE="char" LENGTH="32" NOTNULL="false" SEQUENCE="false"/&gt;
+
+<span class="c">&lt;!-- add a KEY + INDEX --&gt;</span>
+&lt;KEY NAME="fk_userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/&gt;
+&lt;INDEX NAME="idx_userid" UNIQUE="false" FIELDS="userid"/&gt;</pre>
+    <div class="callout amber"><b>Migration:</b> add a matching step in <span class="file">db/upgrade.php</span> guarded by the new plugin version, using <code>$dbman->add_field()</code> / <code>add_key()</code> / <code>add_index()</code>, then bump <code>$plugin->version</code> in <span class="file">version.php</span> (current <code>2026062808</code>).</div>
+
+    <div class="callout blue"><b>Why keep state on the review row?</b> Every provisioning trigger (approval or manual) already guarantees a review row exists, and a learner is uniquely one applicant. Co-locating the split state fields with the snapshot/decision avoids a join; tokens, corrections and the username sequence live in their own tables because they are one-to-many or security-sensitive.</div>
+  </section>
+
+  <span class="anchor" id="provisioning"></span>
+  <section>
+    <h2><span class="n">⚙</span>Provisioning rules (the decision table)</h2>
+    <p class="lead">A single class, <span class="file">classes/rise_user_service.php</span>, owns all identity → account logic so the endpoint, the approval hook and the backfill task share one code path.</p>
+
+    <h3>Matching &amp; idempotency</h3>
+    <ol>
+      <li><b>Already linked?</b> If <code>review.userid</code> is set and the user exists → no-op, return existing.</li>
+      <li><b>Match by NID (primary path in production):</b> look up active users where <code>idnumber = nid AND deleted = 0</code>, then apply the duplicate-NID rules below.</li>
+      <li><b>Create (fallback):</b> only when no active user carries that <code>idnumber</code>, create via <code>user_create_user()</code>.</li>
+    </ol>
+    <h3>Duplicate-NID / conflict rules (explicit)</h3>
+    <table>
+      <thead><tr><th>Situation</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td>Exactly one active user has the NID, not yet linked</td><td><b>Link</b> (store <code>userid</code>). If their name disagrees with the <b>server-fetched RISE applicant</b> (<code>get_applicant()</code>, not the browser snapshot) → still link, flag <code>details_mismatch</code>.</td></tr>
+        <tr><td>Multiple active users share the NID</td><td><b>Block</b>, set <code>duplicate_nid</code>, surface to the reviewer to resolve — never guess.</td></tr>
+        <tr><td>Matching user is already linked to a <em>different</em> review/applicant</td><td><b>Block</b>, set <code>duplicate_nid</code>; a real person maps to one applicant — flag for manual resolution.</td></tr>
+        <tr><td>Only match is deleted/suspended</td><td>Deleted → ignore (treat as no match, create). Suspended → link but flag for reviewer (do not silently re-activate).</td></tr>
+      </tbody>
+    </table>
+    <div class="callout blue">Because <code>user.idnumber = nid</code> is the join key on both sides, the table's account-status lookup (<code>status_for()</code>) resolves existing accounts by <code>idnumber IN (nids)</code> even for learners never yet reviewed — surfacing "already has an account" without any prior link.</div>
+    <div class="callout red"><b>Identity source is RISE, not the review snapshot (mandatory).</b> The current review snapshot is <em>browser-supplied</em> — <code>save_review()</code> stores <code>fullname</code>/<code>nid</code>/<code>phone</code>/<code>applicantdata</code> straight from the frontend <code>PARAM_RAW</code> payload (<code>Rise.tsx</code> → <code>JSON.stringify(applicant)</code>). Therefore provisioning identity <b>must</b> come from <code>rise_client::get_applicant($applicantid)</code> (server-side, X-API-KEY — verified working). The snapshot is a display/cache fallback only and must <b>not</b> feed <code>user.idnumber</code>, Moodle names, phone/SMS, or the RISE <code>linkedUserId</code> update unless it was refreshed from RISE in the same request/job. <code>create_user</code>/<code>provision</code> <b>fail closed</b> if the fetch fails or returns an applicant whose campaign/status doesn't match the request — never fall back to browser JSON.</div>
+    <div class="callout amber"><b>Server-authoritative verification.</b> <code>validate_nid()</code> and <code>save_review(nidverified)</code> currently trust frontend-supplied values. Since <code>provisioningaction='ok'</code> depends on NIDA verification, the plan must make verification server-authoritative — re-derive NID/name/DOB from <code>get_applicant()</code> and (re)run the TMIS/NIDA check server-side rather than trusting <code>nidverified</code> from the browser.</div>
+    <div class="callout green"><b>Native bi-directional link + back-write semantics.</b> RISE applicants carry <code>linkedUserId</code>; on successful provisioning, <b>write the Moodle <code>userid</code> back</b> via <code>rise_client::patch_applicant($id, ['linkedUserId'=&gt;$userid])</code> and optionally read it as a secondary match signal. Consistency rules: <b>Moodle is source of truth</b> — if user creation succeeds but the RISE PATCH fails, do <b>not</b> roll back; record a pending-sync/error state on the review row and <b>retry via the backfill task</b>. Make the PATCH <b>idempotent</b>, and if RISE already holds a <em>different</em> non-empty <code>linkedUserId</code>, treat it as a <b>conflict</b> (flag for the reviewer) rather than overwriting.</div>
+
+    <h3>Action-code evaluation (drives notifications &amp; the profile badge)</h3>
+    <table>
+      <thead><tr><th>Condition</th><th>Action code</th><th>Create account?</th><th>Learner sees</th></tr></thead>
+      <tbody>
+        <tr><td>NID present, 16 digits, NIDA name+DOB matched</td><td><span class="pill g">ok</span></td><td>Yes</td><td>Nothing / welcome</td></tr>
+        <tr><td>NID empty on the snapshot</td><td><span class="pill r">nid_missing</span></td><td>Yes (idnumber blank)</td><td>"Add your National ID"</td></tr>
+        <tr><td>NID present but not a 16-digit number</td><td><span class="pill a">nid_invalid</span></td><td>Yes</td><td>"Fix your National ID number"</td></tr>
+        <tr><td>NIDA comparison was a mismatch (<code>nidstatus='mismatch'</code>)</td><td><span class="pill a">details_mismatch</span></td><td>Yes</td><td>"Your details don't match NIDA records"</td></tr>
+        <tr><td>Another user already owns this <code>idnumber</code></td><td><span class="pill r">duplicate_nid</span></td><td>No (blocked)</td><td>Reviewer is warned; no account made</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Field mapping</h3>
+    <table>
+      <thead><tr><th>Moodle user field</th><th>Source</th></tr></thead>
+      <tbody>
+        <tr><td><code>idnumber</code></td><td>applicant <code>nid</code> (the key requirement)</td></tr>
+        <tr><td><code>firstname</code> / <code>lastname</code></td><td><code>fullName</code> split by Rwandan convention. <b>Note:</b> <code>parse_sdms_names()</code> is currently <code>private</code> in <code>external\signup</code> — extract it to a shared helper (e.g. <code>rise_user_service::split_name()</code> or a <code>local_elby_dashboard\name_helper</code>) with unit tests; do not call the private method.</td></tr>
+        <tr><td><code>username</code></td><td><b>Sequential scheme</b> <code>{type}{yy}{seq}</code> (see below) — e.g. <code>12609278</code>. <em>Not</em> the NID.</td></tr>
+        <tr><td><code>email</code></td><td>Deterministic synthetic <code>{username}@{rise_signup_email_domain}</code> (default <code>learner.rise.reb.rw</code>) — unique by construction since username is unique. Applicant-supplied email is <b>not</b> used as the login email unless verified-unique, to avoid colliding with an existing Moodle user; store it in a profile field if needed. SMS is the real contact channel.</td></tr>
+        <tr><td><code>phone1</code> / <code>phone2</code></td><td>applicant <code>phone</code> (drives the SMS notification + password reset)</td></tr>
+        <tr><td><code>auth</code> / <code>confirmed</code> / <code>mnethostid</code></td><td><code>'manual'</code> / <code>1</code> / <code>$CFG-&gt;mnet_localhost_id</code> (matches existing prod RISE accounts)</td></tr>
+        <tr><td>password</td><td>random; set <code>auth_forcepasswordchange</code> preference. Learner receives a reset link by SMS (below).</td></tr>
+      </tbody>
+    </table>
+    <div class="callout amber"><b>Note:</b> creating the account is deliberately never blocked by a bad NID (except a true duplicate/conflict). We provision, set <code>idnumber</code> best-effort, and raise a <code>provisioningaction</code> the learner resolves — this satisfies "must have an account" while still surfacing the fix.</div>
+    <div class="callout blue"><b>NID validation scope:</b> the plan validates <b>16-digit numeric format</b> only. A Rwanda NID checksum is <em>not</em> assumed — if a confirmed checksum algorithm is available it can tighten <code>nid_invalid</code> later; identity correctness is otherwise established by the existing NIDA (<code>validate_nid()</code>) comparison, not a local checksum.</div>
+
+    <h3>Username generation (confirmed from production)</h3>
+    <p>Existing prod RISE accounts use a manually generated <b>8-digit sequential username</b> (verified rows: <code>12609278</code>, <code>12600693</code>, with the 16-digit NID in <code>idnumber</code>, <code>auth=manual</code>). We keep generating the same shape:</p>
+    <table>
+      <thead><tr><th>Segment</th><th>Meaning</th><th>Example (<code>12609278</code>)</th></tr></thead>
+      <tbody>
+        <tr><td><code>{type}</code></td><td>1 digit — <b>1 = learner</b>, <b>2 = facilitator</b></td><td><code>1</code> (learner)</td></tr>
+        <tr><td><code>{yy}</code></td><td>2-digit intake year</td><td><code>26</code> (2026)</td></tr>
+        <tr><td><code>{seq}</code></td><td>zero-padded incrementing sequence within that type+year</td><td><code>09278</code></td></tr>
+      </tbody>
+    </table>
+    <pre><span class="c">// rise_user_service::next_username($type='learner') — portable + concurrency-safe</span>
+$prefix = ($type === 'facilitator' ? '2' : '1') . substr(date('Y'), 2, 2);   <span class="c">// '126'</span>
+$lockfactory = \core\lock\lock_config::get_lock_factory('local_elby_dashboard_username');
+$lock = $lockfactory-&gt;get_lock($prefix, 10);                                   <span class="c">// blocks concurrent minting</span>
+try {
+    $seq = $DB-&gt;get_field('elby_rise_username_seq', 'nextval', ['seqkey' =&gt; $prefix]);
+    if ($seq === false) { $seq = 1; $DB-&gt;insert_record('elby_rise_username_seq',
+                              (object)['seqkey' =&gt; $prefix, 'nextval' =&gt; $seq]); }
+    <span class="c">// Skip any number already taken (e.g. manually created before this feature).</span>
+    do { $username = $prefix . str_pad((string)$seq++, 5, '0', STR_PAD_LEFT); }
+    while ($DB-&gt;record_exists('user', ['username' =&gt; $username]));
+    $DB-&gt;set_field('elby_rise_username_seq', 'nextval', $seq, ['seqkey' =&gt; $prefix]);
+} finally { $lock-&gt;release(); }</pre>
+    <div class="callout green"><b>Portable &amp; collision-free:</b> no <code>CAST(username AS UNSIGNED)</code> (which is MySQL-specific). A per-prefix row in <code>elby_rise_username_seq</code> is advanced inside a Moodle <b>Lock</b>, so simultaneous approvals serialise; the inner existence check skips numbers taken by the legacy manual scheme.</div>
+    <div class="callout blue">Scope for now is <b>learners</b> (<code>{type}=1</code>). Facilitator provisioning (<code>{type}=2</code>) reuses the same generator with a different type argument when needed.</div>
+
+    <pre><span class="c">// classes/rise_user_service.php — shape</span>
+class rise_user_service {
+    public static function split_name(string $fullname): array;        <span class="c">// shared (was signup's private)</span>
+    public function find_user(string $nid): array;                     <span class="c">// active users by idnumber=nid</span>
+    public function evaluate_action(array $applicant, ?object $rev): string; <span class="c">// 'nid_invalid' | ...</span>
+    public function provision(string $campaignid, string $applicantid): array;
+        <span class="c">// identity = rise_client::get_applicant($applicantid) server-side; fail-closed</span>
+        <span class="c">// on fetch error or campaign/status mismatch. Snapshot is never trusted.</span>
+        <span class="c">// -&gt; ['userid'=&gt;.., 'created'=&gt;bool, 'action'=&gt;'ok', 'username'=&gt;.., 'risesync'=&gt;'ok'|'pending']</span>
+    public function notify_learner(object $review, string $comment=''): void; <span class="c">// SMS + bell, deduped</span>
+    public function send_sms(string $phone, string $message): bool;    <span class="c">// wraps sms_client</span>
+    public function status_for(array $pairs, string $campaignid): array; <span class="c">// [{applicantid,nid}] -&gt; status</span>
+}</pre>
+  </section>
+
+  <span class="anchor" id="backend"></span>
+  <section>
+    <h2><span class="n">↔</span>Backend: web-service endpoints</h2>
+    <p class="lead"><b>Two</b> AJAX external methods added to <span class="file">classes/external/rise.php</span> (registered in <span class="file">db/services.php</span>), plus a <b>normal form-POST page</b> for the correction upload (external AJAX methods are a poor fit for no-login multipart uploads — see the Correction form section).</p>
+    <table>
+      <thead><tr><th>Web-service function</th><th>Params</th><th>Returns</th><th>Capability</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>..._rise_get_user_status</code> <span class="tag t-new">new</span></td>
+          <td><code>campaignid</code>, <code>pairs[]</code> of <code>{applicantid, nid}</code></td>
+          <td>JSON keyed by applicantid → <code>{hasaccount, userid, username, provisioningaction, correctionstatus, profileurl}</code></td>
+          <td><code>viewreports</code></td>
+        </tr>
+        <tr>
+          <td><code>..._rise_create_user</code> <span class="tag t-new">new</span></td>
+          <td><code>campaignid</code>, <code>applicantid</code> <em>(only)</em></td>
+          <td>JSON <code>{success, userid, username, action, message}</code></td>
+          <td><code>viewreports</code> + new <code>manageriseusers</code></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="callout red"><b>Never trust browser identity data.</b> <code>create_user</code> takes only <code>applicantid</code> and provisions from a <b>server-side <code>rise_client::get_applicant($applicantid)</code></b> fetch. It <b>fails closed</b> if the fetch errors or the returned applicant's campaign/status doesn't match the request — it never falls back to the (browser-supplied) review snapshot. A privileged frontend must not be able to submit altered names/NIDs/phones.</div>
+    <div class="callout amber"><b>Moodle external param shape for <code>pairs[]</code>.</b> Existing RISE methods use flat <code>external_value</code>s. <code>get_user_status</code> needs a structured param: an <code>external_multiple_structure(new external_single_structure(['applicantid'=&gt;…,'nid'=&gt;…]))</code> — or accept a single <code>PARAM_RAW</code> JSON string and decode server-side. The plan uses the structured form.</div>
+    <div class="callout amber"><b>Why <code>{applicantid, nid}</code> pairs for status?</b> Unreviewed learners have no <code>elby_rise_reviews</code> row, so the backend has no NID to match on from an applicant id alone. The NID travels with each pair (already visible to the reviewer in the applicant list) so <code>status_for()</code> can resolve existing accounts via <code>idnumber IN (nids)</code>. (Alternatively the backend re-fetches applicant NIDs from RISE server-side.)</div>
+    <div class="callout blue"><b>New capability <code>local/elby_dashboard:manageriseusers</code> — full source plumbing.</b> Today <span class="file">db/access.php</span> only defines <code>view</code>/<code>viewreports</code>/<code>manage</code>, and <code>rise.php</code> passes only <code>isAdmin</code>. Add every touchpoint: (1) the capability in <span class="file">db/access.php</span> (write, <code>CONTEXT_SYSTEM</code>, <code>RISK_PERSONAL</code>, manager archetype); (2) its lang string <code>elby_dashboard:manageriseusers</code>; (3) the new functions in <b>both</b> <code>$functions</code> and the <code>local_elby_dashboard_service</code> list in <span class="file">db/services.php</span>; (4) <code>require_capability()</code> inside the PHP endpoint methods (not only the services metadata); (5) a <code>canManageRiseUsers</code> flag in the data <span class="file">rise.php</span> passes to the SPA (alongside <code>isAdmin</code>); (6) frontend hide/disable of the create buttons when false.</div>
+    <pre><span class="c">// db/services.php — add to $functions and to the local_elby_dashboard_service list</span>
+'local_elby_dashboard_rise_get_user_status' =&gt; [
+    'classname'  =&gt; 'local_elby_dashboard\external\rise',
+    'methodname' =&gt; 'get_user_status',
+    'type'       =&gt; 'read',  'ajax' =&gt; true,
+    'capabilities' =&gt; 'local/elby_dashboard:viewreports',
+],
+'local_elby_dashboard_rise_create_user' =&gt; [
+    'classname'  =&gt; 'local_elby_dashboard\external\rise',
+    'methodname' =&gt; 'create_user',
+    'type'       =&gt; 'write', 'ajax' =&gt; true,
+    'capabilities' =&gt; 'local/elby_dashboard:manageriseusers',
+],
+<span class="c">// correction upload is NOT here — it is a form-POST page (rise_action.php), not an AJAX method.</span></pre>
+  </section>
+
+  <span class="anchor" id="approval"></span>
+  <section>
+    <h2><span class="n">✓</span>Auto-provision on NESA approval</h2>
+    <p class="lead">The one behavioural change to the existing review flow.</p>
+    <p>In <code>external\rise::save_review()</code>, after the review row is inserted/updated, when <code>nesastatus === 'approved'</code> call the provisioning service. Failures must <b>not</b> roll back the saved decision — provisioning is logged and retriable (the backfill task and the manual button both recover it).</p>
+    <div class="callout red"><b>Capability tightening (required).</b> <code>save_review()</code> currently only requires <code>local/elby_dashboard:viewreports</code>. Since approval now creates Moodle accounts, guard the <em>provisioning step</em> with <code>has_capability('local/elby_dashboard:manageriseusers', $context)</code>: reviewers with the manage capability provision immediately; a reviewer without it can still record the decision, but provisioning is <b>deferred to the backfill task</b> rather than performed under read-only rights. Account creation is never reachable with report-only access.</div>
+    <pre><span class="c">// external/rise.php :: save_review(), after $DB-&gt;update_record/insert_record</span>
+if ($data-&gt;nesastatus === 'approved'
+        &amp;&amp; has_capability('local/elby_dashboard:manageriseusers', $context)) {
+    try {
+        $svc = new \local_elby_dashboard\rise_user_service();
+        $svc-&gt;provision($data-&gt;campaignid, $data-&gt;applicantid);   <span class="c">// re-fetches identity via get_applicant()</span>
+    } catch (\Throwable $e) {
+        debugging('RISE provisioning failed: ' . $e-&gt;getMessage(), DEBUG_DEVELOPER);
+    }
+}
+<span class="c">// else: decision saved; backfill task provisions it later.</span></pre>
+    <div class="callout green"><b>Idempotent:</b> re-approving or editing an approved review re-runs <code>provision()</code>, which no-ops if already linked and only refreshes the action code / notification.</div>
+  </section>
+
+  <span class="anchor" id="notify"></span>
+  <section>
+    <h2><span class="n">📱</span>Learner notifications — SMS + password reset</h2>
+    <p class="lead"><b>SMS</b> is the primary channel (we have the phone from the RISE record; most learners never open Moodle); the in-Moodle <b>bell</b> is kept as a second channel for logged-in learners. Triggers: a <b>welcome</b> SMS with a set-password link on account creation, and an <b>action-needed</b> SMS+bell (carrying the reviewer comment + form link) when identity data must be fixed.</p>
+
+    <h3>1. Account-created SMS (custom set-password link)</h3>
+    <p>Core <code>forgot_password.php</code> is <b>email-oriented</b> and won't help learners whose only email is the synthetic <code>@learner.rise.reb.rw</code> address. So define a dedicated set-password flow backed by <code>elby_rise_tokens</code>:</p>
+    <ul>
+      <li>On create: generate a random password + set <code>auth_forcepasswordchange</code>; mint a <b>secure-random token</b> (e.g. 32 bytes, <code>random_string</code>/CSPRNG), store only its <b>SHA-256 hash</b> with <code>purpose='setpassword'</code>, <code>userid</code>, and <code>expires = now + 24h</code>.</li>
+      <li>SMS the username + a short URL <code>rise_setpassword.php?t={rawtoken}</code>.</li>
+      <li>The page looks the token up by hash, checks <b>not expired</b> and <b>not used</b> (<code>usedat=0</code>), lets the learner set a password (subject to <code>check_password_policy</code>), then marks <code>usedat=time()</code> (single-use).</li>
+      <li>Controls: rate-limit the page (shared helper — below), audit each mint/consume, and show clear <em>invalid / expired / already-used</em> messaging with a "request a new link" path.</li>
+    </ul>
+
+    <h3>2. Review-saved SMS (reviewer comment + form link)</h3>
+    <ul>
+      <li><b>Trigger:</b> whenever a review is <em>saved</em> with a decision that needs the learner to act — <code>action_requested</code>, <code>rejected</code>, or an approved-with-issues action code. Fired from <code>save_review()</code>.</li>
+      <li><b>Body:</b> the <b>reviewer's comment</b> (the <code>comment</code> field the NESA reviewer typed) + a deep link to the learner correction form (below). E.g. <em>"NESA review: &lt;comment&gt;. Update your details here: &lt;link&gt;"</em>.</li>
+      <li>De-dupe via stored state: compute <code>hash = sha1(nesastatus.comment.provisioningaction)</code>; send only if it differs from <code>lastnotifiedhash</code>, then update <code>lastnotifiedhash</code>/<code>lastnotifiedat</code>.</li>
+      <li><b>Token-aware resend (important):</b> correction links expire and are single-use, so hash-only dedupe can strand a learner with a dead link when the reviewer re-saves the same comment/action. <b>Always send</b> (minting a fresh token) when there is <b>no active, unexpired, unused</b> correction token — fold token validity into the dedupe decision, not just the payload hash. Full send history lives in <code>elby_rise_sms_log</code>.</li>
+    </ul>
+
+    <h3>3. In-Moodle bell notification (kept)</h3>
+    <ul>
+      <li><b>Create <span class="file">db/messages.php</span> (new file — the plugin has none today)</b> declaring a <code>riseaction</code> message provider, add the <code>messageprovider:riseaction</code> lang string, and send a matching <code>\core\message\message</code> to the learner's account when one exists. Decide default popup/email behaviour deliberately — accounts have a <b>synthetic <code>@learner.rise.reb.rw</code> email</b>, so email delivery is effectively a no-op; popup (bell) is the meaningful channel. Its <code>contexturl</code> points at the correction form.</li>
+    </ul>
+
+    <h3>Delivery mechanism — InTouch SMS gateway</h3>
+    <p>REB's gateway is <b>InTouch SMS</b> (<code>intouchsms.co.rw</code>), a simple HTTP API with Basic auth. We add a server-side client mirroring the existing <code>rise_client</code> / <code>tmis_client</code> (Moodle <code>\curl</code>, config-driven credentials, retries) — <b>no</b> credentials ever reach the browser.</p>
+    <table>
+      <thead><tr><th>Aspect</th><th>Value (from the test call)</th></tr></thead>
+      <tbody>
+        <tr><td>Endpoint</td><td><code>GET https://www.intouchsms.co.rw/api/sendsms/.json</code></td></tr>
+        <tr><td>Auth</td><td><code>Authorization: Basic &lt;base64(sms_username:sms_password)&gt;</code> — credentials from plugin config only</td></tr>
+        <tr><td>Query params</td><td><code>sender</code> (e.g. <code>REB</code>), <code>message</code> (URL-encoded), <code>recipients</code> (comma-separated)</td></tr>
+        <tr><td>Recipient format</td><td>Local <code>07XXXXXXXX</code> — <b>not</b> E.164</td></tr>
+      </tbody>
+    </table>
+    <pre><span class="c">// classes/sms_client.php  — pattern-matches rise_client/tmis_client</span>
+class sms_client {
+    public function __construct() {
+        $this-&gt;baseurl  = get_config('local_elby_dashboard','sms_api_url')
+                          ?: 'https://www.intouchsms.co.rw/api/sendsms/.json';
+        $this-&gt;sender   = get_config('local_elby_dashboard','sms_sender') ?: 'REB';
+        $this-&gt;user     = get_config('local_elby_dashboard','sms_username');  <span class="c">// server-side only</span>
+        $this-&gt;password = get_config('local_elby_dashboard','sms_password');
+    }
+    public function send(string $phone, string $message): bool {
+        $to = self::normalise_rw($phone);            <span class="c">// -&gt; 07XXXXXXXX, else null =&gt; skip+flag</span>
+        if (!$to) { return false; }
+        $curl = new \curl();
+        $curl-&gt;setHeader(['Authorization: Basic ' . base64_encode($this-&gt;user.':'.$this-&gt;password)]);
+        $url = $this-&gt;baseurl . '?' . http_build_query(
+                 ['sender'=&gt;$this-&gt;sender,'message'=&gt;$message,'recipients'=&gt;$to],
+                 '', '&amp;', PHP_QUERY_RFC3986);
+        $curl-&gt;get($url);
+        return ((int)($curl-&gt;get_info()['http_code'] ?? 0)) === 200;
+    }
+}</pre>
+    <ul>
+      <li><b>Phone normalisation</b> <code>normalise_rw()</code>: strip spaces/<code>+</code>; map <code>2507XXXXXXXX</code> / <code>+2507…</code> → <code>07XXXXXXXX</code>; validate it's a 10-digit <code>07</code> number, else skip and flag <code>nid</code>/phone action so it isn't silently dropped.</li>
+      <li>A thin <code>rise_user_service::send_sms($phone,$message)</code> wraps the client so the approval hook, manual button, review-save trigger and backfill all share one path (and one place to add logging/retry).</li>
+    </ul>
+    <div class="callout blue"><b>Two channels, one payload:</b> SMS (InTouch) is the primary/required channel; the in-Moodle bell is the second channel for logged-in learners. Both carry the reviewer comment and the same correction-form link.</div>
+    <div class="callout amber"><b>Credentials:</b> store the InTouch <code>sms_username</code>/<code>sms_password</code>, <code>sms_sender</code> and endpoint in plugin settings (see below); never hard-code or document real/test credentials. Add an <code>sms_enabled</code> toggle so SMS can be turned off in dev/staging.</div>
+  </section>
+
+  <span class="anchor" id="form"></span>
+  <section>
+    <h2><span class="n">📝</span>Learner self-service correction form</h2>
+    <p class="lead">When action is needed, the learner must be able to <b>correct their details and re-submit evidence</b> themselves. This closes the loop: reviewer requests a fix → SMS/bell with the comment + link → learner fixes → reviewer re-reviews.</p>
+
+    <h3>The form</h3>
+    <p>New learner-facing page <span class="file">rise_action.php</span> (styled like the existing public <span class="file">signup.php</span>). Fields, pre-filled from the applicant snapshot:</p>
+    <table>
+      <thead><tr><th>Field</th><th>Type</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>First name / Last name</td><td>text</td><td>Prefilled; learner corrects the spelling/splitting.</td></tr>
+        <tr><td>National ID (NID)</td><td>text (16 digits)</td><td>Client + server format validation; this is what must match NIDA.</td></tr>
+        <tr><td>National ID document</td><td>file upload</td><td>Image/PDF of the ID card.</td></tr>
+        <tr><td>NESA confirmation of results</td><td>file upload</td><td>NESA Senior-3 result confirmation document.</td></tr>
+        <tr><td>(optional) note</td><td>textarea</td><td>Learner reply to the reviewer.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Access — two entry points, one secure token</h3>
+    <ul>
+      <li><b>SMS / bell deep link (no login required):</b> <code>rise_action.php?t={rawtoken}</code>. The token is a <b>secure-random</b> value stored (hashed) in <code>elby_rise_tokens</code> with <code>purpose='correction'</code>, <code>applicantid</code>/<code>campaignid</code>, and <code>expires</code> (e.g. +72h). The page resolves it by hash and checks <b>not expired</b> and <b>not used</b> — so it is genuinely time-limited, single-use and revocable (delete the row). This works before the learner has an account (<code>action_requested</code>/<code>rejected</code> happen pre-approval), mirroring the public, rate-limited <span class="file">signup.php</span>.</li>
+      <li><b>From the user profile (logged-in):</b> once an account exists, the profile badge links to the same page, authenticated by session (no token needed).</li>
+    </ul>
+    <div class="callout amber"><b>Not a bare HMAC.</b> A static <code>sha256(applicantid.campaignid.secret)</code> never expires and can't be revoked. Use the stored-token table (above) — or, if stateless is preferred, a signed payload carrying <code>applicantid</code>, <code>campaignid</code>, <code>exp</code> and a <code>nonce</code>. The plan uses the stored-token approach for revocability + single-use.</div>
+
+    <h3>Submission &amp; re-review loop (form POST, not AJAX)</h3>
+    <ul>
+      <li><span class="file">rise_action.php</span> handles the submission as a <b>normal server-side form POST</b> (a <code>moodleform</code> with <code>sesskey</code> when logged-in; token-validated when public) — not an external AJAX method, which is a poor fit for no-login multipart uploads.</li>
+      <li>Validate token first, <em>then</em> accept files. Store the two uploads via the File API (component <code>local_elby_dashboard</code>, fileareas <code>rise_idcard</code> / <code>rise_nesaresult</code>, itemid = correction id) after strict checks.</li>
+      <li>Persist to <code>elby_rise_corrections</code>, set the review's <code>correctionstatus = 'resubmitted'</code> (separate from <code>provisioningaction</code>), consume the token (<code>usedat</code>), and optionally re-run <code>validate_nid()</code> with the corrected NID.</li>
+      <li>The reviewer sees the resubmission (pill + uploaded docs in the drawer) and re-reviews; on approval, provisioning updates the linked user's <code>firstname/lastname/idnumber</code> if they changed.</li>
+    </ul>
+    <div class="callout amber"><b>Upload controls (all required):</b> per-file size limit (e.g. ≤ 8 MB); server-side MIME/type validation with an <b>image/PDF allowlist</b> (not just extension); token validated before any file is accepted; rate-limited via a <b>shared helper</b> (below); virus scan via Moodle's antivirus hook if configured.</div>
+    <div class="callout red"><b>pluginfile access control (required work item).</b> <code>local_elby_dashboard_pluginfile()</code> today only serves the <code>logo</code> filearea (<span class="file">lib.php:141</span>). Extend it to serve <code>rise_idcard</code> / <code>rise_nesaresult</code> with strict rules: map <code>itemid</code> to a real <code>elby_rise_corrections</code> row; allow a <b>reviewer</b> with <code>local/elby_dashboard:viewreports</code>, or the <b>linked learner</b> themselves, or a request carrying a valid unexpired correction token — never broad/public access to ID documents and results.</div>
+    <div class="callout amber"><b>Shared rate-limit helper.</b> <code>signup::rate_limit_check()</code> is <code>private</code> (<span class="file">classes/external/signup.php</span>) and can't be called. Extract a shared guard (its cache definition in <span class="file">db/caches.php</span> is reusable) or add distinct cache keys <code>rise_action</code> / <code>rise_setpassword</code>. Do not plan to call the private method.</div>
+    <div class="callout green"><b>RISE field write-back — verified on prod.</b> <code>PATCH /api/applicants/{id}</code> (X-API-KEY) is confirmed working: <code>{"fullName":"…"}</code> returns <code>{success:true, applicantUpdated:true, learnerUpdated:true}</code> and RISE <b>auto-propagates to its linked learner record</b>. So when a learner corrects <code>fullName</code>/<code>nid</code>, the handler can push those fields straight back to RISE via a new <code>rise_client::patch_applicant($id, $fields)</code>. Note a <b>field whitelist</b>: <code>phone</code> was rejected (<code>applicantUpdated:false</code>) — confirm the exact updatable set before relying on any field beyond <code>fullName</code>/<code>nid</code>.</div>
+    <div class="callout blue"><b>Deferred:</b> forwarding the uploaded <em>documents</em> back to RISE (the <code>attachmentsPushed</code> path) is a <b>later</b> item. For now, store uploads in Moodle file storage only; the reviewer views them in the applicant drawer. Field (name/NID) write-back above is in scope.</div>
+  </section>
+
+  <span class="anchor" id="profile"></span>
+  <section>
+    <h2><span class="n">🏷</span>Profile-page badge</h2>
+    <p class="lead">Show a "RISE Learner" badge (with verification state) on every user's profile.</p>
+    <p><b>Extend the existing</b> <code>local_elby_dashboard_myprofile_navigation()</code> callback in <span class="file">lib.php</span> (it already renders SDMS profile nodes — do not replace it; preserve those nodes and use non-conflicting category/node IDs). Detect a RISE learner by an <code>elby_rise_reviews</code> row where <code>userid = $user-&gt;id</code>. Add a node rendering a coloured badge — and, when there is an outstanding action, a <b>"Fix your RISE details" link to the correction form</b> (<span class="file">rise_action.php</span>) beside it:</p>
+    <table>
+      <thead><tr><th>Review state</th><th>Badge</th></tr></thead>
+      <tbody>
+        <tr><td><code>provisioningaction = 'ok'</code>, NIDA verified</td><td><span class="pill g">✓ RISE Learner — Verified</span></td></tr>
+        <tr><td><code>provisioningaction</code> is a fixable code (or <code>correctionstatus='resubmitted'</code>)</td><td><span class="pill a">⚠ RISE Learner — Action needed</span></td></tr>
+        <tr><td>Linked but NID unverified</td><td><span class="pill b">RISE Learner</span></td></tr>
+      </tbody>
+    </table>
+    <pre><span class="c">// lib.php — ADD to the existing function (keep the SDMS nodes it already builds)</span>
+function local_elby_dashboard_myprofile_navigation(
+        core_user\output\myprofile\tree $tree, $user, $iscurrentuser, $course) {
+    global $DB;
+    $rev = $DB-&gt;get_record('elby_rise_reviews', ['userid' =&gt; $user-&gt;id], '*', IGNORE_MULTIPLE);
+    if (!$rev) { return; }
+    $badge = /* build coloured &lt;span&gt; from $rev-&gt;provisioningaction / correctionstatus / nidstatus */;
+    $node  = new core_user\output\myprofile\node('contact', 'riselearner',
+              get_string('rise_badge_label','local_elby_dashboard'), null, null, $badge);
+    $tree-&gt;add_node($node);
+}</pre>
+  </section>
+
+  <span class="anchor" id="frontend"></span>
+  <section>
+    <h2><span class="n">⚛</span>Frontend (Rise.tsx)</h2>
+    <p class="lead">Add account visibility + a manual create action to the applicants table and drawer. Built with Vite/pnpm and committed as the rebuilt AMD bundle (matching how <code>dashboard.js</code> ships today).</p>
+
+    <h3>Applicants table — new <code>ACCOUNT</code> column</h3>
+    <ul>
+      <li>On load, after fetching applicants, batch-call <code>local_elby_dashboard_rise_get_user_status</code> with the visible <code>{applicantid, nid}</code> pairs; store in a <code>Record&lt;applicantid, UserStatus&gt;</code> state (mirrors the existing <code>reviews</code> map).</li>
+      <li>Render a pill: <span class="pill g">Account</span> (links to <code>/user/profile.php?id=</code>), <span class="pill a">Action needed</span>, or a <span class="pill b">Create account</span> button — the button is shown only when <code>canManageRiseUsers</code> is true (hidden/disabled otherwise).</li>
+      <li>The button's <code>onClick</code> must call <code>event.stopPropagation()</code> (rows open the drawer via their own <code>onClick</code>), then call <code>local_elby_dashboard_rise_create_user</code> and optimistically update the row; disabled + spinner while in flight.</li>
+      <li><b>Excel export:</b> the export builds its own full, filtered row set via <code>fetchAllFilteredApplicants()</code> — not the visible page — so it needs a <b>second <code>rise_get_user_status</code> batch call</b> over the entire export set to populate the "Account" / "Account action" columns.</li>
+    </ul>
+
+    <h3>Applicant drawer</h3>
+    <ul>
+      <li>Add an "Account" info block near the NIDA section: shows username + profile link when provisioned, or a primary "Create Moodle account" button (brand <code>#005198</code>, gated on <code>canManageRiseUsers</code>) when not — reusing the confirm-modal style already in <code>NesaReviewSection</code>.</li>
+      <li>Surface the action code inline (e.g. an amber note "National ID needs fixing before this learner can be verified").</li>
+    </ul>
+
+    <h3>Types</h3>
+    <pre><span class="c">// amd/src/types.ts</span>
+export interface RiseUserStatus {
+    hasaccount: boolean;
+    userid: number;
+    username: string;
+    provisioningaction: 'ok'|'nid_missing'|'nid_invalid'|'details_mismatch'|'duplicate_nid'|'none';
+    correctionstatus: 'none'|'resubmitted'|'reviewed';
+    profileurl?: string;
+}</pre>
+    <div class="callout blue">Frontend mirrors the split backend state: <code>provisioningaction</code> (identity/account fixes) and <code>correctionstatus</code> (learner resubmission) are separate, so a "resubmitted" pill and an "action needed" pill never fight over one field.</div>
+    <div class="callout amber"><b>Build step:</b> run the plugin's pnpm/Vite build (see <span class="file">package.json</span> / <span class="file">vite.config.ts</span>) and commit the regenerated bundle — recent commits show <code>dashboard.js</code> is rebuilt and versioned alongside source.</div>
+  </section>
+
+  <span class="anchor" id="strings"></span>
+  <section>
+    <h2><span class="n">🌐</span>Language strings &amp; config</h2>
+    <div class="grid2">
+      <div>
+        <h3>New strings <span class="file">lang/en/local_elby_dashboard.php</span></h3>
+        <ul>
+          <li><code>rise_badge_label</code>, <code>rise_badge_verified</code>, <code>rise_badge_action</code></li>
+          <li><code>rise_create_account</code>, <code>rise_account_exists</code>, <code>rise_account_created</code></li>
+          <li><code>rise_action_nid_missing</code>, <code>rise_action_nid_invalid</code>, <code>rise_action_details_mismatch</code>, <code>rise_action_duplicate_nid</code></li>
+          <li><code>rise_action_prompt</code>, <code>messageprovider:riseaction</code></li>
+          <li>set-password page: <code>rise_setpassword_title</code>, <code>rise_token_invalid</code>, <code>rise_token_expired</code>, <code>rise_token_used</code></li>
+          <li>capability strings: <code>elby_dashboard:manageriseusers</code></li>
+        </ul>
+      </div>
+      <div>
+        <h3>New setting <span class="file">settings.php</span></h3>
+        <ul>
+          <li><code>rise_signup_email_domain</code> — default <code>learner.rise.reb.rw</code>, used to synthesise learner emails when the applicant record has none.</li>
+          <li>Optional <code>rise_autoprovision</code> toggle (default on) to disable auto-creation on approval without touching code.</li>
+          <li><b>SMS (InTouch):</b> <code>sms_enabled</code>, <code>sms_api_url</code> (default <code>https://www.intouchsms.co.rw/api/sendsms/.json</code>), <code>sms_sender</code> (default <code>REB</code>), <code>sms_username</code>, <code>sms_password</code> (password field), <code>sms_timeout</code>.</li>
+          <li>Token/link config: <code>rise_action_link_base</code> (public base URL for SMS links); token lifetimes are constants in code (correction 72h, set-password 24h). No shared HMAC secret needed — tokens are stored, not signed.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout red"><b>Privacy provider + retention (required, currently missing).</b> The plugin has no <code>classes/privacy/provider.php</code>, but this feature adds sensitive personal data: NIDs, phone numbers, review snapshots, tokens, SMS state/logs, and uploaded ID-card / NESA-result documents. Add a privacy provider declaring the new tables (<code>elby_rise_reviews</code> additions, <code>elby_rise_tokens</code>, <code>elby_rise_corrections</code>, <code>elby_rise_sms_log</code>) and fileareas (<code>rise_idcard</code>, <code>rise_nesaresult</code>), plus export/delete support and a retention policy for tokens and uploaded evidence.</div>
+  </section>
+
+  <span class="anchor" id="phases"></span>
+  <section>
+    <h2><span class="n">▶</span>Delivery plan</h2>
+    <div class="phase"><div class="badge">1</div><div class="body"><h4>Schema + split state</h4><p>New/renamed fields (<code>provisioningaction</code>, <code>correctionstatus</code>, <code>lastnotifiedhash/at</code>, <code>userid</code>, <code>risesyncstatus/error/at</code>, <code>riselinkeduserid</code>), tables (<code>elby_rise_tokens</code>, <code>elby_rise_username_seq</code>, <code>elby_rise_corrections</code>), <code>upgrade.php</code> + seed, version bump.</p></div></div>
+    <div class="phase"><div class="badge">2</div><div class="body"><h4>Service (link-first) + tests</h4><p><code>rise_user_service</code>: shared <code>split_name()</code>, NID matching with explicit duplicate/conflict rules, <b>server-authoritative <code>get_applicant()</code>-based</b> <code>provision()</code>. Unit-tested.</p></div></div>
+    <div class="phase"><div class="badge">3</div><div class="body"><h4>Portable username sequencing</h4><p><code>elby_rise_username_seq</code> + Moodle Lock API generator (no <code>CAST</code>), with existence-skip for legacy numbers.</p></div></div>
+    <div class="phase"><div class="badge">4</div><div class="body"><h4>Endpoints + hardened capability + hook</h4><p>Two AJAX methods (<code>get_user_status</code> by <code>{applicantid,nid}</code>, <code>create_user</code> by id only), <code>manageriseusers</code> capability, <code>save_review()</code> hook gated by capability; manual create + backfill share the service.</p></div></div>
+    <div class="phase"><div class="badge">5</div><div class="body"><h4>SMS client + notification dedupe</h4><p><code>sms_client</code> (InTouch), <code>send_sms()</code> wrapper, <code>db/messages.php</code> bell provider, dedupe via <code>lastnotifiedhash</code> (optional SMS log table).</p></div></div>
+    <div class="phase"><div class="badge">6</div><div class="body"><h4>Set-password token flow</h4><p><code>elby_rise_tokens</code> mint/consume, <span class="file">rise_setpassword.php</span> (expiry, single-use, hashed storage, rate-limit, clear UX).</p></div></div>
+    <div class="phase"><div class="badge">7</div><div class="body"><h4>Correction form + uploads + pluginfile</h4><p><span class="file">rise_action.php</span> form-POST handler, token-gated, shared rate-limit helper, File API storage with strict type/size validation, and <code>pluginfile()</code> access rules for <code>rise_idcard</code>/<code>rise_nesaresult</code>; <code>correctionstatus='resubmitted'</code> surfaced to the reviewer.</p></div></div>
+    <div class="phase"><div class="badge">8</div><div class="body"><h4>Frontend + profile badge</h4><p>Account column/drawer, create button, resubmission pill, split-state types; <code>myprofile_navigation()</code> badge + "Fix your details" link; rebuild + commit the bundle.</p></div></div>
+    <div class="phase"><div class="badge">9</div><div class="body"><h4>Backfill / link sweep + RISE sync retry</h4><p>Scheduled/adhoc <code>ensure_rise_users</code> task (<span class="file">classes/task/</span> + <span class="file">db/tasks.php</span>): for in-scope learners with <code>userid</code> unset, link by <code>idnumber = nid</code>, create only when none matches. Also provisions decisions saved by reviewers lacking the manage capability, and <b>retries pending RISE <code>linkedUserId</code> back-writes</b>.</p></div></div>
+    <div class="phase"><div class="badge">10</div><div class="body"><h4>Privacy provider + retention</h4><p><code>classes/privacy/provider.php</code> for the new tables + fileareas (export/delete), retention policy for tokens and uploaded evidence. Ship before go-live.</p></div></div>
+  </section>
+
+  <span class="anchor" id="testing"></span>
+  <section>
+    <h2><span class="n">✔</span>Testing checklist</h2>
+    <ul class="chk">
+      <li>Approving a review with a valid 16-digit NID creates a user with <code>idnumber = nid</code>, <code>provisioningaction = ok</code>, and <b>no action-needed notification</b> (a welcome SMS is still sent).</li>
+      <li>Approving with a missing/invalid NID still creates the account and raises <code>nid_missing</code>/<code>nid_invalid</code> + notification.</li>
+      <li>Approving when <code>nidstatus = 'mismatch'</code> raises <code>details_mismatch</code> + notification.</li>
+      <li>Exactly one existing active user with the NID → linked (no new account). Multiple active users with the NID, or a match already linked to another applicant → blocked with <code>duplicate_nid</code>, escalated to the reviewer. Deleted match → creates; suspended match → links + flags.</li>
+      <li>Synthetic email is unique; an applicant-supplied email that collides with an existing user does not break creation or hijack that user.</li>
+      <li><code>get_user_status</code> resolves an <b>unreviewed</b> learner's existing account from its <code>{applicantid, nid}</code> pair (no review row required).</li>
+      <li><code>create_user</code> provisions from a server-side <code>get_applicant()</code> fetch and <b>fails closed</b> (no account) if the fetch errors or the applicant's campaign/status doesn't match — never using browser-supplied identity data.</li>
+      <li>On provisioning, the Moodle <code>userid</code> is PATCHed back to RISE <code>linkedUserId</code>; if that PATCH fails the Moodle user is still created and a pending-sync state is retried by the task; an existing <em>different</em> <code>linkedUserId</code> is flagged as a conflict, not overwritten.</li>
+      <li><code>pluginfile</code>: a reviewer (<code>viewreports</code>), the linked learner, or a valid correction token can view <code>rise_idcard</code>/<code>rise_nesaresult</code>; an anonymous/unauthorised request cannot.</li>
+      <li>Token-aware resend: an expired correction token with an unchanged comment/action still triggers a fresh SMS with a new working link.</li>
+      <li>Excel export populates account columns for <b>every</b> exported row (full-set status fetch), not just the visible page.</li>
+      <li>Create buttons are hidden/disabled without <code>manageriseusers</code>; clicking the row button opens no drawer (<code>stopPropagation</code>).</li>
+      <li>Re-approving / editing an approved review does not create a second account and does not re-notify unless the action changed.</li>
+      <li>New account gets the next sequential <code>{type}{yy}{seq}</code> username from <code>elby_rise_username_seq</code>; two concurrent creates (Lock API) never collide; a number already taken by the legacy manual scheme is skipped.</li>
+      <li>Manual "Create account" button provisions and the table pill flips to <span class="pill g">Account</span> without reload.</li>
+      <li>Table correctly shows existing-account state for a learner whose NID already matches a Moodle user (link, no button).</li>
+      <li>Profile badge renders the right colour/state for verified / action-needed / linked learners; absent for non-RISE users. When action is pending, the "Fix your details" link opens the correction form.</li>
+      <li>Review saved with <code>action_requested</code>/<code>rejected</code> + a comment sends SMS (and bell, if account exists) containing the reviewer's comment and a working form link.</li>
+      <li>Correction form: valid token opens without login; expired, already-used, or unknown token is rejected with clear UX; NID format validated; uploads pass type/size allowlist and store via File API; submit sets <code>correctionstatus='resubmitted'</code> and consumes the token (second use rejected).</li>
+      <li>Set-password link: valid token lets the learner set a policy-compliant password once; the same token cannot be reused; expired token is rejected; the raw token is never stored (only its hash).</li>
+      <li>After a resubmission, re-approval updates the linked user's <code>firstname/lastname/idnumber</code> if they changed.</li>
+      <li>Account creation sends a welcome SMS with a working password-reset link; learner can set a password and log in.</li>
+      <li>An action-needed change sends an SMS to the learner's phone; no SMS is re-sent when the action code is unchanged; missing/invalid phones are skipped and flagged.</li>
+      <li>Backfill task links/provisions in-scope learners (per the defined criteria), including decisions saved by reviewers without the manage capability, and is safely re-runnable.</li>
+      <li>Capability check: a <code>viewreports</code>-only user can see status and record a decision, but <b>cannot</b> create accounts (provisioning deferred); <code>create_user</code> and provisioning require <code>manageriseusers</code>.</li>
+      <li><code>upgrade.php</code> applies cleanly from the current version; fields/keys/indexes created.</li>
+    </ul>
+  </section>
+
+  <span class="anchor" id="open"></span>
+  <section>
+    <h2><span class="n">?</span>Open questions / decisions to confirm</h2>
+    <div class="callout green"><b>Notification target — resolved.</b> Notifications go to the <em>learner</em> (to fix their own NID / mismatched details). <code>userto = $newuser</code>, <code>userfrom = core_user::get_noreply_user()</code>.</div>
+    <div class="callout green"><b>Login &amp; username — resolved.</b> Keep the existing sequential <code>{type}{yy}{seq}</code> username scheme; NID stays in <code>idnumber</code>. Learners get a random password + <b>SMS password-reset link</b> to set their own on first login.</div>
+    <div class="callout green"><b>SMS gateway — resolved.</b> InTouch SMS (<code>intouchsms.co.rw</code>), Basic auth, local <code>07…</code> recipients. Only the production <code>sms_username</code>/<code>sms_password</code> need supplying via settings.</div>
+    <div class="callout amber"><b>Backfill criteria.</b> Confirm which learners the sweep provisions: <code>nesastatus = approved</code> only, remote applicant <code>status = ENROLLED</code> only, or either/both. Plan assumes <b>approved</b> (aligned with "created on approval"); enrolment status is deferred with enrolment.</div>
+    <div class="callout amber"><b>Facilitators.</b> This plan provisions <b>learners</b> (<code>{type}=1</code>) first. Confirm whether facilitator accounts (<code>{type}=2</code>) are in scope now or later.</div>
+    <div class="callout red"><b>RISE PATCH whitelist — blocking pre-implementation check.</b> Confirm the full set of applicant fields <code>PATCH /api/applicants/{id}</code> accepts <b>before</b> relying on correction write-back for NID. Verified on prod: <code>fullName</code> updates (and propagates to the learner); <code>phone</code> is rejected. The write-back assumes <code>fullName</code> + <code>nid</code> — validate <code>nid</code> is writable (and whether NIDA/NESA verification fields are). If <code>nid</code> can't be patched, implement a <b>graceful fallback</b>: store the corrected NID locally, flag it for the reviewer, and do not silently drop it.</div>
+    <div class="callout blue"><b>Enrolment — deferred.</b> Course/cohort enrolment is explicitly out of scope for now (account creation first); revisit as a follow-up.</div>
+  </section>
+
+  <footer>
+    Plan for <b>local_elby_dashboard</b> · RISE learner provisioning · drafted 2026-07-07, revised after design review · <span class="file">docs/rise-user-provisioning-plan.html</span>
+  </footer>
+
+</div>
+</body>
+</html>

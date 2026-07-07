@@ -31,6 +31,7 @@ export interface UserData {
     roles: string[];
     isAdmin?: boolean;
     canManage?: boolean;
+    canManageRiseUsers?: boolean;
 }
 
 export interface Teacher {
@@ -189,6 +190,34 @@ export interface RiseNesaReview {
     comment: string;
     reviewedby?: number;
     timemodified?: number;
+}
+
+// A learner's resubmitted correction, surfaced to the reviewer in the drawer.
+export interface RiseCorrection {
+    id: number;
+    firstname: string;
+    lastname: string;
+    nid: string;
+    note: string;
+    risesynced: number;
+    timecreated: number;
+    idcardurl: string;
+    nesaresulturl: string;
+}
+
+// Moodle account status for a RISE applicant (split state: provisioningaction =
+// identity/account fixes, correctionstatus = learner resubmission).
+export interface RiseUserStatus {
+    hasaccount: boolean;
+    userid: number;
+    username: string;
+    linked: boolean;
+    suspended: boolean;
+    provisioningaction: 'ok' | 'nid_missing' | 'nid_invalid' | 'details_mismatch' | 'duplicate_nid' | 'none';
+    correctionstatus: 'none' | 'resubmitted' | 'reviewed';
+    risesync: 'ok' | 'pending' | 'error' | 'conflict' | '';
+    profileurl?: string;
+    correction?: RiseCorrection | null;
 }
 
 export interface RiseNidField {

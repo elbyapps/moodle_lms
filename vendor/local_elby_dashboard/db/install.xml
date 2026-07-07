@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/elby_dashboard/db" VERSION="20260213" COMMENT="XMLDB file for Moodle local/elby_dashboard"
+<XMLDB PATH="local/elby_dashboard/db" VERSION="20260707" COMMENT="XMLDB file for Moodle local/elby_dashboard"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
@@ -366,12 +366,23 @@
         <FIELD NAME="nidverified" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 if NESA verified the National ID"/>
         <FIELD NAME="comment" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="NESA reviewer comment"/>
         <FIELD NAME="reviewedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Moodle userid of the NESA reviewer"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Provisioned/linked Moodle user for this RISE learner (NULL = no account yet)"/>
+        <FIELD NAME="provisioningaction" TYPE="char" LENGTH="32" NOTNULL="false" SEQUENCE="false" COMMENT="Learner-facing provisioning state: ok, nid_missing, nid_invalid, details_mismatch, duplicate_nid"/>
+        <FIELD NAME="correctionstatus" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="Reviewer-facing correction state: none, resubmitted, reviewed"/>
+        <FIELD NAME="lastnotifiedhash" TYPE="char" LENGTH="40" NOTNULL="false" SEQUENCE="false" COMMENT="SHA-1 of the last notification payload (nesastatus, comment, provisioningaction)"/>
+        <FIELD NAME="lastnotifiedat" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="When the last SMS/bell notification was sent"/>
+        <FIELD NAME="userprovisionedat" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Timestamp the account was created/linked"/>
+        <FIELD NAME="risesyncstatus" TYPE="char" LENGTH="20" NOTNULL="false" DEFAULT="ok" SEQUENCE="false" COMMENT="RISE linkedUserId back-write state: ok, pending, error, conflict"/>
+        <FIELD NAME="risesyncerror" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Last RISE PATCH error detail"/>
+        <FIELD NAME="risesyncedat" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="When the linkedUserId back-write last succeeded"/>
+        <FIELD NAME="riselinkeduserid" TYPE="char" LENGTH="32" NOTNULL="false" SEQUENCE="false" COMMENT="What RISE currently reports as linkedUserId (detects conflicts)"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="fk_reviewedby" TYPE="foreign" FIELDS="reviewedby" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="fk_userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
         <KEY NAME="uq_campaign_applicant" TYPE="unique" FIELDS="campaignid, applicantid"/>
       </KEYS>
       <INDEXES>
@@ -379,6 +390,91 @@
         <INDEX NAME="idx_nesastatus" UNIQUE="false" FIELDS="nesastatus"/>
         <INDEX NAME="idx_nid" UNIQUE="false" FIELDS="nid"/>
         <INDEX NAME="uq_nesaindexnumber" UNIQUE="true" FIELDS="nesaindexnumber"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_rise_tokens" COMMENT="Single-use, time-limited tokens for RISE learner set-password and correction deep links (only the SHA-256 hash is stored)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="purpose" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="setpassword or correction"/>
+        <FIELD NAME="tokenhash" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="SHA-256 of the secure-random raw token (never the raw value)"/>
+        <FIELD NAME="campaignid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="RISE campaign _id"/>
+        <FIELD NAME="applicantid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="RISE applicant _id"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Set for setpassword tokens"/>
+        <FIELD NAME="expires" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Hard expiry timestamp"/>
+        <FIELD NAME="usedat" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Non-zero once consumed (single-use)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="uq_tokenhash" UNIQUE="true" FIELDS="tokenhash"/>
+        <INDEX NAME="idx_applicant" UNIQUE="false" FIELDS="campaignid, applicantid"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_rise_username_seq" COMMENT="Portable, collision-free username sequence, one row per {type}{yy} prefix">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="seqkey" TYPE="char" LENGTH="8" NOTNULL="true" SEQUENCE="false" COMMENT="Prefix, e.g. 126 (learner + 2026)"/>
+        <FIELD NAME="nextval" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="Next sequence number to assign"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="uq_seqkey" UNIQUE="true" FIELDS="seqkey"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_rise_corrections" COMMENT="Learner self-service re-submissions of identity details; uploaded files live in fileareas rise_idcard / rise_nesaresult with itemid = this id">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="campaignid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="RISE campaign _id"/>
+        <FIELD NAME="applicantid" TYPE="char" LENGTH="64" NOTNULL="true" SEQUENCE="false" COMMENT="RISE applicant _id"/>
+        <FIELD NAME="firstname" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Learner-corrected first name"/>
+        <FIELD NAME="lastname" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="Learner-corrected last name"/>
+        <FIELD NAME="nid" TYPE="char" LENGTH="50" NOTNULL="false" SEQUENCE="false" COMMENT="Learner-corrected National ID"/>
+        <FIELD NAME="note" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Learner reply to the reviewer"/>
+        <FIELD NAME="risesynced" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="1 when the corrected fullName/nid was accepted by the RISE PATCH; 0 = stored locally only"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="pending or reviewed"/>
+        <FIELD NAME="reviewedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Who cleared the resubmission"/>
+        <FIELD NAME="reviewedat" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_reviewedby" TYPE="foreign" FIELDS="reviewedby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_applicant" UNIQUE="false" FIELDS="campaignid, applicantid"/>
+        <INDEX NAME="idx_status" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="elby_rise_sms_log" COMMENT="Audit log of SMS notifications sent to RISE learners">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="campaignid" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false" COMMENT="RISE campaign _id"/>
+        <FIELD NAME="applicantid" TYPE="char" LENGTH="64" NOTNULL="false" SEQUENCE="false" COMMENT="RISE applicant _id"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Moodle user, when one exists"/>
+        <FIELD NAME="phone" TYPE="char" LENGTH="30" NOTNULL="true" SEQUENCE="false" COMMENT="Normalised recipient phone"/>
+        <FIELD NAME="purpose" TYPE="char" LENGTH="30" NOTNULL="true" SEQUENCE="false" COMMENT="welcome, action or correction"/>
+        <FIELD NAME="message" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Message body as sent"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="sent, failed or skipped"/>
+        <FIELD NAME="error" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Failure detail"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="fk_userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="idx_applicant" UNIQUE="false" FIELDS="campaignid, applicantid"/>
+        <INDEX NAME="idx_timecreated" UNIQUE="false" FIELDS="timecreated"/>
       </INDEXES>
     </TABLE>
   </TABLES>

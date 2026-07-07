@@ -157,7 +157,7 @@ export default function App({ user, stats, activePage, sidenavConfig, themeConfi
                     {activePage === 'traffic' && <TrafficReport />}
                     {activePage === 'accesslog' && <AccessLog />}
                     {activePage === 'blended_learning' && <BlendedLearning />}
-                    {activePage === 'rise' && <Rise />}
+                    {activePage === 'rise' && <Rise user={user} />}
                     {activePage === 'admin' && <AdminPanel />}
                 </main>
             </div>

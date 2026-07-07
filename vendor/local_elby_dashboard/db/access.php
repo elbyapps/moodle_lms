@@ -59,4 +59,14 @@ $capabilities = [
         ],
     ],
 
+    // Provision Moodle accounts for RISE learners (create/link users).
+    'local/elby_dashboard:manageriseusers' => [
+        'riskbitmask' => RISK_PERSONAL,
+        'captype' => 'write',
+        'contextlevel' => CONTEXT_SYSTEM,
+        'archetypes' => [
+            'manager' => CAP_ALLOW,
+        ],
+    ],
+
 ];

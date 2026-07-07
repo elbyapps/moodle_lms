@@ -125,6 +125,7 @@ $userdata = [
     'avatar' => $OUTPUT->get_generated_image_for_id($USER->id),
     'roles' => $userroles,
     'isAdmin' => $isadmin,
+    'canManageRiseUsers' => has_capability('local/elby_dashboard:manageriseusers', $context),
 ];
 
 $statsdata = [

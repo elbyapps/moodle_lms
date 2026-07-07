@@ -164,5 +164,86 @@ function xmldb_local_elby_dashboard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026062803, 'local', 'elby_dashboard');
     }
 
+    if ($oldversion < 2026070700) {
+        // RISE learner -> Moodle user provisioning: link/state fields on the review row,
+        // plus tokens, username sequence, corrections and SMS log tables.
+        $table = new xmldb_table('elby_rise_reviews');
+
+        $fields = [
+            new xmldb_field('userid', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'reviewedby'),
+            new xmldb_field('provisioningaction', XMLDB_TYPE_CHAR, '32', null, null, null, null, 'userid'),
+            new xmldb_field('correctionstatus', XMLDB_TYPE_CHAR, '20', null, null, null, null, 'provisioningaction'),
+            new xmldb_field('lastnotifiedhash', XMLDB_TYPE_CHAR, '40', null, null, null, null, 'correctionstatus'),
+            new xmldb_field('lastnotifiedat', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'lastnotifiedhash'),
+            new xmldb_field('userprovisionedat', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'lastnotifiedat'),
+            new xmldb_field('risesyncstatus', XMLDB_TYPE_CHAR, '20', null, null, null, 'ok', 'userprovisionedat'),
+            new xmldb_field('risesyncerror', XMLDB_TYPE_TEXT, null, null, null, null, null, 'risesyncstatus'),
+            new xmldb_field('risesyncedat', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0', 'risesyncerror'),
+            new xmldb_field('riselinkeduserid', XMLDB_TYPE_CHAR, '32', null, null, null, null, 'risesyncedat'),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        // Foreign key (also creates the lookup index) for the provisioned user.
+        // Guarded: when elby_rise_reviews was created from the current install.xml
+        // earlier in this same upgrade run, the key already exists. Moodle's DDL
+        // manager has no key_exists() (and find_key_name() computes the name
+        // without consulting the DB), so probe the key's backing index — Moodle
+        // implements foreign keys as plain non-unique indexes.
+        $keyindex = new xmldb_index('fk_userid', XMLDB_INDEX_NOTUNIQUE, ['userid']);
+        if (!$dbman->index_exists($table, $keyindex)) {
+            $key = new xmldb_key('fk_userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+            $dbman->add_key($table, $key);
+        }
+
+        // Create the new tables from install.xml.
+        $xmldbfile = new xmldb_file($CFG->dirroot . '/local/elby_dashboard/db/install.xml');
+        $xmldbfile->loadXMLStructure();
+        $structure = $xmldbfile->getStructure();
+        foreach (['elby_rise_tokens', 'elby_rise_username_seq', 'elby_rise_corrections', 'elby_rise_sms_log'] as $name) {
+            if (!$dbman->table_exists(new xmldb_table($name))) {
+                $dbman->create_table($structure->getTable($name));
+            }
+        }
+
+        // One-time, portable seed of the username sequence: parse the numeric suffix of
+        // existing {type}{yy}NNNNN usernames in PHP (no DB-specific casts). The generator
+        // also skips taken numbers, so an incomplete seed is safe.
+        $year = substr(date('Y'), 2, 2);
+        foreach (['1', '2'] as $type) {
+            $prefix = $type . $year;
+            if ($DB->record_exists('elby_rise_username_seq', ['seqkey' => $prefix])) {
+                continue;
+            }
+            $max = 0;
+            $rs = $DB->get_recordset_select('user', $DB->sql_like('username', ':pat'),
+                ['pat' => $DB->sql_like_escape($prefix) . '%'], '', 'id, username');
+            foreach ($rs as $u) {
+                if (preg_match('/^' . $prefix . '(\d{5})$/', $u->username, $m)) {
+                    $max = max($max, (int) $m[1]);
+                }
+            }
+            $rs->close();
+            $DB->insert_record('elby_rise_username_seq', (object) ['seqkey' => $prefix, 'nextval' => $max + 1]);
+        }
+
+        upgrade_plugin_savepoint(true, 2026070700, 'local', 'elby_dashboard');
+    }
+
+    if ($oldversion < 2026070701) {
+        // Track whether a learner correction was accepted by the RISE PATCH or is
+        // stored locally only (graceful fallback the reviewer must know about).
+        $table = new xmldb_table('elby_rise_corrections');
+        $field = new xmldb_field('risesynced', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, '0', 'note');
+        if ($dbman->table_exists($table) && !$dbman->field_exists($table, $field)) {
+            $dbman->add_field($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026070701, 'local', 'elby_dashboard');
+    }
+
     return true;
 }

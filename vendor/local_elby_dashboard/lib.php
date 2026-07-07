@@ -133,18 +133,76 @@ function local_elby_dashboard_extend_settings_navigation(settings_navigation $na
  * @return bool|void
  */
 function local_elby_dashboard_pluginfile($course, $cm, $context, $filearea, $args, $forcedownload, array $options = []) {
+    global $DB, $USER;
+
     if ($context->contextlevel != CONTEXT_SYSTEM) {
         send_file_not_found();
     }
 
     // Valid file areas for this plugin.
-    $validareas = ['logo'];
+    $validareas = ['logo', 'rise_idcard', 'rise_nesaresult'];
 
     if (!in_array($filearea, $validareas)) {
         send_file_not_found();
     }
 
     $fs = get_file_storage();
+
+    if ($filearea === 'rise_idcard' || $filearea === 'rise_nesaresult') {
+        // Learner-uploaded identity evidence: never publicly accessible. Allowed for
+        // a reviewer, the linked learner themselves, or a valid correction token.
+        $itemid = (int) array_shift($args);
+        $correction = $DB->get_record('elby_rise_corrections', ['id' => $itemid]);
+        if (!$correction) {
+            send_file_not_found();
+        }
+
+        $allowed = false;
+        if (isloggedin() && !isguestuser()) {
+            if (has_capability('local/elby_dashboard:viewreports', $context)) {
+                $allowed = true;
+            } else {
+                $review = $DB->get_record('elby_rise_reviews', [
+                    'campaignid' => $correction->campaignid,
+                    'applicantid' => $correction->applicantid,
+                ]);
+                $allowed = $review && (int) ($review->userid ?? 0) === (int) $USER->id;
+            }
+        }
+        if (!$allowed) {
+            $rawtoken = optional_param('token', '', PARAM_ALPHANUM);
+            if ($rawtoken !== '') {
+                $token = \local_elby_dashboard\rise_token::validate($rawtoken,
+                    \local_elby_dashboard\rise_token::PURPOSE_CORRECTION);
+                if ($token
+                        && $token->campaignid === $correction->campaignid
+                        && $token->applicantid === $correction->applicantid) {
+                    // Token access is only honoured while the review still needs
+                    // learner action — evidence must not stay reachable through a
+                    // leftover link after the review is resolved.
+                    $review = $DB->get_record('elby_rise_reviews', [
+                        'campaignid' => $correction->campaignid,
+                        'applicantid' => $correction->applicantid,
+                    ]);
+                    $allowed = $review
+                        && \local_elby_dashboard\rise_user_service::action_outstanding($review);
+                }
+            }
+        }
+        if (!$allowed) {
+            send_file_not_found();
+        }
+
+        $filename = array_pop($args);
+        $file = $fs->get_file($context->id, 'local_elby_dashboard', $filearea, $itemid, '/', $filename);
+        if (!$file || $file->is_directory()) {
+            send_file_not_found();
+        }
+        // Identity documents: no caching, always download.
+        send_stored_file($file, 0, 0, true, $options);
+        return;
+    }
+
     $filename = array_pop($args);
     $itemid = 0;
 
@@ -172,6 +230,9 @@ function local_elby_dashboard_myprofile_navigation(
     $course
 ) {
     global $DB, $USER;
+
+    // RISE learner badge (independent of the SDMS nodes below).
+    local_elby_dashboard_add_rise_profile_nodes($tree, $user, $iscurrentuser);
 
     // Get the SDMS link record for this user.
     $sdmsuser = $DB->get_record('elby_sdms_users', ['userid' => $user->id]);
@@ -332,6 +393,63 @@ function local_elby_dashboard_myprofile_navigation(
             ));
         }
     }
+}
+
+/**
+ * Add the "RISE Learner" badge (with verification state) to a profile page,
+ * plus a "Fix your RISE details" link when an action is outstanding.
+ *
+ * @param \core_user\output\myprofile\tree $tree Profile tree.
+ * @param stdClass $user The user whose profile is being viewed.
+ * @param bool $iscurrentuser Whether the profile belongs to the current user.
+ */
+function local_elby_dashboard_add_rise_profile_nodes(\core_user\output\myprofile\tree $tree, $user, $iscurrentuser) {
+    global $DB;
+
+    $review = $DB->get_record('elby_rise_reviews', ['userid' => $user->id], '*', IGNORE_MULTIPLE);
+    if (!$review) {
+        return;
+    }
+
+    $action = (string) ($review->provisioningaction ?? '');
+    $needsfix = in_array($action, \local_elby_dashboard\rise_user_service::FIXABLE_ACTIONS, true);
+    $resubmitted = ($review->correctionstatus ?? '') === 'resubmitted';
+
+    if ($needsfix || $resubmitted) {
+        $label = get_string('rise_badge_action', 'local_elby_dashboard');
+        $bg = '#fff1e0';
+        $fg = '#b5660b';
+        $icon = '⚠';
+    } else if ($action === 'ok' && ($review->nidstatus ?? '') === 'verified') {
+        $label = get_string('rise_badge_verified', 'local_elby_dashboard');
+        $bg = '#e6f4ec';
+        $fg = '#1a7f43';
+        $icon = '✓';
+    } else {
+        $label = get_string('rise_badge_label', 'local_elby_dashboard');
+        $bg = '#e8f0f8';
+        $fg = '#005198';
+        $icon = '';
+    }
+
+    $badge = html_writer::tag('span', trim($icon . ' ' . $label),
+        ['style' => "display:inline-block;padding:4px 12px;border-radius:999px;background:{$bg};"
+            . "color:{$fg};font-size:12px;font-weight:700;"]);
+    if ($needsfix && $iscurrentuser) {
+        $fixurl = new moodle_url('/local/elby_dashboard/rise_action.php');
+        $badge .= ' ' . html_writer::link($fixurl,
+            get_string('rise_action_fixdetails', 'local_elby_dashboard'),
+            ['style' => 'font-size:12px;font-weight:600;margin-left:6px;']);
+    }
+
+    $tree->add_node(new \core_user\output\myprofile\node(
+        'contact',
+        'riselearner',
+        get_string('rise_badge_title', 'local_elby_dashboard'),
+        null,
+        null,
+        $badge
+    ));
 }
 
 /**

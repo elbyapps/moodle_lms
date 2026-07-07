@@ -22,7 +22,7 @@ COMPOSE_STAGING = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f
 COMPOSE_PROD = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.prod.yml $(LOCAL_OVERRIDE)
 COMPOSE_DB = docker compose $(PROJECT_DIR) -f compose/docker-compose.db.yml
 
-.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry populate-user-schoolcode populate-user-schoolcode-dry
+.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry populate-user-schoolcode populate-user-schoolcode-dry rise-backlog-notify rise-backlog-notify-dry
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -65,7 +65,7 @@ staging-down: ## Stop staging environment
 
 # --- Production ---
 
-prod: ## Redeploy production via the maintenance-mode flow (honors PHP_REPLICAS)
+prod: ## Build prod images, then enter maintenance-mode upgrade flow (honors PHP_REPLICAS)
 	$(MAKE) deploy-upgrade
 
 prod-down: ## Stop production environment
@@ -77,7 +77,7 @@ deploy-code: ## Zero-downtime rolling deploy of code-only changes (no DB migrati
 deploy-code-fresh: ## Same as deploy-code but with --no-cache build (force-refetches git plugins; containers stay up)
 	./scripts/deploy.sh code --no-cache
 
-deploy-upgrade: ## Maintenance-mode deploy for changes that include a DB migration
+deploy-upgrade: ## Build images first, then enable maintenance mode and run DB upgrade
 	./scripts/deploy.sh upgrade
 
 deploy-upgrade-fresh: ## Same as deploy-upgrade but with --no-cache build (force-refetches git plugins)
@@ -174,6 +174,23 @@ reconcile-plugins-dry: ## List plugins installed in Moodle but not in moodle-con
 
 reconcile-plugins: ## Uninstall (DB + disk) any plugins no longer in moodle-config.json
 	$(PHP_RUN) php /var/www/html/scripts/reconcile_plugins.php --config=/var/www/html/moodle-config.json
+
+# --- RISE notification backlog (local_elby_dashboard) ---
+
+# Reviews decided as action_requested/rejected BEFORE the RISE notification
+# feature existed never reached the learner (no SMS/bell/correction link),
+# and the nightly task deliberately refuses to mass-notify them as a deploy
+# side effect. These targets are the explicit trigger: they queue one Moodle
+# ad-hoc task per backlog review; cron then delivers each through the normal
+# deduped, token-aware notification path. Safe to re-run — already-queued
+# and already-notified reviews are skipped.
+#
+# Extra flags via args, e.g.: make rise-backlog-notify args="--campaign=X --limit=100"
+rise-backlog-notify-dry: ## Preview which pre-feature reviewed applicants would be queued for notification
+	$(PHP_RUN) php /var/www/html/moodle_app/public/local/elby_dashboard/cli/queue_backlog_notifications.php $(args)
+
+rise-backlog-notify: ## Queue action-needed notifications for reviews decided before the notification feature
+	$(PHP_RUN) php /var/www/html/moodle_app/public/local/elby_dashboard/cli/queue_backlog_notifications.php --execute $(args)
 
 # --- SDMS user backfill (local_elby_dashboard) ---
 

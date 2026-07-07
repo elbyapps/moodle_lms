@@ -100,6 +100,36 @@ class rise_client {
     }
 
     /**
+     * Fetch a single applicant by id (server-authoritative identity source).
+     *
+     * @param string $applicantid RISE applicant _id.
+     * @return array Decoded applicant record.
+     * @throws \moodle_exception On HTTP error or invalid JSON.
+     */
+    public function get_applicant(string $applicantid): array {
+        $data = $this->get('/applicants/' . rawurlencode($applicantid));
+        // Unwrap a single envelope if the payload nests the record.
+        foreach (['applicant', 'data'] as $wrap) {
+            if (isset($data[$wrap]) && is_array($data[$wrap])) {
+                return $data[$wrap];
+            }
+        }
+        return $data;
+    }
+
+    /**
+     * PATCH an applicant record (e.g. write back linkedUserId or corrected fields).
+     *
+     * @param string $applicantid RISE applicant _id.
+     * @param array $fields Fields to update, e.g. ['linkedUserId' => '123'].
+     * @return array Decoded response, e.g. ['success' => true, 'applicantUpdated' => true].
+     * @throws \moodle_exception On HTTP error or invalid JSON.
+     */
+    public function patch_applicant(string $applicantid, array $fields): array {
+        return $this->request('PATCH', '/applicants/' . rawurlencode($applicantid), $fields);
+    }
+
+    /**
      * Execute a GET request against the RISE API.
      *
      * @param string $path Path beginning with '/', relative to the base URL.
@@ -107,6 +137,19 @@ class rise_client {
      * @throws \moodle_exception On HTTP error or invalid JSON.
      */
     private function get(string $path): array {
+        return $this->request('GET', $path);
+    }
+
+    /**
+     * Execute an HTTP request against the RISE API with retries on connection failure.
+     *
+     * @param string $method HTTP method (GET or PATCH).
+     * @param string $path Path beginning with '/', relative to the base URL.
+     * @param array|null $body JSON body for write methods.
+     * @return array Decoded JSON response as an associative array.
+     * @throws \moodle_exception On HTTP error or invalid JSON.
+     */
+    private function request(string $method, string $path, ?array $body = null): array {
         $url = $this->baseurl . $path;
         $lasterror = '';
 
@@ -116,13 +159,31 @@ class rise_client {
                 'CURLOPT_TIMEOUT' => $this->timeout,
                 'CURLOPT_RETURNTRANSFER' => true,
             ]);
-            $curl->setHeader(['Accept: application/json', 'X-API-KEY: ' . $this->apikey]);
+            $headers = ['Accept: application/json', 'X-API-KEY: ' . $this->apikey];
 
-            $response = $curl->get($url);
+            if ($method === 'GET') {
+                $curl->setHeader($headers);
+                $response = $curl->get($url);
+            } else {
+                $headers[] = 'Content-Type: application/json';
+                $curl->setHeader($headers);
+                $payload = json_encode($body ?? []);
+                if ($method === 'PATCH') {
+                    // Moodle curl's native PATCH. Never set CURLOPT_CUSTOMREQUEST via
+                    // setopt() before post(): request() calls cleanopt(), which wipes
+                    // method options — the override then silently degrades to POST.
+                    $response = $curl->patch($url, $payload);
+                } else {
+                    // Other verbs: the override must travel in the per-request options
+                    // (applied after cleanopt()) for the same reason.
+                    $response = $curl->post($url, $payload, ['CURLOPT_CUSTOMREQUEST' => $method]);
+                }
+            }
+
             $info = $curl->get_info();
             $httpcode = (int) ($info['http_code'] ?? 0);
 
-            if ($httpcode === 200) {
+            if ($httpcode >= 200 && $httpcode < 300) {
                 $data = json_decode($response, true);
                 if ($data === null && json_last_error() !== JSON_ERROR_NONE) {
                     throw new \moodle_exception('riseapierror', 'local_elby_dashboard', '',

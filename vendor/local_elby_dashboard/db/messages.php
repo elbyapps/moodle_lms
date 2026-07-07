@@ -15,17 +15,23 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Version information for local_elby_dashboard.
+ * Message provider definitions for local_elby_dashboard.
  *
  * @package    local_elby_dashboard
- * @copyright  2025 Rwanda TVET Board
+ * @copyright  2026 Rwanda TVET Board
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_elby_dashboard';
-$plugin->version = 2026070702;           // The current plugin version (Date: YYYYMMDDXX).
-$plugin->requires = 2025041400;          // Requires Moodle 5.0 (Build: 20250414).
-$plugin->maturity = MATURITY_ALPHA;      // Code maturity level.
-$plugin->release = '1.0.0';              // Human-readable version name.
+$messageproviders = [
+    // "Action needed" notifications to RISE learners (fix NID / mismatched details).
+    // Popup (bell) is the meaningful channel: RISE accounts carry a synthetic
+    // learner email, so email delivery would be a no-op.
+    'riseaction' => [
+        'defaults' => [
+            'popup' => MESSAGE_PERMITTED + MESSAGE_DEFAULT_ENABLED,
+            'email' => MESSAGE_DISALLOWED,
+        ],
+    ],
+];

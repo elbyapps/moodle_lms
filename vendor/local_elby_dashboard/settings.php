@@ -322,6 +322,96 @@ if ($hassiteconfig) {
     ));
 
     // =============================================
+    // RISE LEARNER PROVISIONING
+    // =============================================
+    $settings->add(new admin_setting_heading(
+        'local_elby_dashboard/riseprovisioningheading',
+        get_string('rise_provisioning_heading', 'local_elby_dashboard'),
+        get_string('rise_provisioning_heading_desc', 'local_elby_dashboard')
+    ));
+
+    // Synthetic learner email domain.
+    $settings->add(new admin_setting_configtext(
+        'local_elby_dashboard/rise_signup_email_domain',
+        get_string('rise_signup_email_domain', 'local_elby_dashboard'),
+        get_string('rise_signup_email_domain_desc', 'local_elby_dashboard'),
+        'learner.rise.reb.rw',
+        PARAM_HOST
+    ));
+
+    // Auto-provision on NESA approval.
+    $settings->add(new admin_setting_configcheckbox(
+        'local_elby_dashboard/rise_autoprovision',
+        get_string('rise_autoprovision', 'local_elby_dashboard'),
+        get_string('rise_autoprovision_desc', 'local_elby_dashboard'),
+        1
+    ));
+
+    // Public base URL for SMS deep links.
+    $settings->add(new admin_setting_configtext(
+        'local_elby_dashboard/rise_action_link_base',
+        get_string('rise_action_link_base', 'local_elby_dashboard'),
+        get_string('rise_action_link_base_desc', 'local_elby_dashboard'),
+        '',
+        PARAM_URL
+    ));
+
+    // =============================================
+    // SMS GATEWAY (InTouch)
+    // =============================================
+    $settings->add(new admin_setting_heading(
+        'local_elby_dashboard/smsheading',
+        get_string('smsheading', 'local_elby_dashboard'),
+        get_string('smsheading_desc', 'local_elby_dashboard')
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'local_elby_dashboard/sms_enabled',
+        get_string('sms_enabled', 'local_elby_dashboard'),
+        get_string('sms_enabled_desc', 'local_elby_dashboard'),
+        0
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_elby_dashboard/sms_api_url',
+        get_string('sms_api_url', 'local_elby_dashboard'),
+        get_string('sms_api_url_desc', 'local_elby_dashboard'),
+        'https://www.intouchsms.co.rw/api/sendsms/.json',
+        PARAM_URL
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_elby_dashboard/sms_sender',
+        get_string('sms_sender', 'local_elby_dashboard'),
+        get_string('sms_sender_desc', 'local_elby_dashboard'),
+        'REB',
+        PARAM_TEXT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_elby_dashboard/sms_username',
+        get_string('sms_username', 'local_elby_dashboard'),
+        get_string('sms_username_desc', 'local_elby_dashboard'),
+        '',
+        PARAM_RAW_TRIMMED
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'local_elby_dashboard/sms_password',
+        get_string('sms_password', 'local_elby_dashboard'),
+        get_string('sms_password_desc', 'local_elby_dashboard'),
+        ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_elby_dashboard/sms_timeout',
+        get_string('sms_timeout', 'local_elby_dashboard'),
+        get_string('sms_timeout_desc', 'local_elby_dashboard'),
+        '30',
+        PARAM_INT
+    ));
+
+    // =============================================
     // TMIS / NIDA ID VALIDATION
     // =============================================
     $settings->add(new admin_setting_heading(
