@@ -597,6 +597,24 @@ class rise_user_service {
         try {
             $client = $this->tmisclient ?? new tmis_client();
             $citizen = $client->get_citizen($nid);
+        } catch (\moodle_exception $e) {
+            if ($e->errorcode === 'tmisnotfound') {
+                // NIDA definitively has no record of this NID — a real mismatch,
+                // not a transient gateway failure. Persist it so evaluate_action()
+                // returns details_mismatch instead of ok (which would mislabel an
+                // unverifiable identity as NIDA-matched).
+                $review->nidstatus = 'mismatch';
+                $review->nidverified = 0;
+                $DB->update_record('elby_rise_reviews', (object) [
+                    'id' => $review->id,
+                    'nidstatus' => 'mismatch',
+                    'nidverified' => 0,
+                    'timemodified' => time(),
+                ]);
+                return;
+            }
+            debugging('RISE server-side NIDA check failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            return;
         } catch (\Throwable $e) {
             debugging('RISE server-side NIDA check failed: ' . $e->getMessage(), DEBUG_DEVELOPER);
             return;
@@ -1199,19 +1217,27 @@ class rise_user_service {
                 '', 'id, username, suspended');
         }
 
-        // Users matched by NID for pairs without a link.
+        // Effective NID per applicant for the by-NID account match.
         //
-        // Disclosure boundary: the NID travels from the browser (already visible
-        // to a viewreports reviewer in the applicant list), so we harden two ways.
-        // Only well-formed 16-digit NIDs are looked up (no probing with partial or
-        // garbage values), and only genuine RISE-shaped learner accounts are ever
-        // revealed as an account below (is_linkable) — a staff/admin/SDMS account
-        // that happens to share a NID resolves to a duplicate_nid conflict with no
-        // userid/username/profile disclosed.
+        // Server-authoritative for reviewed applicants: when a review row exists we
+        // use its stored snapshot NID and IGNORE the browser-supplied one, so a
+        // reviewed applicant can't be probed with a fabricated NID. Only unreviewed
+        // applicants (no row) fall back to the browser NID — the plan's deliberate
+        // way to surface an already-existing, not-yet-linked account for a learner
+        // never reviewed. That fallback is the documented residual: it is bounded to
+        // well-formed 16-digit NIDs (no partial/garbage probing) and only genuine
+        // RISE-shaped learner accounts are ever revealed (is_linkable); a
+        // staff/admin/SDMS account sharing a NID resolves to a duplicate_nid
+        // conflict with no userid/username/profile disclosed.
+        $effectivenid = function (string $applicantid, array $p) use ($reviews): string {
+            $review = $reviews[$applicantid] ?? null;
+            $nid = $review !== null ? trim((string) ($review->nid ?? '')) : trim((string) ($p['nid'] ?? ''));
+            return ($nid !== '' && self::is_valid_nid($nid)) ? $nid : '';
+        };
         $nids = [];
         foreach ($pairs as $p) {
-            $nid = trim((string) ($p['nid'] ?? ''));
-            if ($nid !== '' && self::is_valid_nid($nid)) {
+            $nid = $effectivenid((string) $p['applicantid'], $p);
+            if ($nid !== '') {
                 $nids[] = $nid;
             }
         }
@@ -1243,8 +1269,8 @@ class rise_user_service {
 
         foreach ($pairs as $p) {
             $applicantid = (string) $p['applicantid'];
-            $nid = trim((string) ($p['nid'] ?? ''));
             $review = $reviews[$applicantid] ?? null;
+            $nid = $effectivenid($applicantid, $p);
 
             $user = null;
             $linked = false;

@@ -61,8 +61,10 @@ class provider implements
             'fullname' => 'privacy:metadata:reviews:fullname',
             'nid' => 'privacy:metadata:reviews:nid',
             'phone' => 'privacy:metadata:reviews:phone',
+            'provincecode' => 'privacy:metadata:reviews:provincecode',
             'applicantdata' => 'privacy:metadata:reviews:applicantdata',
             'nesastatus' => 'privacy:metadata:reviews:nesastatus',
+            'nesaindexnumber' => 'privacy:metadata:reviews:nesaindexnumber',
             'comment' => 'privacy:metadata:reviews:comment',
             'reviewedby' => 'privacy:metadata:reviews:reviewedby',
         ], 'privacy:metadata:reviews');
@@ -174,11 +176,15 @@ class provider implements
                 'fullname' => $review->fullname,
                 'nid' => $review->nid,
                 'phone' => $review->phone,
+                'provincecode' => $review->provincecode,
                 'nesastatus' => $review->nesastatus,
+                'nesaindexnumber' => $review->nesaindexnumber,
                 'nidstatus' => $review->nidstatus,
                 'comment' => $review->comment,
                 'provisioningaction' => $review->provisioningaction,
                 'correctionstatus' => $review->correctionstatus,
+                // Full RISE applicant snapshot retained on the row (declared in metadata).
+                'applicantdata' => $review->applicantdata,
                 'timemodified' => transform::datetime($review->timemodified),
             ]);
 
@@ -389,6 +395,7 @@ class provider implements
                 'gender' => null,
                 'phone' => null,
                 'district' => null,
+                'provincecode' => null,
                 'applicantstatus' => null,
                 'applicantdata' => null,
                 'nesaindexnumber' => null,

@@ -206,54 +206,82 @@ if (data_submitted() && optional_param('submitted', 0, PARAM_INT)) {
     $nesaresult = local_elby_dashboard_rise_validate_upload('nesaresult', $errors);
 
     if (!$errors) {
-        // Atomically consume the token BEFORE the correction insert, file storage
-        // and RISE write-back, so concurrent POSTs with the same token can't
-        // submit twice (the reservation is the single-use guarantee).
-        if ($tokenrecord && !rise_token::try_consume($tokenrecord->id)) {
+        // Serialize the submission on the per-applicant lock and re-check the
+        // outstanding action against a FRESH row read — a reviewer may have
+        // resolved this review since the page loaded (the outer check above ran on
+        // a pre-lock read). The token is consumed inside the lock too, so a
+        // concurrent POST can't submit twice. The card helper die()s, so any
+        // early-exit rendering happens AFTER the lock is released.
+        $service = new rise_user_service();
+        $outcome = $service->with_applicant_lock($review->campaignid, $review->applicantid,
+            function () use ($review, $tokenrecord, $prefill, $idcard, $nesaresult) {
+                global $DB;
+
+                $fresh = $DB->get_record('elby_rise_reviews', ['id' => $review->id]);
+                if (!$fresh || !rise_user_service::action_outstanding($fresh)) {
+                    return ['status' => 'resolved'];
+                }
+                if ($tokenrecord && !rise_token::try_consume($tokenrecord->id)) {
+                    return ['status' => 'used'];
+                }
+
+                $now = time();
+                $correction = (object) [
+                    'campaignid' => $review->campaignid,
+                    'applicantid' => $review->applicantid,
+                    'firstname' => $prefill['firstname'],
+                    'lastname' => $prefill['lastname'],
+                    'nid' => $prefill['nid'],
+                    'note' => $prefill['note'],
+                    'status' => 'pending',
+                    'timecreated' => $now,
+                    'timemodified' => $now,
+                ];
+                $correction->id = $DB->insert_record('elby_rise_corrections', $correction);
+
+                $fs = get_file_storage();
+                $context = context_system::instance();
+                foreach (['rise_idcard' => $idcard, 'rise_nesaresult' => $nesaresult] as $filearea => $upload) {
+                    if ($upload !== null) {
+                        $fs->create_file_from_pathname([
+                            'contextid' => $context->id,
+                            'component' => 'local_elby_dashboard',
+                            'filearea' => $filearea,
+                            'itemid' => $correction->id,
+                            'filepath' => '/',
+                            'filename' => $upload['filename'],
+                        ], $upload['tmp']);
+                    }
+                }
+
+                // Surface the resubmission to the reviewer (separate from provisioningaction).
+                $DB->update_record('elby_rise_reviews', (object) [
+                    'id' => $review->id,
+                    'correctionstatus' => 'resubmitted',
+                    'timemodified' => $now,
+                ]);
+
+                return ['status' => 'ok', 'correctionid' => (int) $correction->id];
+            });
+
+        if ($outcome['status'] === 'resolved') {
+            // The reviewer resolved this action before the submission landed.
+            local_elby_dashboard_rise_action_card(
+                get_string('rise_action_title', 'local_elby_dashboard'),
+                get_string('rise_action_nothing_needed', 'local_elby_dashboard'),
+                true
+            );
+        }
+        if ($outcome['status'] === 'used') {
             local_elby_dashboard_rise_action_card(get_string('rise_action_title', 'local_elby_dashboard'),
                 get_string('rise_token_used', 'local_elby_dashboard'));
         }
 
-        $now = time();
-        $correction = (object) [
-            'campaignid' => $review->campaignid,
-            'applicantid' => $review->applicantid,
-            'firstname' => $prefill['firstname'],
-            'lastname' => $prefill['lastname'],
-            'nid' => $prefill['nid'],
-            'note' => $prefill['note'],
-            'status' => 'pending',
-            'timecreated' => $now,
-            'timemodified' => $now,
-        ];
-        $correction->id = $DB->insert_record('elby_rise_corrections', $correction);
-
-        $fs = get_file_storage();
-        $context = context_system::instance();
-        foreach (['rise_idcard' => $idcard, 'rise_nesaresult' => $nesaresult] as $filearea => $upload) {
-            if ($upload !== null) {
-                $fs->create_file_from_pathname([
-                    'contextid' => $context->id,
-                    'component' => 'local_elby_dashboard',
-                    'filearea' => $filearea,
-                    'itemid' => $correction->id,
-                    'filepath' => '/',
-                    'filename' => $upload['filename'],
-                ], $upload['tmp']);
-            }
-        }
-
-        // Surface the resubmission to the reviewer (separate from provisioningaction).
-        $DB->update_record('elby_rise_reviews', (object) [
-            'id' => $review->id,
-            'correctionstatus' => 'resubmitted',
-            'timemodified' => $now,
-        ]);
-
-        // Push corrected name/NID back to RISE (verified: fullName propagates to the
-        // linked learner). Failure or rejection is non-fatal — the correction row
-        // stores the values locally, and risesynced=0 tells the reviewer the values
-        // did NOT reach RISE (graceful fallback, never silently dropped).
+        // Push corrected name/NID back to RISE AFTER releasing the lock — the PATCH
+        // is a best-effort network round-trip (up to ~90s with retries) that must
+        // not hold the applicant lock. Failure or rejection is non-fatal: the
+        // correction row stores the values locally, and risesynced=0 tells the
+        // reviewer the values did NOT reach RISE.
         try {
             $client = new rise_client();
             $fields = ['fullName' => trim($prefill['lastname'] . ' ' . $prefill['firstname'])];
@@ -262,7 +290,7 @@ if (data_submitted() && optional_param('submitted', 0, PARAM_INT)) {
             }
             $response = $client->patch_applicant($review->applicantid, $fields);
             if (!empty($response['success']) && !empty($response['applicantUpdated'])) {
-                $DB->set_field('elby_rise_corrections', 'risesynced', 1, ['id' => $correction->id]);
+                $DB->set_field('elby_rise_corrections', 'risesynced', 1, ['id' => $outcome['correctionid']]);
             } else {
                 debugging('RISE correction write-back rejected: ' . json_encode($response), DEBUG_DEVELOPER);
             }
