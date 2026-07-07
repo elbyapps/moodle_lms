@@ -168,19 +168,21 @@ cmd_upgrade() {
         return 0
     fi
 
-    echo "This will enable Moodle maintenance mode, rebuild, and run upgrade.php."
+    echo "This will build images (live), then enable maintenance mode, recreate, and run upgrade.php."
     read -r -p "Proceed? [y/N] " reply
     [[ "$reply" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
 
-    echo "Enabling Moodle maintenance mode..."
-    php_exec php /var/www/html/moodle_app/admin/cli/maintenance.php --enable
-
+    # Build while the site is still live so the maintenance window covers only the
+    # container recreate + DB migration, not the (much longer) image build.
     if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
         echo "Building images (${BUILD_ARGS[*]})..."
     else
         echo "Building images..."
     fi
     "${COMPOSE[@]}" build "${BUILD_ARGS[@]}"
+
+    echo "Enabling Moodle maintenance mode..."
+    php_exec php /var/www/html/moodle_app/admin/cli/maintenance.php --enable
 
     echo "Recreating all containers..."
     "${COMPOSE[@]}" up -d --force-recreate --scale "php=$REPLICAS"
