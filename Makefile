@@ -65,8 +65,8 @@ staging-down: ## Stop staging environment
 
 # --- Production ---
 
-prod: ## Start production environment (first-time bring-up; for live updates use deploy-code or deploy-upgrade)
-	$(COMPOSE_PROD) up --build -d
+prod: ## Redeploy production via the maintenance-mode flow (honors PHP_REPLICAS)
+	$(MAKE) deploy-upgrade
 
 prod-down: ## Stop production environment
 	$(COMPOSE_PROD) down

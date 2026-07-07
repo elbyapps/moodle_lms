@@ -148,6 +148,26 @@ cmd_code() {
 
 cmd_upgrade() {
     echo "== Full upgrade (DB migration) =="
+
+    # First-time bring-up: with no php replicas running there is no live site to put
+    # into maintenance mode, and exec-ing into a container would fail. Build, start
+    # the stack at the configured replica count, then run the upgrade against it.
+    if [ -z "$("${COMPOSE[@]}" ps -q php || true)" ]; then
+        echo "No running php replicas — first-time bring-up."
+        if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
+            echo "Building images (${BUILD_ARGS[*]})..."
+        else
+            echo "Building images..."
+        fi
+        "${COMPOSE[@]}" build "${BUILD_ARGS[@]}"
+        "${COMPOSE[@]}" up -d --scale "php=$REPLICAS"
+        wait_healthy php
+        echo "Running Moodle upgrade..."
+        php_exec php /var/www/html/moodle_app/admin/cli/upgrade.php --non-interactive --allow-unstable
+        echo "Upgrade complete (first-time bring-up)."
+        return 0
+    fi
+
     echo "This will enable Moodle maintenance mode, rebuild, and run upgrade.php."
     read -r -p "Proceed? [y/N] " reply
     [[ "$reply" =~ ^[Yy]$ ]] || { echo "Aborted."; exit 1; }
