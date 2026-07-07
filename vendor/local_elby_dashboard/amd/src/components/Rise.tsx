@@ -1749,9 +1749,9 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                     tone="blue"
                 />
                 <ReviewMetricCard
-                    label="Mismatches"
+                    label="NIDA mismatches"
                     value={num(mismatchCount)}
-                    sublabel="Needs attention"
+                    sublabel="Failed NIDA check"
                     accent="#b42318"
                     icon="⚠"
                     tone="red"
