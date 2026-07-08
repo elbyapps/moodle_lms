@@ -124,12 +124,13 @@ interface RiseUrlState {
     q: string;
     nesa: string;
     nida: string;
+    account: string;
     page: string;
 }
 
-const RISE_URL_KEYS: (keyof RiseUrlState)[] = ['view', 'campaignid', 'applicantid', 'doc', 'status', 'gender', 'district', 'q', 'nesa', 'nida', 'page'];
+const RISE_URL_KEYS: (keyof RiseUrlState)[] = ['view', 'campaignid', 'applicantid', 'doc', 'status', 'gender', 'district', 'q', 'nesa', 'nida', 'account', 'page'];
 
-const EMPTY_URL: RiseUrlState = { view: '', campaignid: '', applicantid: '', doc: '', status: '', gender: '', district: '', q: '', nesa: '', nida: '', page: '' };
+const EMPTY_URL: RiseUrlState = { view: '', campaignid: '', applicantid: '', doc: '', status: '', gender: '', district: '', q: '', nesa: '', nida: '', account: '', page: '' };
 
 function readRiseUrlState(): RiseUrlState {
     const p = new URLSearchParams(window.location.search);
@@ -940,7 +941,7 @@ function NesaReviewSection({ applicant, campaignId, review, nidValidated, canMan
 
 // ---- Applicant detail drawer ---------------------------------------------
 
-function ApplicantDetail({ applicant, campaignId, review, accountStatus, canManageRiseUsers, creatingAccount, createError, onCreateAccount, onClose, onPreview, onReviewSaved }: {
+function ApplicantDetail({ applicant, campaignId, review, accountStatus, canManageRiseUsers, creatingAccount, createError, resetState, resetMessage, onCreateAccount, onSendReset, onClose, onPreview, onReviewSaved }: {
     applicant: RiseApplicant;
     campaignId: string;
     review?: RiseNesaReview;
@@ -948,7 +949,10 @@ function ApplicantDetail({ applicant, campaignId, review, accountStatus, canMana
     canManageRiseUsers: boolean;
     creatingAccount: boolean;
     createError?: string;
+    resetState?: 'idle' | 'sending' | 'sent' | 'error';
+    resetMessage?: string;
     onCreateAccount: () => void;
+    onSendReset: () => void;
     onClose: () => void;
     onPreview: (a: RiseAttachment) => void;
     onReviewSaved: (applicantId: string, review: RiseNesaReview) => void;
@@ -1072,10 +1076,19 @@ function ApplicantDetail({ applicant, campaignId, review, accountStatus, canMana
                                         {accountStatus.linked ? 'Linked to this applicant' : 'Matched by National ID (not yet linked)'}
                                     </div>
                                 </div>
-                                <a href={accountStatus.profileurl} target="_blank" rel="noopener noreferrer"
-                                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, background: '#e6f4ec', color: '#1a7f43', fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}>
-                                    View profile ›
-                                </a>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    {canManageRiseUsers && accountStatus.linked && !accountStatus.suspended && accountStatus.risesync !== 'conflict' && (
+                                        <button onClick={onSendReset} disabled={resetState === 'sending' || resetState === 'sent'}
+                                            title={resetMessage || 'Send this learner a set-password / reset link by SMS'}
+                                            style={{ padding: '8px 14px', borderRadius: 10, border: `1px solid ${resetState === 'error' ? '#b42318' : '#cfe0f2'}`, background: '#fff', color: resetState === 'sent' ? '#1a7f43' : resetState === 'error' ? '#b42318' : '#005198', fontSize: 12.5, fontWeight: 700, cursor: resetState === 'sending' || resetState === 'sent' ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                                            {resetState === 'sending' ? 'Sending…' : resetState === 'sent' ? '✓ Link sent' : resetState === 'error' ? 'Retry link' : 'Send reset link'}
+                                        </button>
+                                    )}
+                                    <a href={accountStatus.profileurl} target="_blank" rel="noopener noreferrer"
+                                       style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10, background: '#e6f4ec', color: '#1a7f43', fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}>
+                                        View profile ›
+                                    </a>
+                                </div>
                             </div>
                         ) : accountStatus?.provisioningaction === 'duplicate_nid' ? (
                             <div style={{ fontSize: 13, color: '#b42318', fontWeight: 600 }}>{ACTION_NOTES.duplicate_nid}</div>
@@ -1093,6 +1106,14 @@ function ApplicantDetail({ applicant, campaignId, review, accountStatus, canMana
                             </div>
                         ) : (
                             <div style={{ fontSize: 13, color: '#9aa0ab' }}>No Moodle account yet.</div>
+                        )}
+                        {resetMessage && (resetState === 'sent' || resetState === 'error') && (
+                            <div style={{ marginTop: 12, padding: '10px 13px', borderRadius: 10, fontSize: 12.5,
+                                border: `1px solid ${resetState === 'sent' ? '#cfeadb' : '#f3c9c9'}`,
+                                background: resetState === 'sent' ? '#f0f9f4' : '#fdf3f3',
+                                color: resetState === 'sent' ? '#1a7f43' : '#b42318' }}>
+                                {resetState === 'sent' ? '✓' : '✕'} {resetMessage}
+                            </div>
                         )}
                         {createError && (
                             <div style={{ marginTop: 12, padding: '10px 13px', border: '1px solid #f3c9c9', background: '#fdf3f3', borderRadius: 10, fontSize: 12.5, color: '#b42318' }}>
@@ -1308,30 +1329,65 @@ function accountActionLabel(st: RiseUserStatus): string {
     return '';
 }
 
-function AccountCell({ st, canManage, approved, busy, error, onCreate }: {
+function AccountCell({ st, canManage, approved, busy, error, resetState, resetMessage, onCreate, onSendReset }: {
     st?: RiseUserStatus;
     canManage: boolean;
     approved: boolean;
     busy: boolean;
     error?: string;
+    resetState?: 'idle' | 'sending' | 'sent' | 'error';
+    resetMessage?: string;
     onCreate: (e: Event) => void;
+    onSendReset?: () => void;
 }) {
     if (!st) {
         return <span style={{ fontSize: 12, color: '#c0c4cc' }}>…</span>;
     }
     const flag = accountActionLabel(st);
     if (st.hasaccount) {
+        const rs = resetState || 'idle';
+        const resetLabel = rs === 'sending' ? 'Sending…' : rs === 'sent' ? '✓ Link sent' : rs === 'error' ? 'Retry link' : 'Send reset link';
+        const resetColor = rs === 'sent' ? '#1a7f43' : rs === 'error' ? '#b42318' : '#005198';
+        // A linked account (review.userid set) shows a green pill and the reset
+        // action. An account merely matched by National ID is not yet linked, so
+        // it reads as a neutral "matched" pill with no reset (send_setpassword_link
+        // needs the review link — see AccountCell → drawer parity).
+        const linked = st.linked;
+        // A reset link is only usable for an active, cleanly linked account: the
+        // public set-password page rejects suspended users, and a RISE sync
+        // conflict means linkage/identity is unresolved (server enforces this too).
+        const canReset = linked && !st.suspended && st.risesync !== 'conflict';
+        const pillBg = linked ? '#e6f4ec' : '#eef2f8';
+        const pillColor = linked ? '#1a7f43' : '#43506a';
+        const resetTitle = resetMessage || 'Send this learner a set-password / reset link by SMS';
         return (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }} onClick={(e) => e.stopPropagation()}>
-                <a href={st.profileurl} target="_blank" rel="noopener noreferrer" title={`Open profile of ${st.username}`}
-                   style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 999, background: '#e6f4ec', color: '#1a7f43', fontSize: 10.5, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                    ✓ {st.username}
+                <a href={st.profileurl} target="_blank" rel="noopener noreferrer"
+                   title={linked ? `Open profile of ${st.username}` : `${st.username} — existing account matched by National ID, not yet linked`}
+                   style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 11px', borderRadius: 999, background: pillBg, color: pillColor, fontSize: 10.5, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                    {linked ? '✓ ' : ''}{st.username}
                 </a>
-                {flag && (
+                {!linked && (
+                    <span title="Existing account matched by National ID — not yet linked to this applicant"
+                          style={{ fontSize: 10, color: '#9aa0ab', fontWeight: 600, whiteSpace: 'nowrap' }}>not linked</span>
+                )}
+                {/* Action flags describe the review's provisioning state, which only
+                    applies once linked. A bare NID match reads as "not linked" only,
+                    keeping the list column consistent with the account filters (an
+                    unlinked, suspended NID match belongs under "Not linked", not
+                    "Action needed"). */}
+                {linked && flag && (
                     <span title={ACTION_NOTES[st.provisioningaction] || flag}
                           style={{ display: 'inline-flex', padding: '4px 9px', borderRadius: 999, background: flag === 'Resubmitted' ? '#f3eafa' : '#fff1e0', color: flag === 'Resubmitted' ? '#7b3fb0' : '#b5660b', fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
                         {flag}
                     </span>
+                )}
+                {canManage && onSendReset && canReset && (
+                    <button onClick={onSendReset} disabled={rs === 'sending' || rs === 'sent'}
+                        title={resetTitle}
+                        style={{ border: 'none', background: 'none', padding: 0, fontFamily: 'inherit', fontSize: 10.5, fontWeight: 700, color: resetColor, cursor: rs === 'sending' || rs === 'sent' ? 'default' : 'pointer', whiteSpace: 'nowrap', textDecoration: rs === 'idle' || rs === 'error' ? 'underline' : 'none' }}>
+                        {resetLabel}
+                    </button>
                 )}
             </span>
         );
@@ -1398,6 +1454,7 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
     const [gender, setGender] = useState(initialUrl.gender);
     const [nesaFilter, setNesaFilter] = useState(initialUrl.nesa);
     const [nidaFilter, setNidaFilter] = useState(initialUrl.nida);
+    const [accountFilter, setAccountFilter] = useState(initialUrl.account);
     const [searchInput, setSearchInput] = useState(initialUrl.q);
     const [search, setSearch] = useState(initialUrl.q);
     const [page, setPage] = useState(Math.max(1, parseInt(initialUrl.page || '1', 10) || 1));
@@ -1408,6 +1465,12 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
     const [userStatus, setUserStatus] = useState<Record<string, RiseUserStatus>>({});
     const [creating, setCreating] = useState<Record<string, boolean>>({});
     const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
+    const [resetState, setResetState] = useState<Record<string, 'idle' | 'sending' | 'sent' | 'error'>>({});
+    const [resetMsg, setResetMsg] = useState<Record<string, string>>({});
+    const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
+    const [bulkConfirm, setBulkConfirm] = useState(false);
+    const [bulkCreating, setBulkCreating] = useState(false);
+    const [bulkResult, setBulkResult] = useState<{ created: number; linked: number; blocked: number; failed: number; skipped: number } | null>(null);
     const [sortKey, setSortKey] = useState<'name' | 'score' | null>(null);
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
@@ -1464,6 +1527,69 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                 console.error('RISE user status refresh failed:', e);
             }
             setCreating((prev) => ({ ...prev, [a._id]: false }));
+        }
+    }
+
+    async function sendReset(a: RiseApplicant) {
+        if (resetState[a._id] === 'sending' || resetState[a._id] === 'sent') return;
+        setResetState((prev) => ({ ...prev, [a._id]: 'sending' }));
+        try {
+            const raw = await ajaxCall('local_elby_dashboard_rise_send_setpassword', {
+                campaignid: campaign._id,
+                applicantid: a._id,
+            });
+            const result = JSON.parse(raw);
+            setResetState((prev) => ({ ...prev, [a._id]: result.success ? 'sent' : 'error' }));
+            setResetMsg((prev) => ({ ...prev, [a._id]: result.message || '' }));
+        } catch (e) {
+            console.error('RISE send reset link failed:', e);
+            setResetState((prev) => ({ ...prev, [a._id]: 'error' }));
+            setResetMsg((prev) => ({ ...prev, [a._id]: 'Could not send the SMS. Please try again.' }));
+        }
+    }
+
+    // A row is a bulk-create candidate: approved review, no account, not a conflict.
+    function isCreateCandidate(a: RiseApplicant): boolean {
+        const st = userStatus[a._id];
+        const rev = reviews[a._id];
+        return canManageRiseUsers && rev?.nesastatus === 'approved' && !!st && !st.hasaccount
+            && st.provisioningaction !== 'duplicate_nid';
+    }
+
+    function toggleSelect(id: string) {
+        setSelectedIds((prev) => { const n = { ...prev }; if (n[id]) delete n[id]; else n[id] = true; return n; });
+    }
+
+    const selectedList = Object.keys(selectedIds);
+
+    async function bulkCreate() {
+        const ids = selectedList.slice();
+        if (!ids.length) return;
+        setBulkCreating(true);
+        setBulkResult(null);
+        try {
+            const raw = await ajaxCall('local_elby_dashboard_rise_bulk_create_user', {
+                campaignid: campaign._id,
+                applicantids: ids,
+            });
+            const r = JSON.parse(raw);
+            setBulkResult({ ...r.summary, skipped: r.skipped || 0 });
+            setBulkConfirm(false);
+            // Keep only the over-cap rows selected (those the backend never
+            // processed) so "run again for the rest" is a single click.
+            const processed = new Set<string>((r.results || []).map((x: { applicantid: string }) => x.applicantid));
+            const remaining: Record<string, boolean> = {};
+            for (const id of ids) { if (!processed.has(id)) remaining[id] = true; }
+            setSelectedIds(remaining);
+            // Refresh status for the affected (processed) rows so pills flip without reload.
+            const affected = applicants.filter((a) => processed.has(a._id));
+            if (affected.length) await fetchUserStatus(affected);
+        } catch (e) {
+            console.error('RISE bulk create failed:', e);
+            setBulkResult({ created: 0, linked: 0, blocked: 0, failed: ids.length, skipped: 0 });
+            setBulkConfirm(false);
+        } finally {
+            setBulkCreating(false);
         }
     }
 
@@ -1539,6 +1665,7 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                     gender,
                     nesa: nesaFilter,
                     nida: nidaFilter,
+                    account: accountFilter,
                     search,
                     page,
                     limit: 10,
@@ -1553,7 +1680,7 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                 setLoading(false);
             }
         })();
-    }, [campaign._id, status, district, gender, nesaFilter, nidaFilter, search, page]);
+    }, [campaign._id, status, district, gender, nesaFilter, nidaFilter, accountFilter, search, page]);
 
     // Reset to page 1 whenever a filter changes.
     function onFilter(setter: (v: string) => void, value: string, urlKey: keyof RiseUrlState) {
@@ -1636,6 +1763,7 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                 district,
                 nesa: nesaFilter,
                 nida: nidaFilter,
+                account: accountFilter,
                 search,
             });
             const rows = sortApplicants(source);
@@ -1702,8 +1830,21 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
     const arrow = (k: 'name' | 'score') => (sortKey === k ? (sortDir === 'asc' ? '▲' : '▼') : '↕');
     const arrowColor = (k: 'name' | 'score') => (sortKey === k ? '#005198' : '#c4c8d0');
 
-    const GRID = '2.3fr 0.85fr 1.05fr 1.2fr 0.75fr 1.1fr 1.05fr 1.45fr 1.05fr';
+    const GRID = (canManageRiseUsers ? '34px ' : '') + '2.3fr 0.85fr 1.05fr 1.2fr 0.75fr 1.1fr 1.05fr 1.45fr 1.05fr';
+    const gridMinWidth = canManageRiseUsers ? 1014 : 980;
     const headCell = { fontSize: 10.5, fontWeight: 700, letterSpacing: '.7px', color: '#8a909c' } as const;
+
+    // Bulk selection helpers over the visible page's create-candidates.
+    const pageCandidates = visibleRows.filter(isCreateCandidate);
+    const allPageSelected = pageCandidates.length > 0 && pageCandidates.every((a) => selectedIds[a._id]);
+    const togglePageAll = () => {
+        setSelectedIds((prev) => {
+            const n = { ...prev };
+            if (allPageSelected) pageCandidates.forEach((a) => { delete n[a._id]; });
+            else pageCandidates.forEach((a) => { n[a._id] = true; });
+            return n;
+        });
+    };
 
     return (
         <div className="p-4 sm:p-6">
@@ -1795,6 +1936,13 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                     <option value="mismatch">Mismatch</option>
                     <option value="pending">Pending</option>
                 </Select>
+                <Select value={accountFilter} onChange={(v) => onFilter(setAccountFilter, v, 'account')} minWidth={160}>
+                    <option value="">All accounts</option>
+                    <option value="has">Linked account</option>
+                    <option value="none">Not linked</option>
+                    <option value="duplicate">Duplicate NID</option>
+                    <option value="action">Action needed</option>
+                </Select>
                 <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180, maxWidth: 320 }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#b6bcc6', fontSize: 13 }}>⌕</span>
                     <input value={searchInput} placeholder="Search name or district…"
@@ -1813,9 +1961,64 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                 <div style={{ fontSize: 12.5, color: '#9aa0ab' }}>Showing <b style={{ color: '#5a616e' }}>{visibleRows.length}</b> of {displayTotal.toLocaleString()}</div>
             </div>
 
+            {/* BULK CREATE RESULT */}
+            {bulkResult && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, padding: '11px 16px', borderRadius: 12, border: '1px solid #cfe9d9', background: '#f0f9f3', fontSize: 13, color: '#1a5f36' }}>
+                    <span>
+                        Bulk create finished — <b>{bulkResult.created}</b> created, <b>{bulkResult.linked}</b> linked
+                        {bulkResult.blocked ? <>, <b style={{ color: '#b5660b' }}>{bulkResult.blocked}</b> blocked</> : null}
+                        {bulkResult.failed ? <>, <b style={{ color: '#b42318' }}>{bulkResult.failed}</b> failed</> : null}
+                        {bulkResult.skipped ? <> · {bulkResult.skipped} over the per-run limit — run again for the rest</> : null}.
+                    </span>
+                    <button onClick={() => setBulkResult(null)} style={{ border: 'none', background: 'none', color: '#1a7f43', fontSize: 16, cursor: 'pointer', fontWeight: 800 }}>×</button>
+                </div>
+            )}
+
+            {/* BULK ACTION BAR */}
+            {canManageRiseUsers && selectedList.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12, padding: '10px 16px', borderRadius: 12, border: '1px solid #cfe0f2', background: '#f1f6fb' }}>
+                    <div style={{ fontSize: 13.5, color: '#1f2430' }}><b>{selectedList.length}</b> selected</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <button onClick={() => setSelectedIds({})} disabled={bulkCreating}
+                            style={{ padding: '8px 14px', borderRadius: 9, border: '1px solid #dfe3ea', background: '#fff', color: '#3b424f', fontSize: 13, fontWeight: 600, cursor: bulkCreating ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>Clear</button>
+                        <button onClick={() => setBulkConfirm(true)} disabled={bulkCreating}
+                            style={{ padding: '8px 16px', borderRadius: 9, border: 'none', background: BRAND, color: '#fff', fontSize: 13, fontWeight: 700, cursor: bulkCreating ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>
+                            Create {selectedList.length} account{selectedList.length !== 1 ? 's' : ''}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {bulkConfirm && (
+                <div className="fixed inset-0 z-[2200]" style={{ background: 'rgba(17,24,39,.48)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                    <div style={{ width: 400, maxWidth: '100%', borderRadius: 17, background: '#fff', boxShadow: '0 24px 70px rgba(20,28,46,.28)', padding: 24 }}>
+                        <div style={{ fontSize: 18, fontWeight: 800, color: '#161b26', marginBottom: 6 }}>Create {selectedList.length} account{selectedList.length !== 1 ? 's' : ''}?</div>
+                        <div style={{ fontSize: 13.5, color: '#6b7280', lineHeight: 1.45, marginBottom: 18 }}>
+                            An account is created (or linked) for each selected approved learner, and each gets a welcome SMS with a set-password link. Up to 50 are processed per run.
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
+                            <button onClick={() => setBulkConfirm(false)} disabled={bulkCreating}
+                                style={{ padding: '12px 14px', borderRadius: 11, border: '1px solid #dfe3ea', background: '#fff', color: '#3b424f', fontSize: 14, fontWeight: 700, cursor: bulkCreating ? 'not-allowed' : 'pointer' }}>Cancel</button>
+                            <button onClick={bulkCreate} disabled={bulkCreating}
+                                style={{ padding: '12px 14px', borderRadius: 11, border: 'none', background: bulkCreating ? '#a6c0d6' : BRAND, color: '#fff', fontSize: 14, fontWeight: 700, cursor: bulkCreating ? 'wait' : 'pointer' }}>
+                                {bulkCreating ? 'Creating…' : 'Confirm & create'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* TABLE */}
             <div style={{ background: '#fff', border: '1px solid #ecedf1', borderRadius: 14, overflowX: 'auto', boxShadow: '0 1px 2px rgba(20,28,46,.04), 0 6px 24px rgba(20,28,46,.05)' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 980, alignItems: 'center', padding: '0 22px', height: 46, background: '#fafbfc', borderBottom: '1px solid #eceef2' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: gridMinWidth, alignItems: 'center', padding: '0 22px', height: 46, background: '#fafbfc', borderBottom: '1px solid #eceef2' }}>
+                    {canManageRiseUsers && (
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                            <input type="checkbox" checked={allPageSelected} onChange={togglePageAll}
+                                disabled={pageCandidates.length === 0}
+                                title="Select all create-candidates on this page"
+                                style={{ width: 15, height: 15, cursor: pageCandidates.length ? 'pointer' : 'default' }} />
+                        </div>
+                    )}
                     <button onClick={() => toggleSort('name')} style={{ display: 'flex', alignItems: 'center', gap: 5, border: 'none', background: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left', ...headCell }}>
                         NAME <span style={{ fontSize: 9, color: arrowColor('name') }}>{arrow('name')}</span>
                     </button>
@@ -1845,11 +2048,20 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                     const np = rev ? NESA_PILL[rev.nesastatus] : null;
                     const npLabel = rev ? NESA_META[rev.nesastatus].label : '—';
                     const nida = nidaStatus(rev);
+                    const candidate = isCreateCandidate(a);
                     return (
                         <div key={a._id} onClick={() => openApplicant(a)}
-                            style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: 980, alignItems: 'center', padding: '0 22px', minHeight: 56, borderBottom: '1px solid #f3f4f7', cursor: 'pointer', background: isSel ? '#f1f6fb' : '#fff', boxShadow: isSel ? 'inset 3px 0 0 #005198' : 'none' }}
+                            style={{ display: 'grid', gridTemplateColumns: GRID, minWidth: gridMinWidth, alignItems: 'center', padding: '0 22px', minHeight: 56, borderBottom: '1px solid #f3f4f7', cursor: 'pointer', background: isSel ? '#f1f6fb' : '#fff', boxShadow: isSel ? 'inset 3px 0 0 #005198' : 'none' }}
                             onMouseEnter={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#f7f9fb'; }}
                             onMouseLeave={(e) => { if (!isSel) (e.currentTarget as HTMLElement).style.background = '#fff'; }}>
+                            {canManageRiseUsers && (
+                                <div style={{ display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                                    {candidate ? (
+                                        <input type="checkbox" checked={!!selectedIds[a._id]} onChange={() => toggleSelect(a._id)}
+                                            style={{ width: 15, height: 15, cursor: 'pointer' }} />
+                                    ) : <span style={{ width: 15 }} />}
+                                </div>
+                            )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, paddingRight: 14 }}>
                                 <span style={{ flex: '0 0 auto', width: 33, height: 33, borderRadius: '50%', background: av.bg, color: av.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, fontWeight: 600 }}>{initials(a.fullName)}</span>
                                 <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13.5, fontWeight: 600, color: '#1f2430' }}>{a.fullName || '-'}</span>
@@ -1874,7 +2086,10 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                                     approved={rev?.nesastatus === 'approved'}
                                     busy={!!creating[a._id]}
                                     error={createErrors[a._id]}
+                                    resetState={resetState[a._id]}
+                                    resetMessage={resetMsg[a._id]}
                                     onCreate={() => createAccount(a)}
+                                    onSendReset={() => sendReset(a)}
                                 />
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -1912,7 +2127,10 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                     canManageRiseUsers={canManageRiseUsers}
                     creatingAccount={!!creating[selected._id]}
                     createError={createErrors[selected._id]}
+                    resetState={resetState[selected._id]}
+                    resetMessage={resetMsg[selected._id]}
                     onCreateAccount={() => createAccount(selected)}
+                    onSendReset={() => sendReset(selected)}
                     onClose={() => { setSelected(null); onSelectApplicant(null); }}
                     onPreview={(att) => { setPreview(att); onSelectDoc(att.label); }}
                     onReviewSaved={onReviewSaved}
@@ -1937,6 +2155,7 @@ const SMS_STATUS_META: Record<string, { label: string; bg: string; fg: string; d
 
 const SMS_PURPOSE_LABEL: Record<string, string> = {
     welcome: 'Welcome / set password',
+    setpassword: 'Set / reset password',
     action: 'Action needed',
     correction: 'Correction',
 };
@@ -2118,6 +2337,7 @@ function NotificationsReport({ onBack }: { onBack: () => void }) {
                 <Select value={purpose} onChange={onFilter(setPurpose)} minWidth={170}>
                     <option value="">All types</option>
                     <option value="welcome">Welcome / set password</option>
+                    <option value="setpassword">Set / reset password</option>
                     <option value="action">Action needed</option>
                     <option value="correction">Correction</option>
                 </Select>

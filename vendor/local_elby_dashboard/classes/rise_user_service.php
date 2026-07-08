@@ -958,14 +958,76 @@ class rise_user_service {
      * @param \stdClass $user The newly created user.
      */
     private function send_welcome(\stdClass $review, array $applicant, \stdClass $user): void {
-        $raw = rise_token::mint(rise_token::PURPOSE_SETPASSWORD, $review->campaignid, $review->applicantid,
+        $this->dispatch_setpassword($review, $user, (string) ($applicant['phone'] ?? ''),
+            'welcome', 'rise_sms_welcome');
+    }
+
+    /**
+     * Mint a fresh set-password token and SMS the link. Shared by the welcome
+     * message and the manual "send reset link" action.
+     *
+     * @param \stdClass $review Review row.
+     * @param \stdClass $user The learner's account.
+     * @param string $phone Server-fetched phone (never the browser's).
+     * @param string $purpose SMS log purpose ('welcome' or 'setpassword').
+     * @param string $stringkey Lang string key for the message body.
+     * @param string $tokenpurpose Token purpose to mint: PURPOSE_SETPASSWORD for the
+     *        first-password welcome, PURPOSE_RESETPASSWORD for an admin reset link.
+     * @return string SMS result: 'sent', 'failed' or 'skipped'.
+     */
+    private function dispatch_setpassword(\stdClass $review, \stdClass $user, string $phone,
+            string $purpose, string $stringkey,
+            string $tokenpurpose = rise_token::PURPOSE_SETPASSWORD): string {
+        $raw = rise_token::mint($tokenpurpose, $review->campaignid, $review->applicantid,
             (int) $user->id);
         $url = self::link_base() . '/local/elby_dashboard/rise_setpassword.php?t=' . $raw;
-        $message = get_string('rise_sms_welcome', 'local_elby_dashboard', (object) [
+        $message = get_string($stringkey, 'local_elby_dashboard', (object) [
             'username' => $user->username,
             'url' => $url,
         ]);
-        $this->log_and_send_sms((string) ($applicant['phone'] ?? ''), $message, 'welcome', $review);
+        return $this->log_and_send_sms($phone, $message, $purpose, $review);
+    }
+
+    /**
+     * Manually (re)send a set-password / reset link to a provisioned learner.
+     *
+     * Server-authoritative: the phone comes from a fresh RISE fetch, never the
+     * browser. Mints a new single-use token (revoking any prior unused one).
+     *
+     * @param string $campaignid RISE campaign _id.
+     * @param string $applicantid RISE applicant _id.
+     * @return array{status: string, username: string} status:
+     *         'sent'|'failed'|'skipped'|'noaccount'|'suspended'|'conflict'.
+     * @throws \moodle_exception When the RISE identity fetch fails.
+     */
+    public function send_setpassword_link(string $campaignid, string $applicantid): array {
+        global $DB;
+
+        $review = $DB->get_record('elby_rise_reviews', [
+            'campaignid' => $campaignid,
+            'applicantid' => $applicantid,
+        ]);
+        if (!$review || empty($review->userid)) {
+            return ['status' => 'noaccount', 'username' => ''];
+        }
+        $user = $DB->get_record('user', ['id' => $review->userid, 'deleted' => 0]);
+        if (!$user) {
+            return ['status' => 'noaccount', 'username' => ''];
+        }
+        // Fail closed (defence in depth behind the hidden UI action): the public
+        // set-password page rejects suspended users, so a link sent to one is a
+        // dead link; a RISE sync conflict means this learner's identity/linkage
+        // is unresolved, so a password link is premature. Bail before hitting RISE.
+        if (!empty($user->suspended)) {
+            return ['status' => 'suspended', 'username' => $user->username];
+        }
+        if ((string) ($review->risesyncstatus ?? '') === 'conflict') {
+            return ['status' => 'conflict', 'username' => $user->username];
+        }
+        $applicant = $this->fetch_applicant($campaignid, $applicantid);
+        $status = $this->dispatch_setpassword($review, $user, (string) ($applicant['phone'] ?? ''),
+            'setpassword', 'rise_sms_setpassword', rise_token::PURPOSE_RESETPASSWORD);
+        return ['status' => $status, 'username' => $user->username];
     }
 
     /**

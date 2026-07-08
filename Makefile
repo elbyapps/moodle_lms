@@ -22,7 +22,7 @@ COMPOSE_STAGING = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f
 COMPOSE_PROD = docker compose $(PROJECT_DIR) -f compose/docker-compose.yml -f compose/docker-compose.prod.yml $(LOCAL_OVERRIDE)
 COMPOSE_DB = docker compose $(PROJECT_DIR) -f compose/docker-compose.db.yml
 
-.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry populate-user-schoolcode populate-user-schoolcode-dry rise-backlog-notify rise-backlog-notify-dry
+.PHONY: help build build-fresh dev dev-down staging staging-down prod prod-down deploy-code deploy-code-fresh deploy-upgrade deploy-upgrade-fresh db-up db-down logs shell clean-cache objectfs-setup objectfs-setup-force objectfs-setup-dry test-s3 migrate-auth-externalid migrate-auth-externalid-dry admin-cli reconcile-plugins reconcile-plugins-dry populate-user-schoolcode populate-user-schoolcode-dry rise-backlog-notify rise-backlog-notify-dry rise-link-by-nid rise-link-by-nid-dry
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -191,6 +191,19 @@ rise-backlog-notify-dry: ## Preview which pre-feature reviewed applicants would 
 
 rise-backlog-notify: ## Queue action-needed notifications for reviews decided before the notification feature
 	$(PHP_RUN) php /var/www/html/moodle_app/public/local/elby_dashboard/cli/queue_backlog_notifications.php --execute $(args)
+
+# --- RISE account link backfill (local_elby_dashboard) ---
+
+# Link-only backfill for approved RISE reviews whose Moodle account already
+# exists and matches by National ID, but whose review row still has userid=NULL.
+# This does NOT create accounts, send SMS, or call the RISE API. It only writes
+# elby_rise_reviews.userid for unambiguous, RISE-shaped learner accounts.
+# Extra flags via args, e.g.: make rise-link-by-nid args="--campaign=X --limit=100"
+rise-link-by-nid-dry: ## Preview RISE review->user links matched by National ID (no account creation/SMS)
+	$(PHP_RUN) php /var/www/html/moodle_app/public/local/elby_dashboard/cli/backfill_rise_links_by_nid.php $(args)
+
+rise-link-by-nid: ## Backfill RISE review->user links matched by National ID (link-only, no account creation/SMS)
+	$(PHP_RUN) php /var/www/html/moodle_app/public/local/elby_dashboard/cli/backfill_rise_links_by_nid.php --execute $(args)
 
 # --- SDMS user backfill (local_elby_dashboard) ---
 

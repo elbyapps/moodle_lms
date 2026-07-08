@@ -313,6 +313,22 @@ $functions = [
         'ajax'         => true,
         'capabilities' => 'local/elby_dashboard:manageriseusers',
     ],
+    'local_elby_dashboard_rise_send_setpassword' => [
+        'classname'    => 'local_elby_dashboard\external\rise',
+        'methodname'   => 'send_setpassword',
+        'description'  => 'Send a set-password / reset link (SMS) to a provisioned RISE learner',
+        'type'         => 'write',
+        'ajax'         => true,
+        'capabilities' => 'local/elby_dashboard:manageriseusers',
+    ],
+    'local_elby_dashboard_rise_bulk_create_user' => [
+        'classname'    => 'local_elby_dashboard\external\rise',
+        'methodname'   => 'bulk_create_user',
+        'description'  => 'Provision Moodle accounts for several approved RISE learners at once',
+        'type'         => 'write',
+        'ajax'         => true,
+        'capabilities' => 'local/elby_dashboard:manageriseusers',
+    ],
 
     // SDMS self-link API (for logged-in users linking their own account).
     'local_elby_dashboard_self_link_sdms' => [
@@ -474,6 +490,8 @@ $services = [
             'local_elby_dashboard_rise_create_user',
             'local_elby_dashboard_rise_get_sms_log',
             'local_elby_dashboard_rise_queue_backlog',
+            'local_elby_dashboard_rise_send_setpassword',
+            'local_elby_dashboard_rise_bulk_create_user',
         ],
         'restrictedusers' => 0,
         'enabled'         => 1,

@@ -89,6 +89,8 @@ class rise extends external_api {
             'gender' => new external_value(PARAM_ALPHA, 'Gender filter', VALUE_DEFAULT, ''),
             'nesa' => new external_value(PARAM_ALPHANUMEXT, 'NESA review status filter', VALUE_DEFAULT, ''),
             'nida' => new external_value(PARAM_ALPHA, 'NIDA verification status filter', VALUE_DEFAULT, ''),
+            'account' => new external_value(PARAM_ALPHA,
+                'Account status filter: has|none|duplicate|action', VALUE_DEFAULT, ''),
             'search' => new external_value(PARAM_TEXT, 'Free-text search (name/district)', VALUE_DEFAULT, ''),
             'page' => new external_value(PARAM_INT, 'Page number (1-based)', VALUE_DEFAULT, 1),
             'limit' => new external_value(PARAM_INT, 'Results per page', VALUE_DEFAULT, 20),
@@ -110,7 +112,7 @@ class rise extends external_api {
      */
     public static function get_applicants(string $campaignid, string $status = '', string $provincecode = '',
             string $district = '', string $gender = '', string $nesa = '', string $nida = '',
-            string $search = '', int $page = 1, int $limit = 20): string {
+            string $account = '', string $search = '', int $page = 1, int $limit = 20): string {
         global $DB;
 
         $context = context_system::instance();
@@ -125,6 +127,7 @@ class rise extends external_api {
             'gender' => $gender,
             'nesa' => $nesa,
             'nida' => $nida,
+            'account' => $account,
             'search' => $search,
             'page' => $page,
             'limit' => $limit,
@@ -144,9 +147,9 @@ class rise extends external_api {
             $remotefilters['q'] = $search;
         }
 
-        // Cheap path: no NESA/NIDA review-status filter -> let the RISE API paginate (and
+        // Cheap path: no review-status/account filter -> let the RISE API paginate (and
         // search, via `q`) directly across the full applicant set.
-        if ($params['nesa'] === '' && $params['nida'] === '') {
+        if ($params['nesa'] === '' && $params['nida'] === '' && $params['account'] === '') {
             $client = new rise_client();
             return json_encode($client->get_applicants($params['campaignid'], $remotefilters + [
                 'page' => $page,
@@ -167,6 +170,32 @@ class rise extends external_api {
         if ($params['nida'] !== '') {
             $where[] = 'nidstatus = :nida';
             $sqlparams['nida'] = $params['nida'];
+        }
+        // Account status, resolved from the review row's stored provisioning state
+        // (the same state that drives the ACCOUNT column). Filtering here only
+        // covers reviewed applicants, which is the set where account status is
+        // actionable (an account is only created for an approved review).
+        switch ($params['account']) {
+            case 'has':
+                $where[] = 'userid IS NOT NULL AND userid <> 0';
+                break;
+            case 'none':
+                $where[] = "(userid IS NULL OR userid = 0)
+                            AND (provisioningaction IS NULL OR provisioningaction <> 'duplicate_nid')";
+                break;
+            case 'duplicate':
+                $where[] = "provisioningaction = 'duplicate_nid'";
+                break;
+            case 'action':
+                // Mirror every attention flag the ACCOUNT column raises (see
+                // accountActionLabel), except duplicate NID which has its own
+                // filter: a fixable provisioning action, a resubmitted correction
+                // awaiting re-review, a RISE sync conflict, or a suspended account.
+                $where[] = "(provisioningaction IN ('nid_missing', 'nid_invalid', 'details_mismatch')
+                            OR correctionstatus = 'resubmitted'
+                            OR risesyncstatus = 'conflict'
+                            OR userid IN (SELECT id FROM {user} WHERE suspended = 1 AND deleted = 0))";
+                break;
         }
         if ($params['status'] !== '') {
             $where[] = 'applicantstatus = :astatus';
@@ -240,6 +269,9 @@ class rise extends external_api {
 
     /** @var int Max backlog notifications queued per web request (unbounded via CLI). */
     private const BACKLOG_BATCH = 500;
+
+    /** @var int Max accounts provisioned per bulk-create request. */
+    private const BULK_CREATE_MAX = 50;
 
     /**
      * Parameters for get_reviews.
@@ -997,7 +1029,7 @@ class rise extends external_api {
             $base[] = 'l.campaignid = :campaignid';
             $baseparams['campaignid'] = $params['campaignid'];
         }
-        if (in_array($params['purpose'], ['welcome', 'action', 'correction'], true)) {
+        if (in_array($params['purpose'], ['welcome', 'setpassword', 'action', 'correction'], true)) {
             $base[] = 'l.purpose = :purpose';
             $baseparams['purpose'] = $params['purpose'];
         }
@@ -1157,5 +1189,162 @@ class rise extends external_api {
      */
     public static function queue_backlog_returns(): external_value {
         return new external_value(PARAM_RAW, 'JSON backlog queue result');
+    }
+
+    // =========================================================================
+    // Set-password / reset link + bulk account creation.
+    // =========================================================================
+
+    /**
+     * Parameters for send_setpassword.
+     */
+    public static function send_setpassword_parameters(): external_function_parameters {
+        return new external_function_parameters([
+            'campaignid' => new external_value(PARAM_ALPHANUM, 'Campaign id'),
+            'applicantid' => new external_value(PARAM_ALPHANUM, 'Applicant id'),
+        ]);
+    }
+
+    /**
+     * Send a set-password / reset link (SMS) to a provisioned learner.
+     *
+     * @param string $campaignid Campaign id.
+     * @param string $applicantid Applicant id.
+     * @return string JSON {success, status, username, message}.
+     */
+    public static function send_setpassword(string $campaignid, string $applicantid): string {
+        $context = context_system::instance();
+        self::validate_context($context);
+        require_capability('local/elby_dashboard:viewreports', $context);
+        require_capability('local/elby_dashboard:manageriseusers', $context);
+
+        $params = self::validate_parameters(self::send_setpassword_parameters(), [
+            'campaignid' => $campaignid,
+            'applicantid' => $applicantid,
+        ]);
+
+        $service = new rise_user_service();
+        try {
+            $result = $service->send_setpassword_link($params['campaignid'], $params['applicantid']);
+        } catch (\Throwable $e) {
+            return json_encode(['success' => false, 'status' => 'error', 'username' => '',
+                'message' => $e instanceof \moodle_exception ? $e->getMessage()
+                    : get_string('riseapierror', 'local_elby_dashboard')]);
+        }
+
+        $messages = [
+            'sent' => get_string('rise_reset_sent', 'local_elby_dashboard'),
+            'skipped' => get_string('rise_reset_skipped', 'local_elby_dashboard'),
+            'failed' => get_string('rise_reset_failed', 'local_elby_dashboard'),
+            'noaccount' => get_string('rise_reset_noaccount', 'local_elby_dashboard'),
+            'suspended' => get_string('rise_reset_suspended', 'local_elby_dashboard'),
+            'conflict' => get_string('rise_reset_conflict', 'local_elby_dashboard'),
+        ];
+        return json_encode([
+            'success' => $result['status'] === 'sent',
+            'status' => $result['status'],
+            'username' => $result['username'],
+            'message' => $messages[$result['status']] ?? $messages['failed'],
+        ]);
+    }
+
+    /**
+     * Return value for send_setpassword.
+     */
+    public static function send_setpassword_returns(): external_value {
+        return new external_value(PARAM_RAW, 'JSON send result');
+    }
+
+    /**
+     * Parameters for bulk_create_user.
+     */
+    public static function bulk_create_user_parameters(): external_function_parameters {
+        return new external_function_parameters([
+            'campaignid' => new external_value(PARAM_ALPHANUM, 'Campaign id'),
+            'applicantids' => new external_multiple_structure(
+                new external_value(PARAM_ALPHANUM, 'Applicant id'),
+                'Applicant ids to provision'
+            ),
+        ]);
+    }
+
+    /**
+     * Provision Moodle accounts for several approved learners at once. Each is
+     * provisioned server-authoritatively (identity re-fetched from RISE, fail
+     * closed per applicant); one failure never aborts the rest. Capped per
+     * request to bound the work.
+     *
+     * @param string $campaignid Campaign id.
+     * @param array $applicantids Applicant ids.
+     * @return string JSON {results[], summary, processed, skipped}.
+     */
+    public static function bulk_create_user(string $campaignid, array $applicantids): string {
+        $context = context_system::instance();
+        self::validate_context($context);
+        require_capability('local/elby_dashboard:viewreports', $context);
+        require_capability('local/elby_dashboard:manageriseusers', $context);
+
+        $params = self::validate_parameters(self::bulk_create_user_parameters(), [
+            'campaignid' => $campaignid,
+            'applicantids' => $applicantids,
+        ]);
+
+        $ids = array_values(array_unique($params['applicantids']));
+        $skipped = max(0, count($ids) - self::BULK_CREATE_MAX);
+        $ids = array_slice($ids, 0, self::BULK_CREATE_MAX);
+
+        $service = new rise_user_service();
+        $results = [];
+        $summary = ['created' => 0, 'linked' => 0, 'blocked' => 0, 'failed' => 0];
+        foreach ($ids as $aid) {
+            try {
+                $r = $service->provision($params['campaignid'], $aid);
+                if ($r['blocked']) {
+                    $summary['blocked']++;
+                    $msg = ($r['blockedreason'] ?? '') === 'not_approved'
+                        ? get_string('rise_create_requires_approval', 'local_elby_dashboard')
+                        : get_string('rise_action_duplicate_nid', 'local_elby_dashboard');
+                } else if ($r['created']) {
+                    $summary['created']++;
+                    $msg = '';
+                } else {
+                    $summary['linked']++;
+                    $msg = '';
+                }
+                $results[] = [
+                    'applicantid' => $aid,
+                    'success' => !$r['blocked'],
+                    'created' => $r['created'],
+                    'action' => $r['action'],
+                    'username' => $r['username'],
+                    'message' => $msg,
+                ];
+            } catch (\Throwable $e) {
+                $summary['failed']++;
+                $results[] = [
+                    'applicantid' => $aid,
+                    'success' => false,
+                    'created' => false,
+                    'action' => '',
+                    'username' => '',
+                    'message' => $e instanceof \moodle_exception ? $e->getMessage()
+                        : get_string('riseapierror', 'local_elby_dashboard'),
+                ];
+            }
+        }
+
+        return json_encode([
+            'results' => $results,
+            'summary' => $summary,
+            'processed' => count($ids),
+            'skipped' => $skipped,
+        ]);
+    }
+
+    /**
+     * Return value for bulk_create_user.
+     */
+    public static function bulk_create_user_returns(): external_value {
+        return new external_value(PARAM_RAW, 'JSON bulk provisioning result');
     }
 }

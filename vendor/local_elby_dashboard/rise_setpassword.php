@@ -88,7 +88,16 @@ if ($done) {
     );
 }
 
+// A welcome link carries a first-password (setpassword) token; an admin-issued
+// reset link carries a resetpassword token. Accept either — resolving as the
+// wrong purpose reports 'invalid', so fall through to the reset purpose only
+// when the setpassword lookup found nothing.
 [$status, $record] = rise_token::check($token, rise_token::PURPOSE_SETPASSWORD);
+$isreset = false;
+if ($status === 'invalid') {
+    [$status, $record] = rise_token::check($token, rise_token::PURPOSE_RESETPASSWORD);
+    $isreset = $status === 'ok';
+}
 if ($status !== 'ok') {
     $messages = [
         'invalid' => get_string('rise_token_invalid', 'local_elby_dashboard'),
@@ -105,14 +114,17 @@ if (!$user) {
         get_string('rise_token_invalid', 'local_elby_dashboard'));
 }
 
-// The welcome token sets the FIRST password only. Once the learner has set a
-// password or logged in through any path, the token is spent even if unused —
-// don't let a leftover welcome link reset an established account's password.
-$mustchange = (int) get_user_preferences('auth_forcepasswordchange', 0, $user->id) === 1;
-if (!$mustchange || (int) $user->firstaccess > 0) {
-    rise_token::consume($record->id);
-    local_elby_dashboard_rise_card(get_string('rise_setpassword_title', 'local_elby_dashboard'),
-        get_string('rise_token_used', 'local_elby_dashboard'));
+// The welcome token sets the FIRST password only: once the learner has set a
+// password or logged in through any path, a leftover welcome link must not reset
+// an established account. An admin-issued reset token is explicitly authorised,
+// so it works regardless of the account's state.
+if (!$isreset) {
+    $mustchange = (int) get_user_preferences('auth_forcepasswordchange', 0, $user->id) === 1;
+    if (!$mustchange || (int) $user->firstaccess > 0) {
+        rise_token::consume($record->id);
+        local_elby_dashboard_rise_card(get_string('rise_setpassword_title', 'local_elby_dashboard'),
+            get_string('rise_token_used', 'local_elby_dashboard'));
+    }
 }
 
 $errors = [];

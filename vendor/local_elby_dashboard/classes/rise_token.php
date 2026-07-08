@@ -39,10 +39,17 @@ class rise_token {
     /** @var string Token purpose: set the learner's first password. */
     public const PURPOSE_SETPASSWORD = 'setpassword';
 
+    /**
+     * @var string Token purpose: admin-authorised password reset for an already
+     * established account. Distinct from PURPOSE_SETPASSWORD so a leftover welcome
+     * link still can't reset an established account, while a reset link can.
+     */
+    public const PURPOSE_RESETPASSWORD = 'resetpassword';
+
     /** @var string Token purpose: open the identity-correction form. */
     public const PURPOSE_CORRECTION = 'correction';
 
-    /** @var int Set-password token lifetime (24h). */
+    /** @var int Set-password / reset token lifetime (24h). */
     public const TTL_SETPASSWORD = DAYSECS;
 
     /** @var int Correction token lifetime (72h). */
@@ -64,7 +71,8 @@ class rise_token {
         global $DB;
 
         if ($ttl === null) {
-            $ttl = $purpose === self::PURPOSE_SETPASSWORD ? self::TTL_SETPASSWORD : self::TTL_CORRECTION;
+            $ttl = in_array($purpose, [self::PURPOSE_SETPASSWORD, self::PURPOSE_RESETPASSWORD], true)
+                ? self::TTL_SETPASSWORD : self::TTL_CORRECTION;
         }
 
         // Serialize the revoke-then-insert per purpose+applicant so two concurrent

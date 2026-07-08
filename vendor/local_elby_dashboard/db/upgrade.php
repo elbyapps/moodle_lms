@@ -287,5 +287,40 @@ function xmldb_local_elby_dashboard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026070705, 'local', 'elby_dashboard');
     }
 
+    if ($oldversion < 2026070706) {
+        // No schema change — register the new RISE web-service functions
+        // (rise_send_setpassword, rise_bulk_create_user).
+        upgrade_plugin_savepoint(true, 2026070706, 'local', 'elby_dashboard');
+    }
+
+    if ($oldversion < 2026070707) {
+        // No schema change — code-only bump so the upgrade path bumps caches
+        // (rebuilt dashboard.js + the distinct resetpassword token purpose that
+        // lets the "send reset link" action work for established accounts).
+        upgrade_plugin_savepoint(true, 2026070707, 'local', 'elby_dashboard');
+    }
+
+    if ($oldversion < 2026070708) {
+        // No schema change — code-only bump for the rebuilt dashboard.js
+        // (broader "Action needed" account filter + bulk-create keeps the
+        // over-cap rows selected).
+        upgrade_plugin_savepoint(true, 2026070708, 'local', 'elby_dashboard');
+    }
+
+    if ($oldversion < 2026070709) {
+        // No schema change — code-only bump for the rebuilt dashboard.js and new
+        // lang strings (block the "send reset link" action for suspended accounts
+        // and RISE sync conflicts, in the UI and server-side).
+        upgrade_plugin_savepoint(true, 2026070709, 'local', 'elby_dashboard');
+    }
+
+    if ($oldversion < 2026070710) {
+        // No schema change — code-only bump for the rebuilt dashboard.js: the
+        // account column only shows provisioning action flags for linked accounts,
+        // so an unlinked NID match reads as "not linked" and stays consistent with
+        // the account filters.
+        upgrade_plugin_savepoint(true, 2026070710, 'local', 'elby_dashboard');
+    }
+
     return true;
 }
