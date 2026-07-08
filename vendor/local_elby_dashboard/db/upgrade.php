@@ -322,5 +322,18 @@ function xmldb_local_elby_dashboard_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026070710, 'local', 'elby_dashboard');
     }
 
+    if ($oldversion < 2026070711) {
+        // No schema change — code-only bump for the rebuilt dashboard.js: the
+        // applicant search now also matches the Moodle account username (a
+        // username-shaped term routes to the DB path so it resolves standalone).
+        upgrade_plugin_savepoint(true, 2026070711, 'local', 'elby_dashboard');
+    }
+
+    if ($oldversion < 2026070712) {
+        // No schema change — code-only bump for the rebuilt dashboard.js: new
+        // "Needs account" account filter (approved reviews with no account yet).
+        upgrade_plugin_savepoint(true, 2026070712, 'local', 'elby_dashboard');
+    }
+
     return true;
 }

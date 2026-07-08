@@ -90,7 +90,7 @@ class rise extends external_api {
             'nesa' => new external_value(PARAM_ALPHANUMEXT, 'NESA review status filter', VALUE_DEFAULT, ''),
             'nida' => new external_value(PARAM_ALPHA, 'NIDA verification status filter', VALUE_DEFAULT, ''),
             'account' => new external_value(PARAM_ALPHA,
-                'Account status filter: has|none|duplicate|action', VALUE_DEFAULT, ''),
+                'Account status filter: has|none|create|duplicate|action', VALUE_DEFAULT, ''),
             'search' => new external_value(PARAM_TEXT, 'Free-text search (name/district)', VALUE_DEFAULT, ''),
             'page' => new external_value(PARAM_INT, 'Page number (1-based)', VALUE_DEFAULT, 1),
             'limit' => new external_value(PARAM_INT, 'Results per page', VALUE_DEFAULT, 20),
@@ -147,9 +147,27 @@ class rise extends external_api {
             $remotefilters['q'] = $search;
         }
 
+        // A RISE account username (e.g. 12609278) lives only on the Moodle user
+        // record, which the RISE API cannot search — so a username search must use
+        // the DB path even with no review/account filter active. Usernames are
+        // all-numeric [12]\d{7}, so only an all-digit term up to 8 chars can be a
+        // substring of one; for those, probe once for a real matching account and
+        // route to the DB path only when one exists. Probing by actual existence
+        // (rather than a syntactic guess) makes both full and partial usernames
+        // resolve standalone, and avoids mis-routing a numeric NID/phone fragment
+        // that matches no username (which must stay on the RISE path so it can
+        // still find un-reviewed applicants by NID/phone).
+        $nofilters = $params['nesa'] === '' && $params['nida'] === '' && $params['account'] === '';
+        $usernamesearch = false;
+        if ($nofilters && $search !== '' && ctype_digit($search) && strlen($search) <= 8) {
+            $usernamesearch = $DB->record_exists_select('user',
+                'deleted = 0 AND ' . $DB->sql_like('username', ':u', false),
+                ['u' => '%' . $DB->sql_like_escape($search) . '%']);
+        }
+
         // Cheap path: no review-status/account filter -> let the RISE API paginate (and
         // search, via `q`) directly across the full applicant set.
-        if ($params['nesa'] === '' && $params['nida'] === '' && $params['account'] === '') {
+        if ($nofilters && !$usernamesearch) {
             $client = new rise_client();
             return json_encode($client->get_applicants($params['campaignid'], $remotefilters + [
                 'page' => $page,
@@ -181,6 +199,18 @@ class rise extends external_api {
                 break;
             case 'none':
                 $where[] = "(userid IS NULL OR userid = 0)
+                            AND (provisioningaction IS NULL OR provisioningaction <> 'duplicate_nid')";
+                break;
+            case 'create':
+                // Learners who still need an account created: NESA-approved, no
+                // linked account yet, and not a duplicate-NID conflict — the same
+                // set the ACCOUNT column offers "Create Moodle account" / bulk
+                // create for (mirrors isCreateCandidate in the frontend). A live
+                // NID match can't be seen from the review row, so a rare
+                // matched-but-unlinked approved row may also appear; it still needs
+                // account action (linking), so its inclusion is acceptable.
+                $where[] = "nesastatus = 'approved'
+                            AND (userid IS NULL OR userid = 0)
                             AND (provisioningaction IS NULL OR provisioningaction <> 'duplicate_nid')";
                 break;
             case 'duplicate':
@@ -220,6 +250,23 @@ class rise extends external_api {
                 $pn = 'srch' . $i;
                 $parts[] = $DB->sql_like($col, ':' . $pn, false);
                 $sqlparams[$pn] = $needle;
+            }
+            // Also match the Moodle account username shown in the ACCOUNT column
+            // for a LINKED account (review.userid -> user.username, scoped to the
+            // same non-deleted set status_for() displays). The username is a
+            // synthetic all-numeric minted sequence, so only run the {user} lookup
+            // when the term has a digit — an alphabetic name/district search can
+            // never match a username and would otherwise force a needless {user}
+            // scan (run twice, via the count and the fetch).
+            //
+            // Unlinked NID-matched accounts are deliberately NOT username-searchable:
+            // matching by user.idnumber can't cheaply replicate status_for()'s
+            // single-linkable-match rule, so it would surface rows the ACCOUNT
+            // column renders as "Duplicate NID" (searched username shown nowhere).
+            if (preg_match('/\d/', trim($params['search'])) === 1) {
+                $parts[] = 'userid IN (SELECT id FROM {user} WHERE deleted = 0 AND '
+                    . $DB->sql_like('username', ':srchu1', false) . ')';
+                $sqlparams['srchu1'] = $needle;
             }
             $where[] = '(' . implode(' OR ', $parts) . ')';
         }

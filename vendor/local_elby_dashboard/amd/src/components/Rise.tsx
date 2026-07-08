@@ -1940,12 +1940,13 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                     <option value="">All accounts</option>
                     <option value="has">Linked account</option>
                     <option value="none">Not linked</option>
+                    <option value="create">Needs account</option>
                     <option value="duplicate">Duplicate NID</option>
                     <option value="action">Action needed</option>
                 </Select>
                 <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180, maxWidth: 320 }}>
                     <span style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#b6bcc6', fontSize: 13 }}>⌕</span>
-                    <input value={searchInput} placeholder="Search name or district…"
+                    <input value={searchInput} placeholder="Search name, ID, phone or username…"
                            onInput={(e) => setSearchInput((e.target as HTMLInputElement).value)}
                            style={{ padding: '10px 38px 10px 34px', border: '1px solid #e2e5ea', borderRadius: 10, background: '#fff', fontFamily: 'inherit', fontSize: 13, color: '#1f2430', width: '100%', boxSizing: 'border-box', outline: 'none' }} />
                     {searchInput && (
