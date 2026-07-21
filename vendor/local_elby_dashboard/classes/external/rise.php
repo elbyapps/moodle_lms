@@ -216,6 +216,11 @@ class rise extends external_api {
             case 'duplicate':
                 $where[] = "provisioningaction = 'duplicate_nid'";
                 break;
+            case 'resubmitted':
+                // Learners who corrected their details after a rejected /
+                // action-requested review and are awaiting re-review.
+                $where[] = "correctionstatus = 'resubmitted'";
+                break;
             case 'action':
                 // Mirror every attention flag the ACCOUNT column raises (see
                 // accountActionLabel), except duplicate NID which has its own

@@ -1942,6 +1942,7 @@ function ApplicantList({ campaign, user, onBack, deepApplicantId, deepDoc, onSel
                     <option value="none">Not linked</option>
                     <option value="create">Needs account</option>
                     <option value="duplicate">Duplicate NID</option>
+                    <option value="resubmitted">Resubmitted</option>
                     <option value="action">Action needed</option>
                 </Select>
                 <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 180, maxWidth: 320 }}>
