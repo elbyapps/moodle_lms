@@ -1344,6 +1344,18 @@ function AccountCell({ st, canManage, approved, busy, error, resetState, resetMe
         return <span style={{ fontSize: 12, color: '#c0c4cc' }}>…</span>;
     }
     const flag = accountActionLabel(st);
+    // "Resubmitted" reflects a correction awaiting re-review — it is meaningful
+    // regardless of whether the Moodle account is linked yet (unlike provisioning
+    // flags, which only apply once linked), so surface it in every account state.
+    const resubBadge = st.correctionstatus === 'resubmitted' ? (
+        <span title="Learner resubmitted corrected details — please re-review"
+              style={{ display: 'inline-flex', padding: '4px 9px', borderRadius: 999, background: '#f3eafa', color: '#7b3fb0', fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            Resubmitted
+        </span>
+    ) : null;
+    const withResub = (body: any) => resubBadge
+        ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>{body}{resubBadge}</span>
+        : body;
     if (st.hasaccount) {
         const rs = resetState || 'idle';
         const resetLabel = rs === 'sending' ? 'Sending…' : rs === 'sent' ? '✓ Link sent' : rs === 'error' ? 'Retry link' : 'Send reset link';
@@ -1376,7 +1388,7 @@ function AccountCell({ st, canManage, approved, busy, error, resetState, resetMe
                     keeping the list column consistent with the account filters (an
                     unlinked, suspended NID match belongs under "Not linked", not
                     "Action needed"). */}
-                {linked && flag && (
+                {flag && (linked || flag === 'Resubmitted') && (
                     <span title={ACTION_NOTES[st.provisioningaction] || flag}
                           style={{ display: 'inline-flex', padding: '4px 9px', borderRadius: 999, background: flag === 'Resubmitted' ? '#f3eafa' : '#fff1e0', color: flag === 'Resubmitted' ? '#7b3fb0' : '#b5660b', fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
                         {flag}
@@ -1393,7 +1405,7 @@ function AccountCell({ st, canManage, approved, busy, error, resetState, resetMe
         );
     }
     if (st.provisioningaction === 'duplicate_nid') {
-        return (
+        return withResub(
             <span title={ACTION_NOTES.duplicate_nid}
                   style={{ display: 'inline-flex', padding: '4px 11px', borderRadius: 999, background: '#fbe0de', color: '#b42318', fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap' }}>
                 Duplicate NID
@@ -1401,17 +1413,17 @@ function AccountCell({ st, canManage, approved, busy, error, resetState, resetMe
         );
     }
     if (!canManage) {
-        return <span style={{ fontSize: 12, color: '#9aa0ab' }}>No account</span>;
+        return withResub(<span style={{ fontSize: 12, color: '#9aa0ab' }}>No account</span>);
     }
     if (!approved) {
         // Accounts are created on NESA approval; manual create is a recovery
         // path for approved reviews only.
-        return (
+        return withResub(
             <span title="Approve the NESA review first — accounts are only created for approved learners."
                   style={{ fontSize: 12, color: '#9aa0ab', cursor: 'help' }}>Approve first</span>
         );
     }
-    return (
+    return withResub(
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <button
                 onClick={(e) => { e.stopPropagation(); onCreate(e); }}
