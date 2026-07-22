@@ -1,7 +1,7 @@
 {
        "moodle": {
               "repository": "https://github.com/moodle/moodle.git",
-              "version": "v5.1.4"
+              "version": "v5.1.5"
        },
        "destination_folder": "moodle_app",
        "plugins": [
