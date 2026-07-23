@@ -413,9 +413,10 @@ function local_elby_dashboard_add_rise_profile_nodes(\core_user\output\myprofile
 
     $action = (string) ($review->provisioningaction ?? '');
     $needsfix = in_array($action, \local_elby_dashboard\rise_user_service::FIXABLE_ACTIONS, true);
+    $decisionneedsaction = in_array($review->nesastatus, ['action_requested', 'rejected'], true);
     $resubmitted = ($review->correctionstatus ?? '') === 'resubmitted';
 
-    if ($needsfix || $resubmitted) {
+    if ($needsfix || $decisionneedsaction || $resubmitted) {
         $label = get_string('rise_badge_action', 'local_elby_dashboard');
         $bg = '#fff1e0';
         $fg = '#b5660b';
@@ -435,7 +436,7 @@ function local_elby_dashboard_add_rise_profile_nodes(\core_user\output\myprofile
     $badge = html_writer::tag('span', trim($icon . ' ' . $label),
         ['style' => "display:inline-block;padding:4px 12px;border-radius:999px;background:{$bg};"
             . "color:{$fg};font-size:12px;font-weight:700;"]);
-    if ($needsfix && $iscurrentuser) {
+    if (($needsfix || $decisionneedsaction) && $iscurrentuser) {
         $fixurl = new moodle_url('/local/elby_dashboard/rise_action.php');
         $badge .= ' ' . html_writer::link($fixurl,
             get_string('rise_action_fixdetails', 'local_elby_dashboard'),
