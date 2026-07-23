@@ -105,7 +105,9 @@ if ($token !== '') {
         'applicantid' => $tokenrecord->applicantid,
     ]);
 } else if (isloggedin() && !isguestuser()) {
-    $review = $DB->get_record('elby_rise_reviews', ['userid' => $USER->id], '*', IGNORE_MULTIPLE);
+    // Session path: resolve the learner's own review — linked by userid, or (for
+    // pre-approval NESA actions with no link yet) matched by their National ID.
+    $review = rise_user_service::find_review_for_user($USER) ?: false;
     $viasession = true;
 } else {
     $review = false;

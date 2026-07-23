@@ -846,6 +846,35 @@ class rise_user_service {
     }
 
     /**
+     * Resolve the review a logged-in learner may act on: their linked review
+     * (by userid) or, when no link exists yet — NESA action_requested/rejected
+     * are decided pre-approval and linking only happens on approval — a review
+     * carrying their National ID (stored as the account idnumber) that is not
+     * yet linked to any account. Single source of truth shared by the profile
+     * badge and the self-service correction form so both surface the SAME
+     * review; the unlinked filter ensures we never expose another applicant's.
+     *
+     * @param \stdClass $user User record (needs id, idnumber).
+     * @return \stdClass|null Review row, or null when none applies.
+     */
+    public static function find_review_for_user(\stdClass $user): ?\stdClass {
+        global $DB;
+        $review = $DB->get_record('elby_rise_reviews', ['userid' => $user->id], '*', IGNORE_MULTIPLE);
+        if ($review) {
+            return $review;
+        }
+        if (!empty($user->idnumber)) {
+            $review = $DB->get_record_select('elby_rise_reviews',
+                'nid = :nid AND (userid = 0 OR userid IS NULL)',
+                ['nid' => $user->idnumber], '*', IGNORE_MULTIPLE);
+            if ($review) {
+                return $review;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Whether a review still requires learner action: a fixable provisioning
      * code, an action_requested/rejected decision, or a resubmission awaiting
      * re-review. Single source of truth for the correction form, the

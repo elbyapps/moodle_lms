@@ -406,17 +406,7 @@ function local_elby_dashboard_myprofile_navigation(
 function local_elby_dashboard_add_rise_profile_nodes(\core_user\output\myprofile\tree $tree, $user, $iscurrentuser) {
     global $DB;
 
-    $review = $DB->get_record('elby_rise_reviews', ['userid' => $user->id], '*', IGNORE_MULTIPLE);
-    if (!$review && !empty($user->idnumber)) {
-        // NESA action_requested/rejected happen pre-approval, and NID-matched
-        // accounts are only linked (userid written) on approval — so the review
-        // often carries no userid yet. Fall back to the learner's National ID
-        // (stored as the account idnumber), matching only reviews not yet linked
-        // to any account so we never surface another applicant's review.
-        $review = $DB->get_record_select('elby_rise_reviews',
-            'nid = :nid AND (userid = 0 OR userid IS NULL)',
-            ['nid' => $user->idnumber], '*', IGNORE_MULTIPLE);
-    }
+    $review = \local_elby_dashboard\rise_user_service::find_review_for_user($user);
     if (!$review) {
         return;
     }
