@@ -135,6 +135,30 @@ if ((getenv('FILESTORAGE_BACKEND') ?: 'local') === 's3') {
     ];
 }
 
+// =========================================================================
+// SAFETY SWITCHES
+// =========================================================================
+// Both of these are config.php-only in Moodle — they cannot be set from the
+// admin UI or seeded into mdl_config — so they have to be wired here to be
+// usable from a containerised deployment at all. Both default to off, so
+// existing stacks are unaffected unless the variable is set.
+//
+//   MOODLE_DISABLE_UPDATE_AUTODEPLOY=true
+//     Takes away the web plugin installer's ability to write plugins into the
+//     code tree. The 2026 compromise installed its webshells through exactly
+//     that path, using a valid administrator session, so any environment that
+//     deploys plugins from source should set this.
+//
+//   MOODLE_NOEMAILEVER=true
+//     Hard block on all outbound mail. Mandatory for any clone of production
+//     data: without it a sandbox can mail real learners.
+if (getenv('MOODLE_DISABLE_UPDATE_AUTODEPLOY') === 'true') {
+    $CFG->disableupdateautodeploy = true;
+}
+if (getenv('MOODLE_NOEMAILEVER') === 'true') {
+    $CFG->noemailever = true;
+}
+
 // Accelerate category / deep-course pages; must be defined before setup.php.
 define('CONTEXT_CACHE_MAX_SIZE', 20000);
 
