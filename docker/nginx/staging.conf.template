@@ -2,6 +2,18 @@ server {
     listen 80;
     server_name _;
 
+    # Recover the real client address from the upstream reverse proxy.
+    # The proxy already sends X-Real-IP and X-Forwarded-For, but without these
+    # directives REMOTE_ADDR stays the proxy's address, so Moodle records no
+    # genuine client IP for logins, failed logins or admin actions. That blind
+    # spot is what made the 2026 credential compromise untraceable in the
+    # application logs. Trust is limited to the proxy and the Docker bridge
+    # range that fronts the published port; anything else cannot spoof it.
+    set_real_ip_from 10.10.68.215;
+    set_real_ip_from 172.16.0.0/12;
+    real_ip_header X-Forwarded-For;
+    real_ip_recursive on;
+
     root /var/www/html/moodle_app/public;
     index index.php index.html;
 
