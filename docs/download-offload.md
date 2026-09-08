@@ -50,9 +50,13 @@ Read-only checks through `%48` also established:
   returned 206 in 27 ms; the first 1 KiB matched the local file. The initial HTTP
   400 was a probe error (`moodle_url` HTML-escaped the query), corrected by using
   `out(false)`. This proves one sampled object, not all clients/routes.
-- The sampled ObjectFS storage response had no CORS headers for the LMS origin.
-  Library bucket CORS and browser validation are **deployment gates**, because
-  the new library code always redirects. Do not roll it out until those pass.
+- Initial library CORS failed validation: storage returned a comma-separated
+  pair of origins instead of a single allowed origin, and omitted exposed Range
+  headers. Before deployment, the existing library bucket rules were backed up,
+  split into single-origin rules (preserving upload permissions), and extended
+  with Content-Range/Accept-Ranges. The public signed Range probe then passed
+  exact-origin and exposed-header checks. ObjectFS bucket CORS is independent.
+  Library browser validation remains a deployment gate.
 - Against real production Moodle, a separate CLI process evaluated the candidate
   class under a temporary class name and process-local config override. For the
   same 2,650,202-byte file, the deployed implementation declined local offload;
@@ -128,10 +132,25 @@ Before deploying:
 ## Deployment sequence
 
 Changes here are code/config only; they do not require a DB schema migration.
-Do not blindly invoke the current rolling script during this incident:
-`scripts/deploy.sh code` waits for **all existing replicas** to become healthy,
-so existing saturation can prevent progression. It also recreates the singleton
-nginx at the end, interrupting its active downloads. Schedule/approve that boundary.
+`scripts/deploy.sh code` now waits only for each newly added PHP container before
+retiring an old one, so unhealthy old pools do not block their own replacement.
+On candidate failure it stops with old PHP replicas retained (and the candidate
+still present for diagnosis; reconcile scale before retrying). Service-scoped
+`--no-deps` operations avoid recreating Redis. The task refuses an unexpected
+starting PHP replica count. It still interrupts downloads on singleton nginx
+recreation; schedule/approve that boundary. `DEPLOY_NGINX_FIRST=1 make deploy-code`
+recreates nginx immediately after building, to provide headroom before PHP rollout.
+The default recreates nginx at the end.
+
+Offline deploy-task tests (Bash 5/Python 3 in the disposable image):
+
+```sh
+docker run --rm --network none --entrypoint python3 \
+  -v "$PWD:/work:ro" repo-php:latest /work/scripts/tests/deploy-code.py
+```
+
+They simulate unhealthy old pools, healthy/failed replacements, both nginx orders,
+and dependency isolation; they do not exercise real Docker or prove zero downtime.
 
 1. Build and tag candidate PHP and nginx images without stopping the live stack.
    A fresh image installs the vendored source. `build.sh` skips already-existing

@@ -103,6 +103,28 @@ wait_healthy() {
     return 1
 }
 
+# A saturated old pool must not block validation of its replacement. Wait only
+# for the newly added container; never retire an old replica on candidate failure.
+wait_container_healthy() {
+    local id="$1" elapsed=0 status
+    echo "Waiting for new php container $id (timeout ${HEALTH_TIMEOUT}s)..."
+    while [ "$elapsed" -lt "$HEALTH_TIMEOUT" ]; do
+        status=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$id" 2>/dev/null || echo none)
+        if [ "$status" = healthy ]; then
+            return 0
+        fi
+        sleep 3
+        elapsed=$((elapsed + 3))
+    done
+    echo "ERROR: candidate $id did not become healthy; old replicas retained." >&2
+    return 1
+}
+
+recreate_nginx() {
+    echo "Recreating nginx (singleton; active downloads may be interrupted)..."
+    "${COMPOSE[@]}" up -d --no-deps --force-recreate nginx
+}
+
 cmd_code() {
     echo "== Rolling code deploy (no DB migration) =="
     if [ ${#BUILD_ARGS[@]} -gt 0 ]; then
@@ -122,27 +144,48 @@ cmd_code() {
         return 0
     fi
 
+    local old_count before_ids after_ids new_ids new_count
+    old_count=$(printf '%s\n' "$old_ids" | awk 'NF {n++} END {print n+0}')
+    if [ "$old_count" -ne "$REPLICAS" ]; then
+        echo "ERROR: expected $REPLICAS existing php replicas, found $old_count; reconcile scale before retrying." >&2
+        return 1
+    fi
+
+    # Explicit incident option: give the proxy headroom before shifting more
+    # delivery onto it. This still requires approval for a singleton interruption.
+    if [ "${DEPLOY_NGINX_FIRST:-0}" = 1 ]; then
+        recreate_nginx
+    fi
+
     for old_id in $old_ids; do
         echo "---"
+        before_ids=$("${COMPOSE[@]}" ps -q php)
         echo "Adding one new php replica with the new image..."
-        "${COMPOSE[@]}" up -d --no-recreate --scale "php=$((REPLICAS + 1))"
-        wait_healthy php
+        "${COMPOSE[@]}" up -d --no-deps --no-recreate --scale "php=$((REPLICAS + 1))" php
+        after_ids=$("${COMPOSE[@]}" ps -q php)
+        new_ids=$(comm -13 <(printf '%s\n' "$before_ids" | sort) <(printf '%s\n' "$after_ids" | sort))
+        new_count=$(printf '%s\n' "$new_ids" | awk 'NF {n++} END {print n+0}')
+        if [ "$new_count" -ne 1 ]; then
+            echo "ERROR: expected exactly one new php container, found $new_count; old replicas retained." >&2
+            return 1
+        fi
+        wait_container_healthy "$new_ids"
 
         echo "Retiring old container $old_id ..."
         docker stop "$old_id" >/dev/null
-        docker rm "$old_id" >/dev/null || true
+        docker rm "$old_id" >/dev/null
 
-        # Re-level the scale so Compose's accounting matches reality.
-        "${COMPOSE[@]}" up -d --no-recreate --scale "php=$REPLICAS"
+        # Touch PHP only. Never recreate Redis or unrelated dependencies here.
+        "${COMPOSE[@]}" up -d --no-deps --no-recreate --scale "php=$REPLICAS" php
     done
 
     echo "---"
     echo "Recreating cron (singleton)..."
-    "${COMPOSE[@]}" up -d --no-recreate --scale "php=$REPLICAS"
-    "${COMPOSE[@]}" up -d --force-recreate --scale "php=$REPLICAS" cron
+    "${COMPOSE[@]}" up -d --no-deps --force-recreate cron
 
-    echo "Recreating nginx (singleton; brief blip)..."
-    "${COMPOSE[@]}" up -d --force-recreate --scale "php=$REPLICAS" nginx
+    if [ "${DEPLOY_NGINX_FIRST:-0}" != 1 ]; then
+        recreate_nginx
+    fi
 
     echo "Code deploy complete."
 }
