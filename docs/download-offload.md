@@ -90,11 +90,12 @@ test creates a localhost-only test server inside the network-isolated container.
 They do not replace a Moodle + nginx + storage integration test or browser checks.
 
 Read-only review identified GET-only overrides on signed HEAD and a missing dev
-nginx data mount; both were corrected. At the owner's request, the optional library
-proxy was subsequently removed entirely. HTTP tests now enforce redirects for
+nginx data mount; both were corrected. Real FPM validation also found the missing
+request-directory base, now covered by `xsendfile-bootstrap.php`. At the owner's
+request, the optional library proxy was removed entirely. HTTP tests enforce redirects for
 PDFs, small covers, media and archives even with no legacy setting; failure tests
-verify no proxy fallback or secret leakage. All four suites and PHP syntax checks
-are run by the parent. Base/dev/prod/staging merged Compose assertions verified
+verify no proxy fallback or secret leakage. The PHP and deploy-task suites, plus
+PHP/shell syntax checks, are run by the parent. Base/dev/prod/staging merged Compose assertions verified
 shared data sources, read-only nginx, log bounds and production limits. The
 reviewer did not rerun the final revision.
 
@@ -171,7 +172,16 @@ and dependency isolation; they do not exercise real Docker or prove zero downtim
    and explicit folder limit, preserving the old replicas. Validate its health
    and direct requests before adding it to the live upstream. Avoid entrypoint
    recursion over a live moodledata tree during an improvised `docker run`; use
-   the site's established canary procedure.
+   the site's established canary procedure. **Health checks do not validate class
+   autoloading.** Moodle's shared `cache/core_component.php` can retain an old class
+   map across image replacements; OPcache with timestamp validation disabled can
+   also retain that old map in each FPM pool. Verify `download_delivery` autoloads
+   and an authorised library request returns a storage redirect, not an error page.
+   During this rollout the map was backed up and rebuilt atomically from the new
+   image with `IGNORE_COMPONENT_CACHE`, then its opcode entry was invalidated in
+   every FPM pool. CLI-only invalidation is insufficient; no session/MUC flush was
+   needed. Cache refresh remains an explicit deployment gate, not an action of the
+   health-only rolling script.
 4. Check a known local PDF: permission checks still run, FastCGI returns an
    `X-Accel-Redirect`, nginx serves the same bytes/Content-Type/Disposition, and
    byte ranges return 206. Direct external access to `/dataroot/...` must remain
