@@ -8,6 +8,11 @@
   is respected. Never fetch an external-only file just to offload it. Core's
   alias/header checks decide whether offload is possible. Remote streaming and
   remote Range handling remain fallbacks.
+- PHP startup creates `/tmp/requestdir` privately for `www-data`. Moodle 5.1's
+  X-Sendfile guard calls `realpath()` on this base: when absent on fresh containers,
+  its empty-string containment check rejects every offload. The real FPM canary
+  reproduced this and confirmed creating the base restores offload, while
+  request-local temporary files remain excluded.
 - `vendor/local_reblibrary/download.php`: **all library assets download directly
   from object storage**, regardless of size or type. Existing stable download URLs
   still perform login/capability checks and validate `resources/` keys, release the
@@ -73,6 +78,8 @@ for test in download-offload library-signing library-signing-sdk library-downloa
   docker run --rm --network none --entrypoint php \
     -v "$PWD:/work:ro" repo-php:latest "/work/scripts/tests/$test.php" || exit
 done
+docker run --rm --network none --entrypoint php \
+  -v "$PWD:/work:ro" repo-php:latest /work/docker/php/tests/xsendfile-bootstrap.php
 ```
 
 These are boundary tests against the actual vendored classes/controller with

@@ -62,6 +62,12 @@ mkdir -p /var/www/moodledata/localcache
 # Create container-local localcache dir (not shared across replicas)
 mkdir -p /tmp/moodle_localcache
 
+# Moodle 5.1's xsendfile() resolves localrequestdir before checking whether a
+# file is request-local. If the base directory is absent, realpath() returns
+# false and the empty-string containment check rejects every file offload.
+# Create only the private base, not per-request directories or their contents.
+install -d -o www-data -g www-data -m 0700 /tmp/requestdir
+
 echo "Setting permissions for moodledata..."
 chown -R www-data:www-data /var/www/moodledata
 chmod -R 0777 /var/www/moodledata
