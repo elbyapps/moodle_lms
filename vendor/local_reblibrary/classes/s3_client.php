@@ -201,18 +201,28 @@ class s3_client {
      *
      * @param string $key Object key/path
      * @param int $expiration Expiration time in seconds (default: 1 hour)
+     * @param array $responseheaders Optional signed Cache-Control/Content-Disposition overrides
+     * @param string $method GET or HEAD (the HTTP method is part of the signature)
      * @return string Presigned URL
      * @throws \moodle_exception If URL generation fails
      */
-    public function get_presigned_get_url($key, $expiration = 3600) {
+    public function get_presigned_get_url($key, $expiration = 3600, array $responseheaders = [], $method = 'GET') {
+        if (!in_array($method, ['GET', 'HEAD'], true)) {
+            throw new \InvalidArgumentException('Only GET and HEAD can be signed for downloads');
+        }
         try {
             // Use public client for presigned URLs so signature matches public endpoint.
             $client = $this->get_public_client();
 
-            $cmd = $client->getCommand('GetObject', [
+            // Only GET supports response overrides in the S3 API. Never pass
+            // them to HeadObject, or allow callers to override bucket/key.
+            $overrides = $method === 'GET' ? array_intersect_key($responseheaders, array_flip([
+                'ResponseCacheControl', 'ResponseContentDisposition',
+            ])) : [];
+            $cmd = $client->getCommand($method === 'HEAD' ? 'HeadObject' : 'GetObject', [
                 'Bucket' => $this->bucket,
                 'Key' => $key,
-            ]);
+            ] + $overrides);
 
             $request = $client->createPresignedRequest($cmd, "+{$expiration} seconds");
             return (string) $request->getUri();

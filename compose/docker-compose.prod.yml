@@ -6,6 +6,8 @@ services:
     #     up -d --scale php=${PHP_REPLICAS:-3}
     cpus: "${CPUS_PER_REPLICA:-4}"
     mem_limit: "${PHP_REPLICA_MEMORY:-12G}"
+    environment:
+      MOODLE_FOLDER_MAX_DOWNLOAD_MB: "${MOODLE_FOLDER_MAX_DOWNLOAD_MB:-100}"
     volumes:
       - moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
@@ -26,6 +28,8 @@ services:
   cron:
     cpus: "2"
     mem_limit: "4G"
+    environment:
+      MOODLE_FOLDER_MAX_DOWNLOAD_MB: "${MOODLE_FOLDER_MAX_DOWNLOAD_MB:-100}"
     volumes:
       - moodledata:/var/www/moodledata
       - ./config.php.docker:/var/www/html/config.php.docker:ro
@@ -40,13 +44,16 @@ services:
   nginx:
     # SSL is terminated by an external reverse proxy that forwards HTTP here.
     # Pair with MOODLE_SSLPROXY=true in prod so Moodle emits https:// URLs.
-    cpus: "2"
-    mem_limit: "1G"
+    # Local file offload shifts delivery from PHP to nginx. Leave headroom for
+    # socket buffers and page cache; tune workers to the container CPU quota.
+    cpus: "${NGINX_CPUS:-4}"
+    mem_limit: "${NGINX_MEMORY:-4G}"
     ports:
       - "${MOODLE_PORT:-8080}:80"
     environment:
       - MOODLE_PORT=${MOODLE_PORT:-8080}
       - SDMS_URL=${SDMS_URL}
+      - NGINX_ENTRYPOINT_WORKER_PROCESSES_AUTOTUNE=1
     volumes:
       - moodledata:/var/www/moodledata:ro
       - ./docker/nginx/prod.conf.template:/etc/nginx/templates/default.conf.template:ro

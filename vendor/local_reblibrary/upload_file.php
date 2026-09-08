@@ -176,7 +176,8 @@ try {
         $coverurl = $CFG->wwwroot . '/local/reblibrary/download.php?key=' . urlencode($coverkey);
     }
 
-    // Generate proxy URLs.
+    // Persist stable authorised URLs, not expiring storage signatures.
+    // download.php redirects every asset to object storage after authorisation.
     $fileurl = $CFG->wwwroot . '/local/reblibrary/download.php?key=' . urlencode($filekey);
 
     echo json_encode([

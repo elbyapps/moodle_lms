@@ -528,6 +528,13 @@ abstract class object_file_system extends \file_system_filedir {
             return $this->redirect_to_presigned_url($contenthash, headers_list());
         }
 
+        // A configured object store must not disable core's local file offload.
+        // Keep signed redirects first, then let the web server handle local
+        // copies (including Range requests) without occupying a PHP worker.
+        if ($this->xsendfile_local($contenthash)) {
+            return true;
+        }
+
         $ranges = $this->get_valid_http_ranges($file->get_filesize());
         if (
             $this->externalclient->support_presigned_urls() && !empty($ranges) &&
@@ -562,7 +569,32 @@ abstract class object_file_system extends \file_system_filedir {
         ) {
             return $this->redirect_to_presigned_url($contenthash, $headers);
         }
-        return false;
+        return $this->xsendfile_local($contenthash);
+    }
+
+    /**
+     * Offload an existing local copy using core's alias and header checks.
+     *
+     * Never fetch an external-only object here. Do not call parent::xsendfile():
+     * it resolves the remote path virtually and could select an S3 stream.
+     * Honour preferexternal, and retain streaming when offload is unavailable.
+     *
+     * @param string $contenthash Content hash of an already-authorised file
+     * @return bool Whether the web server has accepted responsibility for serving it
+     */
+    protected function xsendfile_local($contenthash): bool {
+        global $CFG;
+
+        if ($this->preferexternal || !parent::supports_xsendfile()) {
+            return false;
+        }
+        $path = $this->get_local_path_from_hash($contenthash, false);
+        if (!is_readable($path)) {
+            return false;
+        }
+
+        require_once($CFG->libdir . '/xsendfilelib.php');
+        return \xsendfile($path);
     }
 
     /**

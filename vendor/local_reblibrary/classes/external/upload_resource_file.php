@@ -137,7 +137,7 @@ class upload_resource_file extends external_api {
             // Upload cover image.
             self::upload_to_minio($s3, $coverkey, $coverdata, 'image/jpeg');
 
-            // Generate proxy URLs (internal references).
+            // Persist stable authorised URLs; download.php signs and redirects to storage.
             // Format: /local/reblibrary/download.php?key={key}
             $wwwroot = $CFG->wwwroot;
             $pdfurl = $wwwroot . '/local/reblibrary/download.php?key=' . urlencode($pdfkey);
@@ -236,9 +236,9 @@ class upload_resource_file extends external_api {
             'pdf_hash' => new external_value(PARAM_ALPHANUM, 'SHA-256 hash of PDF'),
             'pdf_exists' => new external_value(PARAM_BOOL, 'Whether PDF already existed in storage'),
             'pdf_key' => new external_value(PARAM_TEXT, 'S3 object key for PDF'),
-            'pdf_url' => new external_value(PARAM_URL, 'Proxy URL for accessing PDF'),
+            'pdf_url' => new external_value(PARAM_URL, 'Authorised URL redirecting to the PDF in object storage'),
             'cover_key' => new external_value(PARAM_TEXT, 'S3 object key for cover image'),
-            'cover_url' => new external_value(PARAM_URL, 'Proxy URL for accessing cover image'),
+            'cover_url' => new external_value(PARAM_URL, 'Authorised URL redirecting to the cover image in object storage'),
             'pdf_size' => new external_value(PARAM_INT, 'PDF file size in bytes'),
             'cover_size' => new external_value(PARAM_INT, 'Cover image size in bytes'),
         ]);

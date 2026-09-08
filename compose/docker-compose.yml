@@ -1,5 +1,14 @@
+# Bound logs per container. Rotation takes effect when containers are recreated;
+# do not truncate Docker's active JSON files manually.
+x-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   php:
+    logging: *bounded-logging
     # Single source of the PHP+Moodle image. cron reuses it via image: below.
     image: repo-php:latest
     build:
@@ -31,6 +40,7 @@ services:
       - "host.docker.internal:host-gateway"
 
   cron:
+    logging: *bounded-logging
     # Reuse the php image — same Dockerfile, just a different command.
     # Avoids 'make build' producing a second stale image (repo-cron:latest).
     image: repo-php:latest
@@ -49,9 +59,14 @@ services:
       - moodle
 
   nginx:
+    logging: *bounded-logging
     build:
       context: .
       dockerfile: docker/nginx/Dockerfile
+    volumes:
+      # X-Accel-Redirect requires the same files as PHP, including in dev.
+      # Production/staging override this target with their named volume.
+      - ./moodledata:/var/www/moodledata:ro
     ports:
       - "${MOODLE_PORT:-8080}:80"
     environment:
@@ -66,6 +81,7 @@ services:
       - moodle
 
   redis:
+    logging: *bounded-logging
     image: redis:8-alpine
     command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
     networks:

@@ -48,6 +48,18 @@ $CFG->task_concurrency_limit = [
     'assignfeedback_editpdf\task\convert_submission' => 3,
 ];
 
+// Bound on-demand folder ZIP generation. Core checks this both when rendering
+// the download button and in download_folder.php, before starting the archive.
+// This does not limit individual file downloads. Unset preserves the DB setting;
+// 0 explicitly permits unlimited archives (not recommended on shared web pools).
+$foldermaxmb = getenv('MOODLE_FOLDER_MAX_DOWNLOAD_MB');
+if ($foldermaxmb !== false && $foldermaxmb !== '') {
+    if (!ctype_digit($foldermaxmb) || (float)$foldermaxmb > 1048576) {
+        throw new \RuntimeException('MOODLE_FOLDER_MAX_DOWNLOAD_MB must be an integer between 0 and 1048576');
+    }
+    $CFG->forced_plugin_settings['folder']['maxsizetodownload'] = (int)$foldermaxmb;
+}
+
 // Performance settings
 $CFG->cachedir = $CFG->dataroot . '/cache';
 $CFG->localcachedir = '/tmp/moodle_localcache';  // Container-local (not shared across replicas)
